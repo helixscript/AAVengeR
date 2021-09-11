@@ -1,0 +1,35 @@
+outputDir:        /home/everett/projects/AAVengeR2/out
+softwareDir:      /home/everett/projects/AAVengeR2
+sampleConfigFile: /home/everett/projects/AAVengeR_runs/configs/sampleConfig.Sabatino.tsv
+anchorReadsFile:   /home/everett/projects/AAVengeR/data/testData/R2.test.fastq.gz
+adriftReadsFile:  /home/everett/projects/AAVengeR/data/testData/R1.test.fastq.gz
+index1ReadsFile:   /home/everett/projects/AAVengeR/data/testData/I1.test.fastq.gz
+
+demultiplexing_CPUs: 20
+demultiplexing_sequenceChunkSize: 100000
+demultiplexing_index1ReadFileMaxMismatch: 0
+demultiplexing_useAdriftReadUniqueLinkers: TRUE
+demultiplexing_adriftReadLinkerBarcodeMaxMismatch: 1
+
+qualtrim_code: '5'
+qualtrim_minLength: 100
+
+
+createUniqueFasta_CPUs: 20
+
+alignReads_CPUs: 25
+alignReads_minAnchorReadLengthPostTrim: 50
+alignReads_minAdriftReadLengthPostTrim: 30
+alignReads_genomeAlignment_minPercentID: 98
+alignReads_genomeAlignment_anchorReadEnd_maxUnaligned: 3
+alignReads_genomeAlignment_adriftReadEnd_maxUnaligned: 3
+alignReads_genomeAlignment_anchorReadMinStart: 10
+alignReads_genomeAlignment_adriftReadMaxStart: 3
+
+buildFragments_CPUs: 25
+buildFragments_minFragLength: 25
+buildFragments_maxFragLength: 2500
+
+
+command_blat:    /home/everett/ext/blat
+command_cutadapt: /usr/local/bin/cutadapt
