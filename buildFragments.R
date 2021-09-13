@@ -1,24 +1,45 @@
 library(yaml)
 library(dplyr)
+library(parallel)
 
 opt <- read_yaml('config.yml')
+source(file.path(opt$softwareDir, 'lib.R'))
+
+dups <- readr::read_tsv(file.path(opt$outputDir, 'uniqueFasta', 'dupReadPairMap.tsv'))
 
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, 'alignedReads', 'anchorReadAlignments.rds'))
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, 'alignedReads', 'adriftReadAlignments.rds'))
 
+dir.create(file.path(opt$outputDir, 'buildFragments'))
+dir.create(file.path(opt$outputDir, 'buildFragments', 'tmp'))
+
+
+anchorReadAlignments <- select(anchorReadAlignments, sample, qName, tName, strand, tStart, tEnd, leaderSeq)
+adriftReadAlignments <- select(adriftReadAlignments, sample, qName, tName, strand, tStart, tEnd)
+
+a <- table(anchorReadAlignments$qName)
+b <- table(adriftReadAlignments$qName)
+x <- unique(c(names(a[a > opt$buildFragments_maxAlignmentsPerRead]), names(b[b > opt$buildFragments_maxAlignmentsPerRead])))
+
+write(x, file = file.path(opt$outputDir, 'buildFragments', 'highAlignmentReads'))
+
+anchorReadAlignments <- subset(anchorReadAlignments, ! qName %in% x)
+adriftReadAlignments <- subset(adriftReadAlignments, ! qName %in% x)
+
 names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads')
 names(adriftReadAlignments) <- paste0(names(adriftReadAlignments), '.adriftReads')
 
-
-# Here we split the alignments into groups of <= 1000 read ids to prevent the left_join from 
-# exceeding R's internal table size limit.
-
 ids <- unique(anchorReadAlignments$qName.anchorReads)
-id_groups <- split(ids, dplyr::ntile(1:length(ids), round(length(ids)/1000)))
+id_groups <- split(ids, dplyr::ntile(1:length(ids), round(length(ids)/100)))
 
 cluster <- makeCluster(opt$buildFragments_CPUs)
+clusterExport(cluster, c('opt', 'dups', 'anchorReadAlignments', 'adriftReadAlignments'))
 
-frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
+#frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
+frags <- bind_rows(lapply(id_groups, function(id_group){
+  library(dplyr)
+  source(file.path(opt$softwareDir, 'lib.R'))
+  
   a <- subset(anchorReadAlignments, qName.anchorReads %in% id_group)
   b <- subset(adriftReadAlignments, qName.adriftReads %in% id_group)
   
@@ -38,19 +59,40 @@ frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
   
   # Determine the start and end of fragments based on their alignment strands
   # and perform some sanity tests then filter on fragment size. 
- 
-  mutate(frags, 
-         fragStart = ifelse(strand.anchorReads == '+', tStart.anchorReads + 1, tStart.adriftReads + 1),
-         fragEnd   = ifelse(strand.anchorReads == '+', tEnd.adriftReads + 1,   tEnd.anchorReads + 1),
-         fragTest  = ifelse(strand.anchorReads == '+', tStart.anchorReads < tEnd.adriftReads, tStart.adriftReads < tEnd.anchorReads),  
-         fragWidth = (fragEnd - fragStart) + 1) %>%
-    filter(fragTest == TRUE, 
-           fragWidth <= opt$buildFragments_maxFragLength,
-           fragWidth >= opt$buildFragments_minFragLength) %>%
-    mutate(uniqueSample = sample.anchorReads, readID = qName.anchorReads) %>%
-    select(-sample.anchorReads, -qName.anchorReads)
+  
+  frags <- mutate(frags, 
+                  fragStart  = ifelse(strand.anchorReads == '+', tStart.anchorReads + 1, tStart.adriftReads + 1),
+                  fragEnd    = ifelse(strand.anchorReads == '+', tEnd.adriftReads + 1,   tEnd.anchorReads + 1),
+                  strand     = ifelse(strand.anchorReads == '+', '+', '-'),
+                  chromosome = tName.anchorReads,  
+                  fragTest  = ifelse(strand.anchorReads == '+', tStart.anchorReads < tEnd.adriftReads, tStart.adriftReads < tEnd.anchorReads),  
+                  fragWidth = (fragEnd - fragStart) + 1) %>%
+           filter(fragTest == TRUE, 
+                  fragWidth <= opt$buildFragments_maxFragLength,
+                  fragWidth >= opt$buildFragments_minFragLength) %>%
+                  mutate(uniqueSample = sample.anchorReads, readID = qName.anchorReads) %>%
+                  select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads)
+  
+  
+  # Reads pairs building more than fragment are multihits.
+  # A single fragment can map to multiple reads but a single read can only map to one fragment.
+  
+  
+  frags <- bind_rows(lapply(split(frags, paste(frags$uniqueSample, frags$strand, frags$fragStart, frags$fragEnd)), function(a){
+             a <- left_join(a, dups, by = c('readID' = 'id'))
+             a$reads <-sum(a$n, na.rm =TRUE) + nrow(a)
+             r <- representativeSeq(a$leaderSeq.anchorReads)
+             
+             i <- stringdist::stringdist(r[[2]], a$leaderSeq.anchorReads) / nchar(r[[2]]) <= opt$buildFragments_maxLeaderSeqDiffScore
+             if(any(! i)) return(data.frame())
+             
+             a <- a[i,]
+             a$repLeaderSeq <- r[[2]]
+             a[1, c(1,3:6,11,12)]
+           }))
+
+  frags
 }))
 
-
-
+saveRDS(frags, file.path(opt$outputDir, 'buildFragments', 'fragments.rds'))
 

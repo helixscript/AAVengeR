@@ -7,6 +7,14 @@ shortRead2DNAstringSet <- function(x){
   r
 }
 
+waitForFile <- function(f, seconds = 1){
+  repeat
+  {
+    if(file.exists(f)) break
+    Sys.sleep(seconds)
+  }
+  return(TRUE)
+}
 
 
 qualTrimReads <- function(f, chunkSize, label, ouputDir){
@@ -40,6 +48,16 @@ syncReads <-function(...){
     x[order(names(x))]
   })
 }
+
+
+unpackUniqueSampleID <- function(d){
+  d$subject   <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 1))
+  d$sample    <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 2))
+  d$replicate <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 3))
+  d
+}
+
+
 
 
 alignReads.BLAT <- function(x, db){
@@ -97,19 +115,130 @@ parseCutadaptLog <- function(f){
 }
 
 
+representativeSeq <- function(s, percentReads = 95){
+  if(length(s) == 1 | n_distinct(s) == 1) return(list(0, s[1]))
+
+  if(length(s) > opt$buildFragments_representativeSeqCalc_maxReads){
+    set.seed(1)
+    s <- sample(s, opt$buildFragments_representativeSeqCalc_maxReads)
+  }
+
+  f <- tmpFile()
+
+
+  # Align sequences in order to handle potential indels.
+  inputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.fasta'))
+  s <- Biostrings::DNAStringSet(s)
+  names(s) <- paste0('s', 1:length(s))
+  Biostrings::writeXStringSet(s, file = inputFile)
+  outputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.representativeSeq.muscle'))
+
+  system(paste(opt$command_muscle, '-quiet -maxiters 1 -diags -in ', inputFile, ' -out ', outputFile))
+
+  if(! file.exists(outputFile)) waitForFile(outputFile)
+
+  s <- as.character(ShortRead::readFasta(outputFile)@sread)
+
+  # Create an all vs. all edit distnace matrix.
+  m <- as.matrix(stringdist::stringdistmatrix(s, nthread = opt$buildFragments_representativeSeqCalc_CPUs))
+
+  # Create a data frame of string indcies and the sum of their edit distances to all other strings
+  # and then order this data frame such that the strings with the small edit distnaces to other
+  # strings are at the top of the data frame.
+  maxDiffPerNT <- data.frame(n = 1:length(s), diffs = apply(m, 1, sum)) %>% dplyr::arrange(diffs)
+
+  # The function returns both the representative sequence (sequence with the lowest edit distnaces to others)
+  # and a metric max edit distance of any string / num characters in the selected representaive.
+  #
+  #  123456789012345
+  #  AGTCAGCTAGCTAGC  max edit distance to other LTRs: 3,  metric 3/15 = 0.2
+
+  # Remove 5% of the most dissimilar reads becasue we do not want an odd-ball read or two to skew the 
+  # returned metric. With percentReads = 95, dissimilar reads will not be removed unless more than 20 
+  # reads are provided.
+  rows <- maxDiffPerNT[1:ceiling(length(s) * (percentReads/100)),]$n
+  m <- m[rows, rows]
+  s <- s[rows]
+
+  d <- apply(m, 1, sum)
+  list(max(apply(m, 1, max) / nchar(s)), gsub('-', '', s[which(d == min(d))[1]]))
+}
+
+
+
+standardizationSplitVector <- function(d, v){
+  if(v == 'replicate'){
+    return(d$uniqueSample)
+  } else if (v == 'sample'){
+    return(d$sample)
+  } else {
+    return(d$subject)
+  }
+}
+
+
+
+standardizedFragments <- function(frags, opt){
+
+  cluster <- parallel::makeCluster(opt$standardizeFragments_CPUs)
+  parallel::clusterExport(cluster, 'opt')
+
+  g <- GenomicRanges::makeGRangesFromDataFrame(frags, keep.extra.columns = TRUE)
+  g$s <- standardizationSplitVector(g, opt$standardizeFragments_standardizeSitesBy)
+
+
+  g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
+  #g <- unlist(GRangesList(lapply(split(g, g$s), function(x){
+         source(file.path(opt$softwareDir, 'lib.R'))
+         x$intSiteRefined <- FALSE
+         out <- tryCatch({
+                           o <- gintools::standardize_sites(x)
+                           o$intSiteRefined <- TRUE
+                           o
+                         },
+         error=function(cond) {
+                                x
+                              },
+        warning=function(cond) {
+                                o
+        })
+
+    return(out)
+  })))
+
+  g$s <- standardizationSplitVector(g, opt$standardizeFragments_standardizeBreaksBy)
+  g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
+
+         source(file.path(opt$softwareDir, 'lib.R'))
+         x$breakPointRefined <- FALSE
+         out <- tryCatch({
+                            o <- gintools::refine_breakpoints(x, counts.col = 'reads')
+                            o$breakPointRefined <- TRUE
+                            o
+                         },
+                         error=function(cond) {
+                                                 x
+                         },
+                         warning=function(cond) {
+                                                  o
+                         })
+
+                 return(out)
+  })))
+
+  parallel::stopCluster(cluster)
+  g$s <- NULL
+  data.frame(g)
+}
 
 
 
 
-# standardizationSplitVector <- function(d, v){
-#   if(v == 'replicate'){
-#     return(d$uniqueSample)
-#   } else if (v == 'sample'){
-#     return(d$sample)
-#   } else {
-#     return(d$subject)
-#   }
-# }
+
+
+
+
+
 #
 # file_exists <- function(f){
 #   if(is.na(f)) return(FALSE)
@@ -137,12 +266,7 @@ parseCutadaptLog <- function(f){
 # }
 #
 #
-# unpackUniqueSampleID <- function(d){
-#   d$subject   <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 1))
-#   d$sample    <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 2))
-#   d$replicate <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 3))
-#   d
-# }
+
 #
 #
 # removeReadFragsWithSameRandomID <- function(frags, config){
@@ -165,62 +289,7 @@ parseCutadaptLog <- function(f){
 #
 #
 #
-# standardizedFragments <- function(frags, config){
-#
-#   cluster <- parallel::makeCluster(config$genomeAlignment.CPUs)
-#   parallel::clusterExport(cluster, 'config')
-#
-#   g <- GenomicRanges::makeGRangesFromDataFrame(frags, keep.extra.columns = TRUE)
-#   g$s <- standardizationSplitVector(g, config$standardizeSitesBy)
-#
-#
-#   g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
-#   #g <- unlist(GRangesList(lapply(split(g, g$s), function(x){
-#          source(file.path(config$softwareDir, 'AAVengeR.lib.R'))
-#          x$intSiteRefined <- FALSE
-#          out <- tryCatch({
-#                            o <- gintools::standardize_sites(x)
-#                            o$intSiteRefined <- TRUE
-#                            o
-#                          },
-#          error=function(cond) {
-#                                 x
-#                               },
-#         warning=function(cond) {
-#                                 o
-#         })
-#
-#   logMsg(config, paste0('Standardized site positions for ', out$s[1], ': ', out$intSiteRefined[1]), config$logFile)
-#   return(out)
-#   })))
-#
-#   g$s <- standardizationSplitVector(g, config$standardizeBreakPointsBy)
-#   g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
-#
-#          source(file.path(config$softwareDir, 'AAVengeR.lib.R'))
-#          x$breakPointRefined <- FALSE
-#          out <- tryCatch({
-#                             o <- gintools::refine_breakpoints(x, counts.col = 'reads')
-#                             o$breakPointRefined <- TRUE
-#                             o
-#                          },
-#                          error=function(cond) {
-#                                                  x
-#                          },
-#                          warning=function(cond) {
-#                                                   o
-#                          })
-#
-#          logMsg(config, paste0('Standardized break point positions for ', out$s[1], ': ', out$breakPointRefined[1]), config$logFile)
-#          return(out)
-#   })))
-#
-#   parallel::stopCluster(cluster)
-#   g$s <- NULL
-#   data.frame(g)
-# }
-#
-#
+
 #
 #
 #
@@ -255,14 +324,7 @@ parseCutadaptLog <- function(f){
 #
 #
 #
-# waitForFile <- function(f, seconds = 1){
-#   repeat
-#   {
-#     if(file.exists(f)) break
-#     Sys.sleep(seconds)
-#   }
-#   return(TRUE)
-# }
+
 #
 #
 #
@@ -291,65 +353,7 @@ parseCutadaptLog <- function(f){
 #
 #
 #
-# representativeSeq <- function(s, percentReads = 95, logFile = '~/log'){
-#   if(length(s) == 1 | n_distinct(s) == 1) return(list(0, s[1]))
-#
-#   if(length(s) > config$fragmentProcessing.rep.maxReads){
-#     set.seed(1)
-#     s <- sample(s, config$fragmentProcessing.rep.maxReads)
-#   }
-#
-#   f <- tmpFile()
-#
-#   # browser()
-#
-#   # Align sequences in order to handle potential indels.
-#   inputFile <- file.path(config$outputDir, 'tmp', paste0(f, '.fasta'))
-#   s <- Biostrings::DNAStringSet(s)
-#   names(s) <- paste0('s', 1:length(s))
-#   Biostrings::writeXStringSet(s, file = inputFile)
-#   outputFile <- file.path(config$outputDir, 'tmp', paste0(f, '.representativeSeq.muscle'))
-#
-#   system(paste(config$command.muscle, '-quiet -maxiters 1 -diags -in ', inputFile, ' -out ', outputFile))
-#
-#   if(! file.exists(outputFile)){
-#     logMsg(config, paste0('Waiting for file: ', outputFile), logFile)
-#     waitForFile(outputFile)
-#     logMsg(config, 'File found.', logFile)
-#   }
-#
-#
-#   s <- as.character(ShortRead::readFasta(outputFile)@sread)
-#
-#   logMsg(config, paste0('Length of alignment file: ', length(s)), logFile)
-#
-#   #### invisible(file.remove(c(inputFile, outputFile)))
-#
-#   # Create an all vs. all edit distnace matrix.
-#   m <- as.matrix(stringdist::stringdistmatrix(s, nthread = config$fragmentProcessing.stringdistmatrix.threads))
-#
-#   # Create a data frame of string indcies and the sum of their edit distances to all other strings
-#   # and then order this data frame such that the strings with the small edit distnaces to other
-#   # strings are at the top of the data frame.
-#   maxDiffPerNT <- data.frame(n = 1:length(s), diffs = apply(m, 1, sum)) %>% dplyr::arrange(diffs)
-#
-#   # The function returns both the representative sequence (sequence with the lowest edit distnaces to others)
-#   # and a metric max edit distance of any string / num characters in the selected representaive.
-#   #
-#   #  123456789012345
-#   #  AGTCAGCTAGCTAGC  max edit distance to other LTRs: 3,  metric 3/15 = 0.2
-#
-#   # Remove 5% of the most dissimilar reads becasue we do not want an odd-ball read or two
-#   # to skew the returned metric.
-#   # With percentReads = 95, dissimilar reads will not be removed unless more than 20 reads are provided.
-#   rows <- maxDiffPerNT[1:ceiling(length(s) * (percentReads/100)),]$n
-#   m <- m[rows, rows]
-#   s <- s[rows]
-#
-#   d <- apply(m, 1, sum)
-#   list(max(apply(m, 1, max) / nchar(s)), gsub('-', '', s[which(d == min(d))[1]]))
-# }
-#
+
 #
 # captureLTRseqs <- function(reads, seqs){
 #

@@ -5,6 +5,7 @@ opt <- read_yaml('config.yml')
 dir.create(opt$outputDir)
 if(! dir.exists(opt$outputDir)) stop('Error - could not create the output directory.')
 
+dir.create(file.path(opt$outputDir, 'tmp'))
 
 source(file.path(opt$softwareDir, 'demultiplex.R'))
 source(file.path(opt$softwareDir, 'createUniqueSampleFasta.R'))

@@ -27,9 +27,27 @@ alignReads_genomeAlignment_anchorReadMinStart: 10
 alignReads_genomeAlignment_adriftReadMaxStart: 3
 
 buildFragments_CPUs: 25
+buildFragments_maxAlignmentsPerRead: 100
 buildFragments_minFragLength: 25
 buildFragments_maxFragLength: 2500
 
+buildFragments_representativeSeqCalc_maxReads: 5000
+buildFragments_representativeSeqCalc_CPUs: 5
+buildFragments_maxLeaderSeqDiffScore: 0.15
 
-command_blat:    /home/everett/ext/blat
+# Possible values: replicate, sample, subject
+standardizeFragments_CPUs: 10
+standardizeFragments_standardizeSitesBy: subject
+standardizeFragments_standardizeBreaksBy: replicate
+standardizeFragments_maxLeaderSeqDiffScore: 0.15
+
+#fragmentProcessing.rep.maxDifference: 0.15
+#fragmentProcessing.assemblyConflictResolution: 0.66
+
+
+
+
+
+command_blat:     /home/everett/ext/blat
 command_cutadapt: /usr/local/bin/cutadapt
+command_muscle:   /home/everett/ext/muscle
