@@ -11,6 +11,7 @@ anchorReadAlignments <- readRDS(file.path(opt$outputDir, 'alignedReads', 'anchor
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, 'alignedReads', 'adriftReadAlignments.rds'))
 
 dir.create(file.path(opt$outputDir, 'buildFragments'))
+dir.create(file.path(opt$outputDir, 'buildFragments', 'multiHitReads'))
 dir.create(file.path(opt$outputDir, 'buildFragments', 'tmp'))
 
 
@@ -35,8 +36,8 @@ id_groups <- split(ids, dplyr::ntile(1:length(ids), round(length(ids)/100)))
 cluster <- makeCluster(opt$buildFragments_CPUs)
 clusterExport(cluster, c('opt', 'dups', 'anchorReadAlignments', 'adriftReadAlignments'))
 
-#frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
-frags <- bind_rows(lapply(id_groups, function(id_group){
+frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
+#frags <- bind_rows(lapply(id_groups, function(id_group){
   library(dplyr)
   source(file.path(opt$softwareDir, 'lib.R'))
   
@@ -76,13 +77,20 @@ frags <- bind_rows(lapply(id_groups, function(id_group){
   
   # Reads pairs building more than fragment are multihits.
   # A single fragment can map to multiple reads but a single read can only map to one fragment.
-  
+  dupReads <- unique(frags$readID[duplicated(frags$readID)])
+  if(length(dupReads) > 0) write(dupReads, file = file.path(opt$outputDir, 'buildFragments', 'multiHitReads', tmpFile()))
   
   frags <- bind_rows(lapply(split(frags, paste(frags$uniqueSample, frags$strand, frags$fragStart, frags$fragEnd)), function(a){
              a <- left_join(a, dups, by = c('readID' = 'id'))
+             
+             # Remove multi-hit reads.
+             a <- subset(a, ! readID %in% dupReads)
+             if(nrow(a) == 0) return(tibble())
+             
              a$reads <-sum(a$n, na.rm =TRUE) + nrow(a)
              r <- representativeSeq(a$leaderSeq.anchorReads)
              
+             # Exclude reads where the leaderSeq is not similiar to the representative sequence. 
              i <- stringdist::stringdist(r[[2]], a$leaderSeq.anchorReads) / nchar(r[[2]]) <= opt$buildFragments_maxLeaderSeqDiffScore
              if(any(! i)) return(data.frame())
              
@@ -93,6 +101,16 @@ frags <- bind_rows(lapply(id_groups, function(id_group){
 
   frags
 }))
+
+
+# Record multihit alignments for later analyses.
+m <- unique(unlist(lapply(list.files(file.path(opt$outputDir, 'buildFragments', 'multiHitReads'), full.names = TRUE), readLines)))
+readr::write_tsv(subset(anchorReadAlignments, qName.anchorReads %in% m), file.path(opt$outputDir, 'buildFragments', 'multiHitAnchorReadAlignments.tsv'))
+readr::write_tsv(subset(adriftReadAlignments, qName.adriftReads %in% m), file.path(opt$outputDir, 'buildFragments', 'multiHitAdriftReadAlignments.tsv'))
+
+# Clean up.
+unlink(file.path(opt$outputDir, 'buildFragments', 'multiHitReads'), recursive = TRUE)
+unlink(file.path(opt$outputDir, 'buildFragments', 'tmp'), recursive = TRUE)
 
 saveRDS(frags, file.path(opt$outputDir, 'buildFragments', 'fragments.rds'))
 

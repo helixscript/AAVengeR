@@ -41,13 +41,15 @@ standardizeFragments_standardizeSitesBy: subject
 standardizeFragments_standardizeBreaksBy: replicate
 standardizeFragments_maxLeaderSeqDiffScore: 0.15
 
-#fragmentProcessing.rep.maxDifference: 0.15
+
 #fragmentProcessing.assemblyConflictResolution: 0.66
 
 
 
 
 
-command_blat:     /home/everett/ext/blat
-command_cutadapt: /usr/local/bin/cutadapt
-command_muscle:   /home/everett/ext/muscle
+command_blat:        /home/everett/ext/blat
+command_cutadapt:    /usr/local/bin/cutadapt
+command_muscle:      /home/everett/ext/muscle
+command_makeblastdb: /home/everett/ext/blast+/bin/makeblastdb
+command_blastn:      /home/everett/ext/blast+/bin/blastn

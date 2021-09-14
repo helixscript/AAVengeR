@@ -17,6 +17,8 @@ frags <- subset(frags, intSiteRefined == TRUE & breakPointRefined == TRUE)
 cluster <- makeCluster(opt$standardizeFragments_CPUs)
 clusterExport(cluster, c('opt'))
 
+# Now that the fragment boundaries have been standardized, we group fragments, exlude fragments from
+# groupings if their leader sequences are dissimilar to the representative sequences, and recalcualte read counts. 
 frags <- bind_rows(parLapply(cluster, split(frags, paste0(frags$uniqueSample, frags$seqnames, frags$strand, frags$start, frags$end)), function(x){
            source(file.path(opt$softwareDir, 'lib.R'))
            library(dplyr)
@@ -36,4 +38,6 @@ frags <- bind_rows(parLapply(cluster, split(frags, paste0(frags$uniqueSample, fr
         }))
 
 stopCluster(cluster)
+
+saveRDS(select(frags, -intSiteRefined, -breakPointRefined), file.path(opt$outputDir, 'standardizeFragments', 'frags.rds'))
 

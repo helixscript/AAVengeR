@@ -102,6 +102,8 @@ align <- function(r, refGenome){
   a
 }
 
+
+# M03249:365:000000000-C3CH4:1:2109:7426:21450
 anchorReadAlignments <- 
   bind_rows(lapply(split(readSampleMap, readSampleMap$refGenome.id), function(x){
                 refGenome <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(x$refGenome.id[1], '.2bit'))
@@ -154,24 +156,48 @@ anchorReadAlignments <- subset(anchorReadAlignments, qName %in% names(adriftRead
 
 
 # Retrieve the 10NTs before anchor read alignments begin which will be used for adrift read over-reading trimming. 
+# Need to map by both read id and query start because a read can align with multiple start positions
 adriftReadsAdapters <- bind_rows(lapply(split(anchorReadAlignments, anchorReadAlignments$qStart), function(x){
                          o <- anchorReads[names(anchorReads) %in% x$qName]
                          o <- o[match(x$qName, names(o))]
-                         
-                         tibble(id = names(o), 
-                                leaderSeq = as.character(subseq(o, 1, x$qStart[1]-1)),
-                                adapter = as.character(reverseComplement(subseq(o, x$qStart[1]-10, x$qStart[1]-1))))
+                         tibble(id = names(o), adapter = as.character(reverseComplement(subseq(o, x$qStart[1]-10, x$qStart[1]-1))))
                        }))
 
 
+# An anchor read may align to multiples positions in the genome each with a different start position (qStart).
+# We need to trim all posibilities which will reduce the length of the adrift genomic letters in some cases. 
+#
+# id                                            leaderSeq                    adapter       
+# M03249:365:000000000-C3CH4:1:2104:11581:20049 AACCCCTAGTGTTGGA             TCCAACACTA
+# M03249:365:000000000-C3CH4:1:2104:11581:20049 AACCCCTAGTGTTGGAGTTTTTTTA    TAAAAAAACT
+#
+# Here we collapse the adapter table so that they only report reads once and include
+# multiple adapter sequences where neeeded.
+
+dupReadIds <- adriftReadsAdapters$id[duplicated(adriftReadsAdapters$id)]
+adriftReadsAdapters.dups <- subset(adriftReadsAdapters, id %in% dupReadIds)
+
+o <- bind_rows(lapply(split(adriftReadsAdapters.dups, adriftReadsAdapters.dups$id), function(x){
+       tibble(id = x$id[1], adapter = paste0(sort(unique(x$adapter)), collapse = ','))
+     }))
+
+adriftReadsAdapters <- bind_rows(subset(adriftReadsAdapters, ! id %in% dupReadIds), o)
+
+
 # Trim adrift read over-reading.
-clusterExport(cluster, c('adriftReads', 'parseCutadaptLog', 'tmpFile'))
+clusterExport(cluster, c('opt', 'samples', 'adriftReads', 'parseCutadaptLog', 'tmpFile'))
+
+
 adriftReads <- Reduce('append', parLapply(cluster, split(adriftReadsAdapters, adriftReadsAdapters$adapter), function(x){
 #adriftReads <- Reduce('append', lapply(split(adriftReadsAdapters, adriftReadsAdapters$adapter), function(x){
   f <- tmpFile()
+  
+  adapter <- paste0(paste0(' -a ', unlist(strsplit(x$adapter[1], ',')), ' '), collapse = ' ')
+  message(x$adapter, x$adapter[1])
+  
   ShortRead::writeFasta(adriftReads[names(adriftReads) %in% x$id], file = file.path(opt$outputDir, 'trimmedAdriftReads', f))
   
-  system(paste0(opt$command_cutadapt, ' -f fasta  -e 0.15 -a ', x$adapter[1], ' --overlap 2 ',
+  system(paste0(opt$command_cutadapt, ' -f fasta  -e 0.15 ', adapter, ' --overlap 2 ',
                 '--info-file=', file.path(opt$outputDir, 'trimmedAdriftReadsLogs', paste0(x$adapter[1], '.log')), ' ',
                 file.path(opt$outputDir, 'trimmedAdriftReads', f), ' > ', file.path(opt$outputDir, 'trimmedAdriftReads', paste0(f, '.trimmed'))), ignore.stderr = TRUE)
 
@@ -210,7 +236,26 @@ i <- base::intersect(anchorReadAlignments$qName, adriftReadAlignments$qName)
 anchorReadAlignments <- anchorReadAlignments[anchorReadAlignments$qName %in% i,]
 adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$qName %in% i,]
 
-anchorReadAlignments <- left_join(anchorReadAlignments, select(adriftReadsAdapters, id, leaderSeq), by = c('qName' = 'id'))
+# JKE 
+#> nrow(subset(anchorReadAlignments, qName == 'M03249:365:000000000-C3CH4:1:2109:7426:21450'))
+#[1] 8
+#> nrow(subset(anchorReadAlignments, qName == 'M03249:365:000000000-C3CH4:1:2109:7426:21450'))
+#[1] 8
+#> nrow(subset(adriftReadsAdapters, id == 'M03249:365:000000000-C3CH4:1:2109:7426:21450'))
+
+a <- subset(anchorReadAlignments, qName == 'M03249:365:000000000-C3CH4:1:2109:7426:21450')
+b <- subset(adriftReadsAdapters, id == 'M03249:365:000000000-C3CH4:1:2109:7426:21450')
+
+
+# Add leader sequences to anchor read alignments
+
+anchorReadAlignments <- bind_rows(lapply(split(anchorReadAlignments, anchorReadAlignments$qStart), function(x){
+  o <- anchorReads[names(anchorReads) %in% x$qName]
+  o <- o[match(x$qName, names(o))]
+  x$leaderSeq <- as.character(subseq(o, 1, (x$qStart[1] - 1)))
+  x
+}))
+
 
 anchorReadAlignments <- select(anchorReadAlignments, qName, strand, qSize, qStart, qEnd, tName, 
                                tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, 
