@@ -41,6 +41,10 @@ standardizeFragments_standardizeSitesBy: subject
 standardizeFragments_standardizeBreaksBy: replicate
 standardizeFragments_maxLeaderSeqDiffScore: 0.15
 
+mapLeaderSequences_CPUs: 25
+mapLeaderSequences_minAlignmentLength: 15
+mapLeaderSequences_minAlignmentPercentID: 95
+
 
 #fragmentProcessing.assemblyConflictResolution: 0.66
 
