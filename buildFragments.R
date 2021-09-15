@@ -1,8 +1,7 @@
-library(yaml)
 library(dplyr)
 library(parallel)
 
-opt <- read_yaml('config.yml')
+opt <- yaml::read_yaml('config.yml')
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dups <- readr::read_tsv(file.path(opt$outputDir, 'uniqueFasta', 'dupReadPairMap.tsv'))

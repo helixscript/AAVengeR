@@ -1,15 +1,18 @@
-outputDir:        /home/everett/projects/AAVengeR2/out
-softwareDir:      /home/everett/projects/AAVengeR2
-sampleConfigFile: /home/everett/projects/AAVengeR_runs/configs/sampleConfig.Sabatino.tsv
+outputDir:         /home/everett/projects/AAVengeR2/out
+softwareDir:       /home/everett/projects/AAVengeR2
+sampleConfigFile:  /home/everett/projects/AAVengeR_runs/configs/sampleConfig.Sabatino.tsv
 anchorReadsFile:   /home/everett/projects/AAVengeR/data/testData/R2.test.fastq.gz
-adriftReadsFile:  /home/everett/projects/AAVengeR/data/testData/R1.test.fastq.gz
+adriftReadsFile:   /home/everett/projects/AAVengeR/data/testData/R1.test.fastq.gz
 index1ReadsFile:   /home/everett/projects/AAVengeR/data/testData/I1.test.fastq.gz
+
+correctGolayIndexReads: TRUE
+correctGolayIndexReads_CPUs: 20
 
 demultiplexing_CPUs: 20
 demultiplexing_sequenceChunkSize: 100000
-demultiplexing_index1ReadFileMaxMismatch: 0
+demultiplexing_index1ReadFileMaxMismatch: 1
 demultiplexing_useAdriftReadUniqueLinkers: TRUE
-demultiplexing_adriftReadLinkerBarcodeMaxMismatch: 1
+demultiplexing_adriftReadLinkerBarcodeMaxMismatch: 2
 
 qualtrim_code: '5'
 qualtrim_minLength: 100
@@ -17,9 +20,14 @@ qualtrim_minLength: 100
 
 createUniqueFasta_CPUs: 20
 
+vectorFilter_CPUs: 25
+vectorFilter_anchorReadSampleLength: 25
+vectorFilter_percentID: 98
+vectorFilter_percentCoverage: 90
+
 alignReads_CPUs: 25
-alignReads_minAnchorReadLengthPostTrim: 50
-alignReads_minAdriftReadLengthPostTrim: 30
+alignReads_minAnchorReadLengthPostTrim: 25
+alignReads_minAdriftReadLengthPostTrim: 25
 alignReads_genomeAlignment_minPercentID: 98
 alignReads_genomeAlignment_anchorReadEnd_maxUnaligned: 3
 alignReads_genomeAlignment_adriftReadEnd_maxUnaligned: 3
@@ -42,7 +50,7 @@ standardizeFragments_standardizeBreaksBy: replicate
 standardizeFragments_maxLeaderSeqDiffScore: 0.15
 
 mapLeaderSequences_CPUs: 25
-mapLeaderSequences_minAlignmentLength: 15
+mapLeaderSequences_minAlignmentLength: 10
 mapLeaderSequences_minAlignmentPercentID: 95
 
 
@@ -51,7 +59,7 @@ mapLeaderSequences_minAlignmentPercentID: 95
 
 
 
-
+command_python2:     /usr/bin/python2
 command_blat:        /home/everett/ext/blat
 command_cutadapt:    /usr/local/bin/cutadapt
 command_muscle:      /home/everett/ext/muscle

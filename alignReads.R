@@ -2,22 +2,22 @@ library(ShortRead)
 library(dplyr)
 library(parallel)
 library(readr)
-library(yaml)
 options(stringsAsFactors = FALSE)
 
-opt <- read_yaml('config.yml')
-
+opt <- yaml::read_yaml('config.yml')
 source(file.path(opt$softwareDir, 'lib.R'))
+
+m <- readRDS(file.path(opt$outputDir, 'leaderSeqMappings', 'mappings.rds'))
 
 opt$inputFastaDir <- file.path(opt$outputDir, 'uniqueFasta')
 opt$outputDir <- file.path(opt$outputDir, 'alignedReads')
 dir.create(opt$outputDir)
 
+
 samples <- read_tsv(opt$sampleConfigFile, col_types=cols())
 if(nrow(samples) == 0) stop('Error - no lines of information was read from the sample configuration file.')
 if(! 'subject' %in% names(samples))   samples$subject <- 'subject'
 if(! 'replicate' %in% names(samples)) samples$replicate <- 1
-if(any(grepl('~|\\|', paste(samples$subject, samples$sample, samples$replicate)))) stop('Error -- tildas (~) are reserved characters and can not be used in the subject, sample, or replicate sample configuration columns.')
 
 if(! all(file.exists(file.path(opt$softwareDir, 'data', 'blatDBs', paste0(unique(samples$refGenome.id), '.2bit'))))) stop('All reference genomes are not available.')
 
@@ -30,14 +30,13 @@ dir.create(file.path(opt$outputDir, 'trimmedAnchorReads'))
 dir.create(file.path(opt$outputDir, 'trimmedAnchorReadsLogs'))
 dir.create(file.path(opt$outputDir, 'trimmedAdriftReads'))
 dir.create(file.path(opt$outputDir, 'trimmedAdriftReadsLogs'))
-
+dir.create(file.path(opt$outputDir, 'blat'))
 
 cluster <- makeCluster(opt$alignReads_CPUs)
 clusterExport(cluster, c('opt', 'samples'))
 
-# Read in each anchor read file and trim the static linker reads may read into.
+# Trim the reverse complement of the last 10 NT of the static linker sequence from the end of anchor reads.
 anchorReads <- Reduce('append', parLapply(cluster, f[grepl('anchorReads', f)], function(r){
-#anchorReads <- Reduce('append', lapply(f[grepl('anchorReads', f)], function(r){
   source(file.path(opt$softwareDir, 'lib.R'))
   d <- subset(samples, uniqueSample == unlist(strsplit(r, '\\.'))[1])
   
@@ -55,9 +54,20 @@ anchorReads <- Reduce('append', parLapply(cluster, f[grepl('anchorReads', f)], f
    Biostrings::readDNAStringSet(file.path(opt$outputDir, 'trimmedAnchorReads', r))
 }))
 
-# Remove reads below the minimum anchor read length.
-anchorReads <- anchorReads[width(anchorReads) >= opt$alignReads_minAnchorReadLengthPostTrim]
 
+# Remove the recognizable leader sequences from anchor reads before aligning to
+# the genome to reduce their influence on alignments.
+
+a <- anchorReads[names(anchorReads) %in% m$id]
+b <- anchorReads[! names(anchorReads) %in% m$id]
+
+m <- m[match(names(a), m$id),]
+a <- a[width(a) >= (m$leaderMapping.qEnd + 1)]
+m <- m[match(names(a), m$id),]
+
+anchorReads <- Reduce('append', list(subseq(a, (m$leaderMapping.qEnd + 1)), b))
+
+anchorReads <- anchorReads[width(anchorReads) >= opt$alignReads_minAnchorReadLengthPostTrim]
 
 # Create a mapping of read ids to samples and reference genome.
 readSampleMap <- bind_rows(lapply(f[grepl('anchorReads', f)], function(r){
@@ -235,16 +245,6 @@ adriftReadAlignments <- adriftReadAlignments[i,]
 i <- base::intersect(anchorReadAlignments$qName, adriftReadAlignments$qName)
 anchorReadAlignments <- anchorReadAlignments[anchorReadAlignments$qName %in% i,]
 adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$qName %in% i,]
-
-# JKE 
-#> nrow(subset(anchorReadAlignments, qName == 'M03249:365:000000000-C3CH4:1:2109:7426:21450'))
-#[1] 8
-#> nrow(subset(anchorReadAlignments, qName == 'M03249:365:000000000-C3CH4:1:2109:7426:21450'))
-#[1] 8
-#> nrow(subset(adriftReadsAdapters, id == 'M03249:365:000000000-C3CH4:1:2109:7426:21450'))
-
-a <- subset(anchorReadAlignments, qName == 'M03249:365:000000000-C3CH4:1:2109:7426:21450')
-b <- subset(adriftReadsAdapters, id == 'M03249:365:000000000-C3CH4:1:2109:7426:21450')
 
 
 # Add leader sequences to anchor read alignments

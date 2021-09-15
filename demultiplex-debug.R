@@ -44,6 +44,7 @@ if(any(grepl('~|\\|', paste(samples$subject, samples$sample, samples$replicate))
 samples$uniqueSample <- paste0(samples$subject, '~', samples$sample, '~', samples$replicate)
 if(any(duplicated(samples$uniqueSample))) stop('Error -- all subject, sample, replicate id combinations are not unique.')
 
+
 cluster <- makeCluster(opt$demultiplexing_CPUs)
 clusterExport(cluster, c('opt', 'samples'))
 
@@ -69,6 +70,16 @@ rm(reads)
 gc()
 
 
+#------------------------------------------
+ooo <- readLines('~/chr22-1840213.reads')
+anchorReads <- anchorReads[names(anchorReads) %in% ooo]
+opt$demultiplexing_CPUs <- 1
+reads <- syncReads(index1Reads, anchorReads, adriftReads)
+index1Reads <- reads[[1]];  anchorReads  <- reads[[2]];  adriftReads  <- reads[[3]]
+samples <- subset(samples, sample == 'GTSP2168')
+
+
+
 # Split the trimmed reads into chunks for parallel processing.
 chunkNum <- 1
 d <- tibble(i = ntile(1:length(index1Reads), opt$demultiplexing_CPUs), n = 1:length(index1Reads))
@@ -85,15 +96,20 @@ invisible(lapply(split(d, d$i), function(x){
 rm(d, chunkNum, index1Reads, anchorReads, adriftReads)
 gc()
 
+#-----------------------------------------
 
-invisible(parLapply(cluster, list.files(file.path(opt$outputDir, 'seqChunks'), full.names = TRUE), function(f){
-#invisible(lapply(list.files(file.path(opt$outputDir, 'seqChunks'), full.names = TRUE), function(f){
+
+
+#invisible(parLapply(cluster, list.files(file.path(opt$outputDir, 'seqChunks'), full.names = TRUE), function(f){
+invisible(lapply(list.files(file.path(opt$outputDir, 'seqChunks'), full.names = TRUE), function(f){
   library(ShortRead)
   library(dplyr)
   library(stringr)
   source(file.path(opt$softwareDir, 'lib.R'))
   
   load(f)
+  
+  browser()
   
   # Capture the chunk identifier.
   chunk.n <- unlist(str_match_all(f, '(\\d+)$'))[2]

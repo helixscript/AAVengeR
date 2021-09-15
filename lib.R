@@ -62,18 +62,18 @@ unpackUniqueSampleID <- function(d){
 
 alignReads.BLAT <- function(x, db){
   f <- tmpFile()
-  writeFasta(x, file = file.path(opt$outputDir, paste0(f, '.fasta')))
+  writeFasta(x, file = file.path(opt$outputDir, 'blat', paste0(f, '.fasta')))
   
   comm <- paste0(opt$command_blat, ' ', db, ' ',
-                 file.path(opt$outputDir, paste0(f, '.fasta')), ' ',
-                 file.path(opt$outputDir, paste0(f, '.psl')),
+                 file.path(opt$outputDir, 'blat', paste0(f, '.fasta')), ' ',
+                 file.path(opt$outputDir, 'blat', paste0(f, '.psl')),
                  ' -tileSize=11 -stepSize=9 -minIdentity=90 -out=psl -noHead')
   system(comm)
-  file.remove(file.path(opt$outputDir, paste0(f, '.fasta')))
+  file.remove(file.path(opt$outputDir, 'blat', paste0(f, '.fasta')))
   
-  if(file.exists(file.path(opt$outputDir, paste0(f, '.psl')))){
-    b <- parseBLAToutput(file.path(opt$outputDir, paste0(f, '.psl')))
-    file.remove(file.path(opt$outputDir,  paste0(f, '.psl')))
+  if(file.exists(file.path(opt$outputDir, 'blat', paste0(f, '.psl')))){
+    b <- parseBLAToutput(file.path(opt$outputDir, 'blat', paste0(f, '.psl')))
+    file.remove(file.path(opt$outputDir,  'blat', paste0(f, '.psl')))
     b
   } else {
     return(tibble())
@@ -232,9 +232,32 @@ standardizedFragments <- function(frags, opt){
 }
 
 
-
-
-
+golayCorrection <- function(x){
+  library(ShortRead)
+  library(dplyr)
+  
+  f <- file.path(opt$outputDir, 'demultiplex', 'tmp', paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') )
+  writeFasta(x, file = f)
+  
+  system(paste(opt$command_python2, file.path(opt$softwareDir, 'bin', 'golayCorrection', 'processGolay.py'), f))
+  file.remove(f)
+  
+  corrected <- readFasta(paste0(f, '.corrected'))
+  file.remove(paste0(f, '.corrected'))
+  
+  a <- left_join(tibble(id = names(x), seq = as.character(x)),
+                 tibble(id = as.character(corrected@id), seq2 = as.character(sread(corrected))), by = 'id')
+  a <- rowwise(a) %>% mutate(editDist = as.integer(adist(seq, seq2))) %>% ungroup()
+  
+  i <- which(a$editDist <= 2)
+  a[i,]$seq <- a[i,]$seq2
+  
+  if(! all(names(x) == a$id)) stop('There was an ordering error during the Golay correction step.')
+  
+  r <- DNAStringSet(a$seq)
+  names(r) <- a$id
+  r
+}
 
 
 
