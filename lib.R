@@ -1,5 +1,13 @@
 tmpFile <- function(){ paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') }
 
+mixAndChunkSeqs <- function(reads, n){
+  reads <- reads[order(width(reads))]
+  a <- round(length(reads) / 2)
+  b <- unique(c(rbind(c(1:a),  rev(c((a+1):length(reads))))))
+  reads <- reads[b]
+  split(reads, ceiling(seq_along(reads)/n))
+}
+
 
 shortRead2DNAstringSet <- function(x){
   r <- x@sread
@@ -58,22 +66,36 @@ unpackUniqueSampleID <- function(d){
 }
 
 
+loadSamples <- function(){
+  samples <- readr::read_tsv(opt$sampleConfigFile, col_types = readr::cols())
+  if(nrow(samples) == 0) stop('Error - no lines of information was read from the sample configuration file.')
+  
+  if(! 'subject' %in% names(samples))   samples$subject <- 'subject'
+  if(! 'replicate' %in% names(samples)) samples$replicate <- 1
+  if(any(grepl('~|\\|', paste(samples$subject, samples$sample, samples$replicate)))) stop('Error -- tildas (~) and pipes (|) are reserved characters and can not be used in the subject, sample, or replicate sample configuration columns.')
+  
+  samples$uniqueSample <- paste0(samples$subject, '~', samples$sample, '~', samples$replicate)
+  
+  samples
+}
+
+
 
 
 alignReads.BLAT <- function(x, db){
   f <- tmpFile()
-  writeFasta(x, file = file.path(opt$outputDir, 'blat', paste0(f, '.fasta')))
+  writeFasta(x, file = file.path(opt$outputDir, 'alignedReads', 'blat', paste0(f, '.fasta')))
   
   comm <- paste0(opt$command_blat, ' ', db, ' ',
-                 file.path(opt$outputDir, 'blat', paste0(f, '.fasta')), ' ',
-                 file.path(opt$outputDir, 'blat', paste0(f, '.psl')),
+                 file.path(opt$outputDir, 'alignedReads', 'blat', paste0(f, '.fasta')), ' ',
+                 file.path(opt$outputDir, 'alignedReads', 'blat', paste0(f, '.psl')),
                  ' -tileSize=11 -stepSize=9 -minIdentity=90 -out=psl -noHead')
   system(comm)
-  file.remove(file.path(opt$outputDir, 'blat', paste0(f, '.fasta')))
+  file.remove(file.path(opt$outputDir, 'alignedReads', 'blat', paste0(f, '.fasta')))
   
-  if(file.exists(file.path(opt$outputDir, 'blat', paste0(f, '.psl')))){
-    b <- parseBLAToutput(file.path(opt$outputDir, 'blat', paste0(f, '.psl')))
-    file.remove(file.path(opt$outputDir,  'blat', paste0(f, '.psl')))
+  if(file.exists(file.path(opt$outputDir, 'alignedReads', 'blat', paste0(f, '.psl')))){
+    b <- parseBLAToutput(file.path(opt$outputDir, 'alignedReads', 'blat', paste0(f, '.psl')))
+    file.remove(file.path(opt$outputDir,  'alignedReads', 'blat', paste0(f, '.psl')))
     b
   } else {
     return(tibble())
@@ -138,6 +160,8 @@ representativeSeq <- function(s, percentReads = 95){
   if(! file.exists(outputFile)) waitForFile(outputFile)
 
   s <- as.character(ShortRead::readFasta(outputFile)@sread)
+  
+  file.remove(outputFile)
 
   # Create an all vs. all edit distnace matrix.
   m <- as.matrix(stringdist::stringdistmatrix(s, nthread = opt$buildFragments_representativeSeqCalc_CPUs))

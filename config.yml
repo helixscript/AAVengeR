@@ -26,6 +26,7 @@ vectorFilter_percentID: 98
 vectorFilter_percentCoverage: 90
 
 alignReads_CPUs: 25
+alignReads_alignmentChunkSize: 10000
 alignReads_minAnchorReadLengthPostTrim: 25
 alignReads_minAdriftReadLengthPostTrim: 25
 alignReads_genomeAlignment_minPercentID: 98
@@ -50,6 +51,7 @@ standardizeFragments_standardizeBreaksBy: replicate
 standardizeFragments_maxLeaderSeqDiffScore: 0.15
 
 mapLeaderSequences_CPUs: 25
+mapLeaderSequences_alignmentChunkSize: 10000
 mapLeaderSequences_minAlignmentLength: 10
 mapLeaderSequences_minAlignmentPercentID: 95
 

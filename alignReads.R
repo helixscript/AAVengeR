@@ -7,30 +7,20 @@ options(stringsAsFactors = FALSE)
 opt <- yaml::read_yaml('config.yml')
 source(file.path(opt$softwareDir, 'lib.R'))
 
-m <- readRDS(file.path(opt$outputDir, 'leaderSeqMappings', 'mappings.rds'))
-
 opt$inputFastaDir <- file.path(opt$outputDir, 'uniqueFasta')
-opt$outputDir <- file.path(opt$outputDir, 'alignedReads')
-dir.create(opt$outputDir)
 
+dir.create(file.path(opt$outputDir, 'alignedReads'))
+dir.create(file.path(opt$outputDir, 'alignedReads', 'trimmedAnchorReads'))
+dir.create(file.path(opt$outputDir, 'alignedReads', 'trimmedAnchorReadsLogs'))
+dir.create(file.path(opt$outputDir, 'alignedReads', 'trimmedAdriftReads'))
+dir.create(file.path(opt$outputDir, 'alignedReads', 'trimmedAdriftReadsLogs'))
+dir.create(file.path(opt$outputDir, 'alignedReads', 'blat'))
 
-samples <- read_tsv(opt$sampleConfigFile, col_types=cols())
-if(nrow(samples) == 0) stop('Error - no lines of information was read from the sample configuration file.')
-if(! 'subject' %in% names(samples))   samples$subject <- 'subject'
-if(! 'replicate' %in% names(samples)) samples$replicate <- 1
+samples <- loadSamples()
 
 if(! all(file.exists(file.path(opt$softwareDir, 'data', 'blatDBs', paste0(unique(samples$refGenome.id), '.2bit'))))) stop('All reference genomes are not available.')
 
-samples$uniqueSample <- paste0(samples$subject, '~', samples$sample, '~', samples$replicate)
-if(any(duplicated(samples$uniqueSample))) stop('Error -- all subject, sample, replicate id combinations are not unique.')
-
 f <- list.files(opt$inputFastaDir, full.names = FALSE) 
-
-dir.create(file.path(opt$outputDir, 'trimmedAnchorReads'))
-dir.create(file.path(opt$outputDir, 'trimmedAnchorReadsLogs'))
-dir.create(file.path(opt$outputDir, 'trimmedAdriftReads'))
-dir.create(file.path(opt$outputDir, 'trimmedAdriftReadsLogs'))
-dir.create(file.path(opt$outputDir, 'blat'))
 
 cluster <- makeCluster(opt$alignReads_CPUs)
 clusterExport(cluster, c('opt', 'samples'))
@@ -46,39 +36,70 @@ anchorReads <- Reduce('append', parLapply(cluster, f[grepl('anchorReads', f)], f
   anchorReadOverReadSeq <- as.character(Biostrings::reverseComplement(anchorReadOverReadSeq))
   
   system(paste0(opt$command_cutadapt, ' -f fasta  -e 0.15 -a ', anchorReadOverReadSeq, ' --overlap 2 ',
-                '--info-file=', file.path(opt$outputDir, 'trimmedAnchorReadsLogs', paste0(r, '.log')), ' ',
-                file.path(opt$inputFastaDir, r), ' > ', file.path(opt$outputDir, 'trimmedAnchorReads', r)), ignore.stderr = TRUE)
+                '--info-file=', file.path(opt$outputDir, 'alignedReads', 'trimmedAnchorReadsLogs', paste0(r, '.log')), ' ',
+                file.path(opt$inputFastaDir, r), ' > ', file.path(opt$outputDir, 'alignedReads', 'trimmedAnchorReads', r)), ignore.stderr = TRUE)
 
-   parseCutadaptLog(file.path(opt$outputDir, 'trimmedAnchorReadsLogs', paste0(r, '.log')))
+   parseCutadaptLog(file.path(opt$outputDir, 'alignedReads', 'trimmedAnchorReadsLogs', paste0(r, '.log')))
 
-   Biostrings::readDNAStringSet(file.path(opt$outputDir, 'trimmedAnchorReads', r))
+   Biostrings::readDNAStringSet(file.path(opt$outputDir, 'alignedReads', 'trimmedAnchorReads', r))
 }))
 
-
-# Remove the recognizable leader sequences from anchor reads before aligning to
-# the genome to reduce their influence on alignments.
-
-a <- anchorReads[names(anchorReads) %in% m$id]
-b <- anchorReads[! names(anchorReads) %in% m$id]
-
-m <- m[match(names(a), m$id),]
-a <- a[width(a) >= (m$leaderMapping.qEnd + 1)]
-m <- m[match(names(a), m$id),]
-
-anchorReads <- Reduce('append', list(subseq(a, (m$leaderMapping.qEnd + 1)), b))
+stopCluster(cluster)
 
 anchorReads <- anchorReads[width(anchorReads) >= opt$alignReads_minAnchorReadLengthPostTrim]
 
+
+# Remove reads that aligned to the vector if vector alignments were performed.
+
+if(file.exists(file.path(opt$outputDir, 'vectorFilter', 'vectorFilter.rds'))){
+  v <- readRDS(file.path(opt$outputDir, 'vectorFilter', 'vectorFilter.rds'))
+  anchorReads <- anchorReads[! names(anchorReads) %in% v$qname]
+}
+
+
+# Remove recognizable leader sequences from anchorReads so that they do not interfer with alignments.
+
+anchorReads_preLeaderTrim <- anchorReads
+
+if(file.exists(file.path(opt$outputDir, 'leaderSeqMappings', 'mappings.rds'))){
+  m <- readRDS(file.path(opt$outputDir, 'leaderSeqMappings', 'mappings.rds'))
+  
+  a <- anchorReads[names(anchorReads) %in% m$id]
+  b <- anchorReads[! names(anchorReads) %in% m$id]
+
+  m <- m[match(names(a), m$id),]
+  a <- a[width(a) >= (m$leaderMapping.qEnd + 1)]
+  m <- m[match(names(a), m$id),]
+  
+  if(! all(names(a) == m$id)) stop('Error - could not align anchor reads to leader sequence mapping data.')
+  
+  a$leaderSeqTrimmed <- TRUE
+  b$leaderSeqTrimmed <- FALSE
+  anchorReads <- Reduce('append', list(subseq(a, (m$leaderMapping.qEnd + 1)), b))
+
+  # Select anchor reads which are still as long as the required minimum length 
+  # after removing over read sequences and removing recognizable leader sequences.
+  anchorReads <- anchorReads[width(anchorReads) >= opt$alignReads_minAnchorReadLengthPostTrim]
+  
+  if(length(anchorReads) == 0) stop('Error - no anchor reads remain after trimming leader sequences.')
+}
+
+
+
 # Create a mapping of read ids to samples and reference genome.
 readSampleMap <- bind_rows(lapply(f[grepl('anchorReads', f)], function(r){
-  data.frame(sample = unlist(strsplit(r, '\\.'))[1], id = readFasta(opt$inputFastaDir, r)@id) 
-})) %>% left_join(select(samples, uniqueSample, refGenome.id), by = c('sample' = 'uniqueSample'))
+                   tibble(sample = unlist(strsplit(r, '\\.'))[1], 
+                          id = as.character(readFasta(opt$inputFastaDir, r)@id)) 
+                 })) %>% 
+                 dplyr::filter(id %in% names(anchorReads)) %>%
+                 left_join(select(samples, uniqueSample, refGenome.id), by = c('sample' = 'uniqueSample'))
 
 
 
 # Align the anchor reads to their reference genome(s).
-align <- function(r, refGenome){
-  clusterExport(cluster, 'refGenome', envir = environment())
+align <- function(r, refGenome, CPUs, chunkSize){
+  cluster <- makeCluster(CPUs)
+  clusterExport(cluster, c('opt', 'samples', 'refGenome'), envir = environment())
   
   # Create short tmp read ids and then group reads by sequence and assign grouped reads comma delimited ids.
   # Grouped tmp ids will be expanded after alignments are complete and reset to their true values.
@@ -92,11 +113,7 @@ align <- function(r, refGenome){
   names(r) <- d$id2
   gc()
   
-  # Create a splitting vector for the reads which distribute varied read lengths across cores.
-  r <- r[order(width(r))]
-  i <- rep(1:opt$alignReads_CPUs, length(r))[1:length(r)]
-
-  a <- bind_rows(parLapply(cluster, split(r, i), function(seqChunk){
+  a <- bind_rows(parLapply(cluster, mixAndChunkSeqs(r, chunkSize), function(seqChunk){
          library(dplyr)
          library(ShortRead)
          source(file.path(opt$softwareDir, 'lib.R'))
@@ -109,26 +126,50 @@ align <- function(r, refGenome){
   a <- tidyr::unnest(a, idList)
   a$qName <- a$idList 
   a$idList <- NULL
+  stopCluster(cluster)
   a
 }
 
 
-# M03249:365:000000000-C3CH4:1:2109:7426:21450
+# Align the leader sequence trimmed anchor reads to the genome.
+#
+# Tip: adjust opt$alignReads_alignmentChunkSize so that the number of unique reads / chunk size equals number of CPUs.
+# Memory limitations may require less cpus or smaller chunk sizes.  2500 chunks across 25 CPUs use ~ 100GB of memory for CanFam3.
 anchorReadAlignments <- 
   bind_rows(lapply(split(readSampleMap, readSampleMap$refGenome.id), function(x){
                 refGenome <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(x$refGenome.id[1], '.2bit'))
-                align(anchorReads[names(anchorReads) %in% x$id], refGenome)
+                align(anchorReads[names(anchorReads) %in% x$id], refGenome, opt$alignReads_CPUs, opt$alignReads_alignmentChunkSize)
                }))
 
+saveRDS(anchorReadAlignments, file.path(opt$outputDir, 'alignedReads', 'anchorReadAlignments.rds'))
+anchorReadAlignments <- select(anchorReadAlignments, qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
 
 # Select anchor reads where the ends align to the genome.
 i <- (anchorReadAlignments$qSize - anchorReadAlignments$qEnd) <= opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned
 anchorReadAlignments <- anchorReadAlignments[i,]
 
 
-# Select anchor reads with alignments which do not start immediately since we expect some AAV remnant before the alignment.
-i <- anchorReadAlignments$qStart > opt$alignReads_genomeAlignment_anchorReadMinStart
-anchorReadAlignments <- anchorReadAlignments[i,]
+# We need to reconstruct the leader sequencs by determining what we removed before aligning and adding on additional
+# NTs for those alignments which do not start at qStart = 1. Not All reads were trimmed going in because some mappings may of failed.
+
+anchorReadAlignments <- left_join(anchorReadAlignments, tibble(id = names(anchorReads_preLeaderTrim), readSeq = as.character(anchorReads_preLeaderTrim)), by = c('qName' = 'id'))
+
+if(file.exists(file.path(opt$outputDir, 'leaderSeqMappings', 'mappings.rds'))){
+  anchorReadAlignments <- left_join(anchorReadAlignments, select(m, id, leaderMapping.qEnd), by = c('qName' = 'id')) 
+
+  a <- anchorReadAlignments[is.na(anchorReadAlignments$leaderMapping.qEnd),]
+  b <- anchorReadAlignments[! is.na(anchorReadAlignments$leaderMapping.qEnd),]
+  
+  a$leaderSeq <- substr(a$readSeq, 1, a$qStart)
+  b$leaderSeq <- substr(b$readSeq, 1, (b$leaderMapping.qEnd + b$qStart))
+  anchorReadAlignments <- bind_rows(a, b)
+  anchorReadAlignments$leaderMapping.qEnd <- NULL
+} else {
+  anchorReadAlignments$leaderMapping.qEnd <- NA
+  anchorReadAlignments$leaderSeq <- substr(anchorReadAlignments$readSeq, 1, anchorReadAlignments$qStart)
+}
+  
+anchorReadAlignments$readSeq <-NULL
 
 
 # Read in adrift reads and limit reads to found in the adrift reads alignment
@@ -162,27 +203,19 @@ readSampleMap <- subset(readSampleMap, id %in% names(adriftReads))
 
 
 # Limit anchor read alignments to adrift read alignments ready to be aligned.
-anchorReadAlignments <- subset(anchorReadAlignments, qName %in% names(adriftReads))
+#####anchorReadAlignments <- subset(anchorReadAlignments, qName %in% names(adriftReads))
+
+# Limit anchor read alignments to those with leader sequencs >= 10 NT because we need to create adrift over-read adapters.
+anchorReadAlignments <- anchorReadAlignments[nchar(anchorReadAlignments$leaderSeq) >= 10,]
 
 
 # Retrieve the 10NTs before anchor read alignments begin which will be used for adrift read over-reading trimming. 
 # Need to map by both read id and query start because a read can align with multiple start positions
-adriftReadsAdapters <- bind_rows(lapply(split(anchorReadAlignments, anchorReadAlignments$qStart), function(x){
-                         o <- anchorReads[names(anchorReads) %in% x$qName]
-                         o <- o[match(x$qName, names(o))]
-                         tibble(id = names(o), adapter = as.character(reverseComplement(subseq(o, x$qStart[1]-10, x$qStart[1]-1))))
-                       }))
-
+adriftReadsAdapters <- tibble(id = anchorReadAlignments$qName, 
+                              adapter = as.character(reverseComplement(DNAStringSet(substr(anchorReadAlignments$leaderSeq, nchar(anchorReadAlignments$leaderSeq)-9, nchar(anchorReadAlignments$leaderSeq))))))
 
 # An anchor read may align to multiples positions in the genome each with a different start position (qStart).
 # We need to trim all posibilities which will reduce the length of the adrift genomic letters in some cases. 
-#
-# id                                            leaderSeq                    adapter       
-# M03249:365:000000000-C3CH4:1:2104:11581:20049 AACCCCTAGTGTTGGA             TCCAACACTA
-# M03249:365:000000000-C3CH4:1:2104:11581:20049 AACCCCTAGTGTTGGAGTTTTTTTA    TAAAAAAACT
-#
-# Here we collapse the adapter table so that they only report reads once and include
-# multiple adapter sequences where neeeded.
 
 dupReadIds <- adriftReadsAdapters$id[duplicated(adriftReadsAdapters$id)]
 adriftReadsAdapters.dups <- subset(adriftReadsAdapters, id %in% dupReadIds)
@@ -205,14 +238,14 @@ adriftReads <- Reduce('append', parLapply(cluster, split(adriftReadsAdapters, ad
   adapter <- paste0(paste0(' -a ', unlist(strsplit(x$adapter[1], ',')), ' '), collapse = ' ')
   message(x$adapter, x$adapter[1])
   
-  ShortRead::writeFasta(adriftReads[names(adriftReads) %in% x$id], file = file.path(opt$outputDir, 'trimmedAdriftReads', f))
+  ShortRead::writeFasta(adriftReads[names(adriftReads) %in% x$id], file = file.path(opt$outputDir, 'alignedReads', 'trimmedAdriftReads', f))
   
   system(paste0(opt$command_cutadapt, ' -f fasta  -e 0.15 ', adapter, ' --overlap 2 ',
-                '--info-file=', file.path(opt$outputDir, 'trimmedAdriftReadsLogs', paste0(x$adapter[1], '.log')), ' ',
-                file.path(opt$outputDir, 'trimmedAdriftReads', f), ' > ', file.path(opt$outputDir, 'trimmedAdriftReads', paste0(f, '.trimmed'))), ignore.stderr = TRUE)
+                '--info-file=', file.path(opt$outputDir, 'alignedReads', 'trimmedAdriftReadsLogs', paste0(x$adapter[1], '.log')), ' ',
+                file.path(opt$outputDir, 'alignedReads', 'trimmedAdriftReads', f), ' > ', file.path(opt$outputDir, 'alignedReads', 'trimmedAdriftReads', paste0(f, '.trimmed'))), ignore.stderr = TRUE)
 
-  parseCutadaptLog(file.path(opt$outputDir, 'trimmedAdriftReadsLogs', paste0(x$adapter[1], '.log')))
-  Biostrings::readDNAStringSet(file.path(opt$outputDir, 'trimmedAdriftReads', paste0(f, '.trimmed')))
+  parseCutadaptLog(file.path(opt$outputDir, 'alignedReads', 'trimmedAdriftReadsLogs', paste0(x$adapter[1], '.log')))
+  Biostrings::readDNAStringSet(file.path(opt$outputDir, 'alignedReads', 'trimmedAdriftReads', paste0(f, '.trimmed')))
 }))
 
 
@@ -228,8 +261,12 @@ readSampleMap <- subset(readSampleMap, id %in% names(adriftReads))
 adriftReadAlignments <- 
   bind_rows(lapply(split(readSampleMap, readSampleMap$refGenome.id), function(x){
     refGenome <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(x$refGenome.id[1], '.2bit'))
-    align(adriftReads[names(adriftReads) %in% x$id], refGenome)
+    align(adriftReads[names(adriftReads) %in% x$id], refGenome, opt$alignReads_CPUs, opt$alignReads_alignmentChunkSize)
   }))
+
+saveRDS(adriftReadAlignments, file.path(opt$outputDir, 'alignedReads', 'adriftReadAlignments.rds'))
+
+adriftReadAlignments <- select(adriftReadAlignments, qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
 
 
 # Select adrift reads where the ends align to the genome.
@@ -247,30 +284,9 @@ anchorReadAlignments <- anchorReadAlignments[anchorReadAlignments$qName %in% i,]
 adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$qName %in% i,]
 
 
-# Add leader sequences to anchor read alignments
-
-anchorReadAlignments <- bind_rows(lapply(split(anchorReadAlignments, anchorReadAlignments$qStart), function(x){
-  o <- anchorReads[names(anchorReads) %in% x$qName]
-  o <- o[match(x$qName, names(o))]
-  x$leaderSeq <- as.character(subseq(o, 1, (x$qStart[1] - 1)))
-  x
-}))
-
-
-anchorReadAlignments <- select(anchorReadAlignments, qName, strand, qSize, qStart, qEnd, tName, 
-                               tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, 
-                               alignmentPercentID, percentQueryCoverage, leaderSeq)
-
-adriftReadAlignments <- select(adriftReadAlignments, qName, strand, qSize, qStart, qEnd, tName, 
-                              tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, 
-                              alignmentPercentID, percentQueryCoverage)
-
 anchorReadAlignments <- left_join(anchorReadAlignments, select(readSampleMap, sample, id), by = c('qName' = 'id'))
 adriftReadAlignments <- left_join(adriftReadAlignments, select(readSampleMap, sample, id), by = c('qName' = 'id'))
 
 
-saveRDS(anchorReadAlignments, file.path(opt$outputDir, 'anchorReadAlignments.rds'))  
-saveRDS(adriftReadAlignments, file.path(opt$outputDir, 'adriftReadAlignments.rds')) 
-
-
-
+saveRDS(anchorReadAlignments, file.path(opt$outputDir, 'alignedReads', 'anchorReadAlignments.rds'))  
+saveRDS(adriftReadAlignments, file.path(opt$outputDir, 'alignedReads', 'adriftReadAlignments.rds')) 

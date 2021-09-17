@@ -1,16 +1,13 @@
 library(ShortRead)
 library(dplyr)
 library(parallel)
-library(yaml)
 options(stringsAsFactors = FALSE)
 
-opt <- read_yaml('config.yml')
+opt <- yaml::read_yaml('config.yml')
 
 opt$inputDir <- file.path(opt$outputDir, 'demultiplex')
-opt$outputDir <- file.path(opt$outputDir, 'uniqueFasta')
 
-dir.create(opt$outputDir)
-if(! dir.exists(opt$outputDir)) stop('Error - could not create the output directory.')
+dir.create(file.path(opt$outputDir, 'uniqueFasta'))
 
 d <- data.frame(file = list.files(opt$inputDir, pattern = '*.fasta$'))
 d$sample <- unlist(lapply(strsplit(d$file, '\\.'), '[', 1))
@@ -19,7 +16,6 @@ cluster <- makeCluster(opt$createUniqueFasta_CPUs)
 clusterExport(cluster, 'opt')
 
 invisible(parLapply(cluster, split(d, d$sample), function(x){
-#invisible(lapply(split(d, d$sample), function(x){
   library(ShortRead)
   library(dplyr)
   
@@ -61,20 +57,20 @@ invisible(parLapply(cluster, split(d, d$sample), function(x){
            x
          }))
     
-    write.table(b, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, paste0(x$sample[1], '.dupReadPairMap.tsv')))
+    write.table(b, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, 'uniqueFasta', paste0(x$sample[1], '.dupReadPairMap.tsv')))
   }
   
-  writeFasta(adriftReads, file.path(opt$outputDir, x[1,]$file))
-  writeFasta(anchorReads, file.path(opt$outputDir, x[2,]$file))
+  writeFasta(adriftReads, file.path(opt$outputDir, 'uniqueFasta', x[1,]$file))
+  writeFasta(anchorReads, file.path(opt$outputDir, 'uniqueFasta', x[2,]$file))
 }))
 
 
-b <- bind_rows(lapply(list.files(opt$outputDir, pattern = 'dupReadPairMap', full.names = TRUE), function(x){
+b <- bind_rows(lapply(list.files(file.path(opt$outputDir, 'uniqueFasta'), pattern = 'dupReadPairMap', full.names = TRUE), function(x){
        read.table(x, sep = '\t', header = TRUE)
      }))
 
-invisible(file.remove(list.files(opt$outputDir, pattern = 'dupReadPairMap', full.names = TRUE)))
-write.table(b, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, 'dupReadPairMap.tsv'))
+invisible(file.remove(list.files(file.path(opt$outputDir, 'uniqueFasta'), pattern = 'dupReadPairMap', full.names = TRUE)))
+write.table(b, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, 'uniqueFasta', 'dupReadPairMap.tsv'))
 
 
                                                                                                                                
