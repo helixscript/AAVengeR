@@ -7,16 +7,12 @@ opt <- yaml::read_yaml('config.yml')
 
 source(file.path(opt$softwareDir, 'lib.R'))
 
-opt$inputFastaDir <- file.path(opt$outputDir, 'uniqueFasta')
+opt$inputFastaDir <- file.path(opt$outputDir, opt$vectorFilter_inputDir)
 
-dir.create(file.path(opt$outputDir, 'vectorFilter'))
-dir.create(file.path(opt$outputDir, 'vectorFilter', 'tmp'))
-dir.create(file.path(opt$outputDir, 'vectorFilter', 'dbs'))
+dir.create(file.path(opt$outputDir, opt$vectorFilter_outputDir))
+dir.create(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'))
 
-samples <- readr::read_tsv(opt$sampleConfigFile, col_types = readr::cols())
-if(! 'subject' %in% names(samples))   samples$subject <- 'subject'
-if(! 'replicate' %in% names(samples)) samples$replicate <- 1
-samples$uniqueSample <- paste0(samples$subject, '~', samples$sample, '~', samples$replicate)
+samples <- loadSamples()
 
 cluster <- makeCluster(opt$vectorFilter_CPUs)
 clusterExport(cluster, c('opt', 'samples'))
@@ -29,11 +25,11 @@ d$uniqueSample <- unlist(lapply(d$file, function(x){
 d <- left_join(d, select(samples, uniqueSample, anchorRead.seqFilter.file), by = 'uniqueSample')
 
 m <- bind_rows(lapply(split(d, d$anchorRead.seqFilter.file), function(x){
-  invisible(file.remove(list.files(file.path(opt$outputDir, 'vectorFilter', 'dbs'), full.names = TRUE)))
+  invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
   
-  system(paste0(opt$command_makeblastdb, ' -in ', x$anchorRead.seqFilter.file[1], ' -dbtype nucl -out ', file.path(opt$outputDir, 'vectorFilter', 'dbs', 'd')), ignore.stderr = TRUE)
+  system(paste0(opt$command_makeblastdb, ' -in ', x$anchorRead.seqFilter.file[1], ' -dbtype nucl -out ', file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
   
-  waitForFile(file.path(opt$outputDir, 'vectorFilter', 'dbs', 'd.nin'))
+  waitForFile(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs', 'd.nin'))
   
   reads <- Reduce('append', lapply(x$file, readFasta))
   
@@ -50,19 +46,19 @@ m <- bind_rows(lapply(split(d, d$anchorRead.seqFilter.file), function(x){
     
     a <- subseq(a, (width(a) - (opt$vectorFilter_anchorReadSampleLength -1)), width(a))
     
-    writeXStringSet(a,  file.path(opt$outputDir, 'vectorFilter', 'tmp', paste0(f, '.fasta')))
+    writeXStringSet(a,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
     
     system(paste0(opt$command_blastn, ' -word_size 4 -evalue 50 -outfmt 6 -query ',
-                  file.path(opt$outputDir, 'vectorFilter', 'tmp', paste0(f, '.fasta')), ' -db ',
-                  file.path(opt$outputDir, 'vectorFilter', 'dbs', 'd'),
-                  ' -num_threads 4 -out ', file.path(opt$outputDir, 'vectorFilter', 'tmp', paste0(f, '.blast'))),
+                  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
+                  file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs', 'd'),
+                  ' -num_threads 4 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),
            ignore.stdout = TRUE, ignore.stderr = TRUE)
     
-    waitForFile(file.path(opt$outputDir, 'vectorFilter', 'tmp', paste0(f, '.blast')))
+    waitForFile(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))
     
-    if(file.info(file.path(opt$outputDir, 'vectorFilter', 'tmp', paste0(f, '.blast')))$size == 0) return(tibble())
+    if(file.info(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))$size == 0) return(tibble())
     
-    b <- read.table(file.path(opt$outputDir, 'vectorFilter', 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
+    b <- read.table(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
     names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
     b$percentQueryAligned <- ((b$qend - b$qstart + 1) / opt$vectorFilter_anchorReadSampleLength) * 100
     
@@ -71,6 +67,6 @@ m <- bind_rows(lapply(split(d, d$anchorRead.seqFilter.file), function(x){
 })) %>% tidyr::drop_na()
 
 stopCluster(cluster)
-invisible(file.remove(list.files(file.path(opt$outputDir, 'vectorFilter', 'tmp'), full.names = TRUE)))
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
-saveRDS(m, file.path(opt$outputDir, 'vectorFilter', 'vectorFilter.rds'))
+saveRDS(m, file.path(opt$outputDir, opt$vectorFilter_outputDir, opt$vectorFilter_outputFile))

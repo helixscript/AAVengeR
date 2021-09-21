@@ -3,9 +3,9 @@ library(dplyr)
 opt <- yaml::read_yaml('config.yml')
 source(file.path(opt$softwareDir, 'lib.R'))
 
-dir.create(file.path(opt$outputDir, 'buildSites'))
+dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 
-frags <- readRDS(file.path(opt$outputDir, 'standardizeFragments', 'frags.rds'))
+frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile))
 
 frags$posid <- paste0(frags$seqnames, frags$strand, ifelse(frags$strand == '+', frags$start, frags$end))
 

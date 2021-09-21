@@ -4,14 +4,16 @@ library(parallel)
 opt <- yaml::read_yaml('config.yml')
 source(file.path(opt$softwareDir, 'lib.R'))
 
-dups <- readr::read_tsv(file.path(opt$outputDir, 'uniqueFasta', 'dupReadPairMap.tsv'))
+dups <- tibble()
+if('buildFragments_duplicateReadFile' %in% names(opt) & file.exists(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile))){
+  dups <- select(readr::read_tsv(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile)), id, n)
+}
 
-anchorReadAlignments <- readRDS(file.path(opt$outputDir, 'alignedReads', 'anchorReadAlignments.rds'))
-adriftReadAlignments <- readRDS(file.path(opt$outputDir, 'alignedReads', 'adriftReadAlignments.rds'))
+anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
+adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adriftReadsAlignmentFile))
 
-dir.create(file.path(opt$outputDir, 'buildFragments'))
-dir.create(file.path(opt$outputDir, 'buildFragments', 'multiHitReads'))
-dir.create(file.path(opt$outputDir, 'buildFragments', 'tmp'))
+dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
+dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitReads'))
 
 
 anchorReadAlignments <- select(anchorReadAlignments, sample, qName, tName, strand, tStart, tEnd, leaderSeq)
@@ -21,7 +23,7 @@ a <- table(anchorReadAlignments$qName)
 b <- table(adriftReadAlignments$qName)
 x <- unique(c(names(a[a > opt$buildFragments_maxAlignmentsPerRead]), names(b[b > opt$buildFragments_maxAlignmentsPerRead])))
 
-write(x, file = file.path(opt$outputDir, 'buildFragments', 'highAlignmentReads'))
+write(x, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'highAlignmentReads'))
 
 anchorReadAlignments <- subset(anchorReadAlignments, ! qName %in% x)
 adriftReadAlignments <- subset(adriftReadAlignments, ! qName %in% x)
@@ -73,15 +75,16 @@ frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
                   mutate(uniqueSample = sample.anchorReads, readID = qName.anchorReads) %>%
                   select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads)
   
-  
   # Reads pairs building more than fragment are multihits.
   # A single fragment can map to multiple reads but a single read can only map to one fragment.
   dupReads <- unique(frags$readID[duplicated(frags$readID)])
-  if(length(dupReads) > 0) write(dupReads, file = file.path(opt$outputDir, 'buildFragments', 'multiHitReads', tmpFile()))
+  
+  
+  if(length(dupReads) > 0) write(dupReads, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitReads', tmpFile()))
   
   frags <- bind_rows(lapply(split(frags, paste(frags$uniqueSample, frags$strand, frags$fragStart, frags$fragEnd)), function(a){
              a <- left_join(a, dups, by = c('readID' = 'id'))
-             
+                         
              # Remove multi-hit reads.
              a <- subset(a, ! readID %in% dupReads)
              if(nrow(a) == 0) return(tibble())
@@ -91,11 +94,11 @@ frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
              
              # Exclude reads where the leaderSeq is not similiar to the representative sequence. 
              i <- stringdist::stringdist(r[[2]], a$leaderSeq.anchorReads) / nchar(r[[2]]) <= opt$buildFragments_maxLeaderSeqDiffScore
-             if(any(! i)) return(data.frame())
+             if(all(! i)) return(data.frame())
              
              a <- a[i,]
              a$repLeaderSeq <- r[[2]]
-             a[1, c(1,3:6,11,12)]
+             a[1, c(1,3:7,9,10)]
            }))
 
   frags
@@ -103,13 +106,12 @@ frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
 
 
 # Record multihit alignments for later analyses.
-m <- unique(unlist(lapply(list.files(file.path(opt$outputDir, 'buildFragments', 'multiHitReads'), full.names = TRUE), readLines)))
-readr::write_tsv(subset(anchorReadAlignments, qName.anchorReads %in% m), file.path(opt$outputDir, 'buildFragments', 'multiHitAnchorReadAlignments.tsv'))
-readr::write_tsv(subset(adriftReadAlignments, qName.adriftReads %in% m), file.path(opt$outputDir, 'buildFragments', 'multiHitAdriftReadAlignments.tsv'))
+m <- unique(unlist(lapply(list.files(file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitReads'), full.names = TRUE), readLines)))
+readr::write_tsv(subset(anchorReadAlignments, qName.anchorReads %in% m), file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitAnchorReadAlignments.tsv'))
+readr::write_tsv(subset(adriftReadAlignments, qName.adriftReads %in% m), file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitAdriftReadAlignments.tsv'))
 
 # Clean up.
-unlink(file.path(opt$outputDir, 'buildFragments', 'multiHitReads'), recursive = TRUE)
-unlink(file.path(opt$outputDir, 'buildFragments', 'tmp'), recursive = TRUE)
+unlink(file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitReads'), recursive = TRUE)
 
-saveRDS(frags, file.path(opt$outputDir, 'buildFragments', 'fragments.rds'))
+saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
 

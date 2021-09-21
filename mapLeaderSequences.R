@@ -7,11 +7,10 @@ opt <- yaml::read_yaml('config.yml')
 
 source(file.path(opt$softwareDir, 'lib.R'))
 
-opt$inputFastaDir <- file.path(opt$outputDir, 'uniqueFasta')
-dir.create(file.path(opt$outputDir, 'leaderSeqMappings'))
+opt$inputFastaDir <- file.path(opt$outputDir, opt$mapLeaderSequences_inputDir)
+dir.create(file.path(opt$outputDir, opt$mapLeaderSequences_outputDir))
 
-dir.create(file.path(opt$outputDir, 'leaderSeqMappings', 'tmp'))
-dir.create(file.path(opt$outputDir, 'leaderSeqMappings', 'dbs'))
+dir.create(file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs'))
 
 samples <- loadSamples()
 
@@ -26,17 +25,18 @@ d$uniqueSample <- unlist(lapply(d$file, function(x){
 d <- left_join(d, select(samples, uniqueSample, anchorRead.identification), by = 'uniqueSample')
 
 m <- bind_rows(lapply(split(d, d$anchorRead.identification), function(x){
-  invisible(file.remove(list.files(file.path(opt$outputDir, 'leaderSeqMappings', 'dbs'), full.names = TRUE)))
+  invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs'), full.names = TRUE)))
   
   o <- strsplit(unlist(strsplit(x$anchorRead.identification[1], ';')), ',')
   d <- DNAStringSet(unlist(lapply(o, '[', 2)))
   names(d) <- unlist(lapply(o, '[', 1))
-  writeXStringSet(d, file.path(opt$outputDir, 'leaderSeqMappings', 'dbs', paste0('d.fasta')))
   
-  system(paste0(opt$command_makeblastdb, ' -in ', file.path(opt$outputDir, 'leaderSeqMappings', 'dbs', 'd.fasta'), 
-                ' -dbtype nucl -out ', file.path(opt$outputDir, 'leaderSeqMappings', 'dbs', 'd')), ignore.stderr = TRUE)
+  writeXStringSet(d, file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs', paste0('d.fasta')))
   
-  waitForFile(file.path(opt$outputDir, 'leaderSeqMappings', 'dbs', 'd.nin'))
+  system(paste0(opt$command_makeblastdb, ' -in ', file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs', 'd.fasta'), 
+                ' -dbtype nucl -out ', file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
+  
+  waitForFile(file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs', 'd.nin'))
   
   reads <- Reduce('append', lapply(x$file, readFasta))
   
@@ -49,19 +49,19 @@ m <- bind_rows(lapply(split(d, d$anchorRead.identification), function(x){
      a.ids <- as.character(a@id)
      a <- a@sread
      names(a) <- a.ids 
-     writeXStringSet(a,  file.path(opt$outputDir, 'leaderSeqMappings', 'tmp', paste0(f, '.fasta')))
+     writeXStringSet(a,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
      
      system(paste0(opt$command_blastn, ' -word_size 4 -evalue 50 -outfmt 6 -query ',
-                   file.path(opt$outputDir, 'leaderSeqMappings', 'tmp', paste0(f, '.fasta')), ' -db ',
-                   file.path(opt$outputDir, 'leaderSeqMappings', 'dbs', 'd'),
-                   ' -num_threads 4 -out ', file.path(opt$outputDir, 'leaderSeqMappings', 'tmp', paste0(f, '.blast'))),
+                   file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
+                   file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs', 'd'),
+                   ' -num_threads 4 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),
             ignore.stdout = TRUE, ignore.stderr = TRUE)
      
-     waitForFile(file.path(opt$outputDir, 'leaderSeqMappings', 'tmp', paste0(f, '.blast')))
+     waitForFile(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))
      
-     if(file.info(file.path(opt$outputDir, 'leaderSeqMappings', 'tmp', paste0(f, '.blast')))$size == 0) return(tibble())
+     if(file.info(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))$size == 0) return(tibble())
      
-     b <- read.table(file.path(opt$outputDir, 'leaderSeqMappings', 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
+     b <- read.table(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
      names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
      b$alignmentLength <- b$qend - b$qstart + 1
      
@@ -79,8 +79,6 @@ m <- bind_rows(lapply(split(d, d$anchorRead.identification), function(x){
 })) %>% tidyr::drop_na()
 
 stopCluster(cluster)
-invisible(file.remove(list.files(file.path(opt$outputDir, 'leaderSeqMappings', 'tmp'), full.names = TRUE)))
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
-saveRDS(m, file.path(opt$outputDir, 'leaderSeqMappings', 'mappings.rds'))
-rm(list = ls(all.names = TRUE))
-
+saveRDS(m, file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, opt$mapLeaderSequences_outputFile))

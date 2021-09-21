@@ -1,17 +1,16 @@
-library(yaml)
 library(dplyr)
 library(parallel)
 library(GenomicRanges)
 
-opt <- read_yaml('config.yml')
+opt <- yaml::read_yaml('config.yml')
 source(file.path(opt$softwareDir, 'lib.R'))
 
-dir.create(file.path(opt$outputDir, 'standardizeFragments'))
+dir.create(file.path(opt$outputDir, opt$standardizeFragments_outputDir))
 
-frags <-readRDS(file.path(opt$outputDir, 'buildFragments', 'fragments.rds'))
+frags <- readRDS(file.path(opt$outputDir, opt$standardizeFragments_inputFile))
 frags <- unpackUniqueSampleID(frags)
 
-frags <-standardizedFragments(frags, opt)
+frags <- standardizedFragments(frags, opt)
 frags <- subset(frags, intSiteRefined == TRUE & breakPointRefined == TRUE)
 
 cluster <- makeCluster(opt$standardizeFragments_CPUs)
@@ -39,5 +38,5 @@ frags <- bind_rows(parLapply(cluster, split(frags, paste0(frags$uniqueSample, fr
 
 stopCluster(cluster)
 
-saveRDS(select(frags, -intSiteRefined, -breakPointRefined), file.path(opt$outputDir, 'standardizeFragments', 'frags.rds'))
+saveRDS(select(frags, -intSiteRefined, -breakPointRefined), file.path(opt$outputDir, opt$standardizeFragments_outputDir, opt$standardizeFragments_outputFile))
 

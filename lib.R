@@ -36,8 +36,8 @@ qualTrimReads <- function(f, chunkSize, label, ouputDir){
     fq <- yield(strm)
     if(length(fq) == 0) break
     
-    fq <- trimTailw(fq, 2, opt$qualtrim_code, 5)
-    fq <- fq[width(fq) >= opt$qualtrim_minLength]
+    fq <- trimTailw(fq, 2, opt$demultiplex_qualtrim_code, 5)
+    fq <- fq[width(fq) >= opt$demultiplex_qualtrim_minLength]
     
     if(length(fq) > 0) writeFastq(fq, file = file.path(ouputDir, paste0(label, '.', n)), compress = FALSE)
     
@@ -84,18 +84,18 @@ loadSamples <- function(){
 
 alignReads.BLAT <- function(x, db){
   f <- tmpFile()
-  writeFasta(x, file = file.path(opt$outputDir, 'alignedReads', 'blat', paste0(f, '.fasta')))
+  writeFasta(x, file = file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
   
   comm <- paste0(opt$command_blat, ' ', db, ' ',
-                 file.path(opt$outputDir, 'alignedReads', 'blat', paste0(f, '.fasta')), ' ',
-                 file.path(opt$outputDir, 'alignedReads', 'blat', paste0(f, '.psl')),
+                 file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' ',
+                 file.path(opt$outputDir, 'tmp', paste0(f, '.psl')),
                  ' -tileSize=11 -stepSize=9 -minIdentity=90 -out=psl -noHead')
   system(comm)
-  file.remove(file.path(opt$outputDir, 'alignedReads', 'blat', paste0(f, '.fasta')))
+  file.remove(file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
   
-  if(file.exists(file.path(opt$outputDir, 'alignedReads', 'blat', paste0(f, '.psl')))){
-    b <- parseBLAToutput(file.path(opt$outputDir, 'alignedReads', 'blat', paste0(f, '.psl')))
-    file.remove(file.path(opt$outputDir,  'alignedReads', 'blat', paste0(f, '.psl')))
+  if(file.exists(file.path(opt$outputDir, 'tmp', paste0(f, '.psl')))){
+    b <- parseBLAToutput(file.path(opt$outputDir, 'tmp', paste0(f, '.psl')))
+    file.remove(file.path(opt$outputDir,  'tmp', paste0(f, '.psl')))
     b
   } else {
     return(tibble())
@@ -260,7 +260,7 @@ golayCorrection <- function(x){
   library(ShortRead)
   library(dplyr)
   
-  f <- file.path(opt$outputDir, 'demultiplex', 'tmp', paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') )
+  f <- file.path(opt$outputDir, 'tmp', paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') )
   writeFasta(x, file = f)
   
   system(paste(opt$command_python2, file.path(opt$softwareDir, 'bin', 'golayCorrection', 'processGolay.py'), f))

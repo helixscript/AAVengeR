@@ -31,6 +31,7 @@ m <- bind_rows(lapply(split(samples, samples$anchorRead.identification), functio
   
   waitForFile(file.path(opt$outputDir, 'mapSiteLeaderSequences', 'dbs', 'd.nin'))
   
+  # Subset sites to match this identification sequence string.
   s <- subset(sites, s %in% unique(paste(x$subject, x$sample)))
   
   reads <- DNAStringSet(unique(s$repLeaderSeq))
@@ -58,6 +59,8 @@ m <- bind_rows(lapply(split(samples, samples$anchorRead.identification), functio
     b <- dplyr::filter(b, pident >= opt$mapLeaderSequences_minAlignmentPercentID, alignmentLength >= opt$mapLeaderSequences_minAlignmentLength)
 
     bind_rows(lapply(split(b, b$qname), function(x){
+      if('s4' %in% x$qname) browser()
+      
       x <- subset(x, evalue == min(x$evalue)) 
       x <- subset(x, alignmentLength == max(x$alignmentLength))
       
