@@ -42,13 +42,13 @@ sites <- bind_rows(lapply(split(frags, paste(frags$subject, frags$sample, frags$
 
     return(dplyr::mutate(x, estAbund = n_distinct(width), position = ifelse(strand[1] == '+', start[1], end[1]), 
                   reads = sum(reads), repLeaderSeq = r[[2]], fragmentsRemoved = sum(!i)) %>%
-    dplyr::select(subject, sample, seqnames, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq) %>%
-    dplyr::slice(1))
+           dplyr::select(subject, sample, seqnames, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq) %>%
+           dplyr::slice(1))
     }else{
     
     return(dplyr::mutate(x, estAbund = n_distinct(width), position = ifelse(strand[1] == '+', start[1], end[1]), fragmentsRemoved = 0) %>%
-             dplyr::select(subject, sample, seqnames, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq))
+           dplyr::select(subject, sample, seqnames, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq))
   }
 }))
 
-saveRDS(sites, file.path(opt$outputDir, 'buildSites', 'sites.rds'))
+saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))

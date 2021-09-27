@@ -22,12 +22,12 @@ d$uniqueSample <- unlist(lapply(d$file, function(x){
   o <- unlist(strsplit(x, '/'))
   unlist(strsplit(o[length(o)], '\\.'))[1]
 })) 
-d <- left_join(d, select(samples, uniqueSample, anchorRead.seqFilter.file), by = 'uniqueSample')
+d <- left_join(d, select(samples, uniqueSample, vectorFastaFile), by = 'uniqueSample')
 
-m <- bind_rows(lapply(split(d, d$anchorRead.seqFilter.file), function(x){
+m <- bind_rows(lapply(split(d, d$vectorFastaFile), function(x){
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
   
-  system(paste0(opt$command_makeblastdb, ' -in ', x$anchorRead.seqFilter.file[1], ' -dbtype nucl -out ', file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
+  system(paste0(opt$command_makeblastdb, ' -in ', x$vectorFastaFile[1], ' -dbtype nucl -out ', file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
   
   waitForFile(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs', 'd.nin'))
   

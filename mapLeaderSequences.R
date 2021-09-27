@@ -22,18 +22,12 @@ d$uniqueSample <- unlist(lapply(d$file, function(x){
                     o <- unlist(strsplit(x, '/'))
                     unlist(strsplit(o[length(o)], '\\.'))[1]
                    })) 
-d <- left_join(d, select(samples, uniqueSample, anchorRead.identification), by = 'uniqueSample')
+d <- left_join(d, select(samples, uniqueSample, vectorFastaFile), by = 'uniqueSample')
 
-m <- bind_rows(lapply(split(d, d$anchorRead.identification), function(x){
+m <- bind_rows(lapply(split(d, d$vectorFastaFile), function(x){
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs'), full.names = TRUE)))
   
-  o <- strsplit(unlist(strsplit(x$anchorRead.identification[1], ';')), ',')
-  d <- DNAStringSet(unlist(lapply(o, '[', 2)))
-  names(d) <- unlist(lapply(o, '[', 1))
-  
-  writeXStringSet(d, file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs', paste0('d.fasta')))
-  
-  system(paste0(opt$command_makeblastdb, ' -in ', file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs', 'd.fasta'), 
+  system(paste0(opt$command_makeblastdb, ' -in ', x$vectorFastaFile[1], 
                 ' -dbtype nucl -out ', file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
   
   waitForFile(file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs', 'd.nin'))
@@ -51,7 +45,7 @@ m <- bind_rows(lapply(split(d, d$anchorRead.identification), function(x){
      names(a) <- a.ids 
      writeXStringSet(a,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
      
-     system(paste0(opt$command_blastn, ' -word_size 4 -evalue 50 -outfmt 6 -query ',
+     system(paste0(opt$command_blastn, ' -word_size 6 -evalue 10 -outfmt 6 -query ',
                    file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
                    file.path(opt$outputDir, opt$mapLeaderSequences_outputDir, 'dbs', 'd'),
                    ' -num_threads 4 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),

@@ -7,6 +7,7 @@ source(file.path(opt$softwareDir, 'lib.R'))
 dups <- tibble()
 if('buildFragments_duplicateReadFile' %in% names(opt) & file.exists(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile))){
   dups <- select(readr::read_tsv(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile)), id, n)
+  dups <- dups[dups$n > 0,]
 }
 
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))

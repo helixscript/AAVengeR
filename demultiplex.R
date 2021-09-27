@@ -1,10 +1,9 @@
 library(ShortRead)
 library(readr)
-library(yaml)
 library(parallel)
 library(dplyr)
 
-opt <- read_yaml('config.yml')
+opt <- yaml::read_yaml('config.yml')
 source(file.path(opt$softwareDir, 'lib.R'))
 
 samples <- loadSamples()
@@ -73,8 +72,8 @@ rm(d, chunkNum, index1Reads, anchorReads, adriftReads)
 gc()
 
 
-invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
-#invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
+#invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
+invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
   library(ShortRead)
   library(dplyr)
   library(stringr)
@@ -91,7 +90,7 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
     r <- samples[r,]
     
     # Create barcode demultiplexing vectors.
-    v1 <- vcountPattern(r$index1.seq, index1Reads, max.mismatch = opt$demultiplex_index1ReadFileMaxMismatch) > 0
+    v1 <- vcountPattern(r$index1.seq, index1Reads, max.mismatch = opt$demultiplex_index1ReadMaxMismatch) > 0
     
     log.report <- tibble(sample = r$uniqueSample, demultiplexedIndex1Reads = sum(v1))
     
