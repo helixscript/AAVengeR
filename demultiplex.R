@@ -23,16 +23,17 @@ dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'))
 
 index1Reads <- shortRead2DNAstringSet(readFastq(opt$demultiplex_index1ReadsFile))
 
-# Correct Golay encoded barcodes if requested.
-if(opt$demultiplex_correctGolayIndexReads){
-  cluster <- makeCluster(opt$demultiplex_CPUs)
-  clusterExport(cluster, c('opt'))
-  index1Reads <- Reduce('append', parLapply(cluster, split(index1Reads, ntile(1:length(index1Reads), opt$demultiplex_CPUs)), golayCorrection))
-  stopCluster(cluster)
-}
-
 cluster <- makeCluster(opt$demultiplex_CPUs)
 clusterExport(cluster, c('opt', 'samples'))
+
+# Correct Golay encoded barcodes if requested.
+if(opt$demultiplex_correctGolayIndexReads){
+  index1Reads.org <- index1Reads
+  index1Reads <- Reduce('append', parLapply(cluster, split(index1Reads, ntile(1:length(index1Reads), opt$demultiplex_CPUs)), golayCorrection))
+  percentChanged <- (sum(! as.character(index1Reads.org) == as.character(index1Reads)) / length(index1Reads))*100
+  message(percentChanged, '% of reads updated via Golay correction')
+}
+
 
 # Quality trim virus reads and break reads.
 invisible(parLapply(cluster,     
@@ -46,6 +47,20 @@ invisible(parLapply(cluster,
 
 adriftReads <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), pattern = 'adriftReads', full.names = TRUE), function(x) shortRead2DNAstringSet(readFastq(x))))
 anchorReads <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), pattern = 'anchorReads', full.names = TRUE), function(x) shortRead2DNAstringSet(readFastq(x))))
+
+
+
+#--
+m <- readLines('expectedReads_gte_estAbund_5')
+table(m %in% names(anchorReads))
+table(m %in% names(adriftReads))
+
+# lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(x){
+#   load(x)
+#   if(any(names(anchorReads) %in% missing)) browser()
+# })
+#---
+
 
 reads <- syncReads(shortRead2DNAstringSet(readFastq(opt$demultiplex_index1ReadsFile)), anchorReads, adriftReads)
 index1Reads <- reads[[1]];  anchorReads  <- reads[[2]];  adriftReads  <- reads[[3]]
@@ -71,16 +86,26 @@ invisible(lapply(split(d, d$i), function(x){
 rm(d, chunkNum, index1Reads, anchorReads, adriftReads)
 gc()
 
+#--
 
-#invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
-invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
+
+#--
+
+
+invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
+#invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
   library(ShortRead)
   library(dplyr)
   library(stringr)
   source(file.path(opt$softwareDir, 'lib.R'))
   
   load(f)
+ 
+  # if(any(missing %in% as.character(names(anchorReads)))) browser()
+  # findUs <- names(anchorReads)[names(anchorReads) %in% missing]
+  # missingI1 <- index1Reads[names(index1Reads) %in% findUs]
   
+   
   # Capture the chunk identifier.
   chunk.n <- unlist(str_match_all(f, '(\\d+)$'))[2]
   
@@ -125,6 +150,13 @@ invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 
     write.table(log.report, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log', paste0(r$uniqueSample, '.', chunk.n, '.logReport')))
   }))
 }))
+
+#--
+o <- Reduce('append', lapply(list.files('out/tmp', full.names = TRUE, pattern = 'anchorReads'), readFasta))
+table(m %in% as.character(o@id)) 
+o <- Reduce('append', lapply(list.files('out/tmp', full.names = TRUE, pattern = 'adriftReads'), readFasta))
+table(m %in% as.character(o@id)) 
+#--
 
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), recursive = TRUE))
     

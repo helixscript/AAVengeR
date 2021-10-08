@@ -5,9 +5,9 @@ opt <- yaml::read_yaml('config.yml')
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dups <- tibble()
-if('buildFragments_duplicateReadFile' %in% names(opt) & file.exists(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile))){
-  dups <- select(readr::read_tsv(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile)), id, n)
-  dups <- dups[dups$n > 0,]
+if('buildFragments_duplicateReadFile' %in% names(opt)){
+  dups <- readRDS(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile))
+  dups <- select(dups, id, n)
 }
 
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
@@ -16,9 +16,13 @@ adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adri
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitReads'))
 
-
 anchorReadAlignments <- select(anchorReadAlignments, sample, qName, tName, strand, tStart, tEnd, leaderSeq)
 adriftReadAlignments <- select(adriftReadAlignments, sample, qName, tName, strand, tStart, tEnd)
+
+# Some reads will have so many alignments that it will break the joining of the anchor and adrift reads
+# tables and should be abandoned. Setting buildFragments_maxAlignmentsPerRead to a high value will include 
+# these values but buildFragments_idGroup_size should be lowered to protect against breaking the joining 
+# function by exceeding R's build in max table size limit.
 
 a <- table(anchorReadAlignments$qName)
 b <- table(adriftReadAlignments$qName)
@@ -29,11 +33,13 @@ write(x, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'highAlig
 anchorReadAlignments <- subset(anchorReadAlignments, ! qName %in% x)
 adriftReadAlignments <- subset(adriftReadAlignments, ! qName %in% x)
 
+
+
 names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads')
 names(adriftReadAlignments) <- paste0(names(adriftReadAlignments), '.adriftReads')
 
 ids <- unique(anchorReadAlignments$qName.anchorReads)
-id_groups <- split(ids, dplyr::ntile(1:length(ids), round(length(ids)/100)))
+id_groups <- split(ids, dplyr::ntile(1:length(ids), round(length(ids)/opt$buildFragments_idGroup_size)))
 
 cluster <- makeCluster(opt$buildFragments_CPUs)
 clusterExport(cluster, c('opt', 'dups', 'anchorReadAlignments', 'adriftReadAlignments'))
@@ -76,10 +82,9 @@ frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
                   mutate(uniqueSample = sample.anchorReads, readID = qName.anchorReads) %>%
                   select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads)
   
-  # Reads pairs building more than fragment are multihits.
+  # Reads pairs building more than one fragment are multihits.
   # A single fragment can map to multiple reads but a single read can only map to one fragment.
   dupReads <- unique(frags$readID[duplicated(frags$readID)])
-  
   
   if(length(dupReads) > 0) write(dupReads, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitReads', tmpFile()))
   

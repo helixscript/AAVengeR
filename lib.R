@@ -9,6 +9,12 @@ mixAndChunkSeqs <- function(reads, n){
 }
 
 
+lpe <- function(x){
+  o <- unlist(strsplit(x, '/'))
+  o[length(o)]
+}
+
+
 shortRead2DNAstringSet <- function(x){
   r <- x@sread
   names(r) <- sub('\\s+.+$', '', as.character(x@id))
@@ -91,11 +97,11 @@ alignReads.BLAT <- function(x, db){
                  file.path(opt$outputDir, 'tmp', paste0(f, '.psl')),
                  ' -tileSize=11 -stepSize=9 -minIdentity=90 -out=psl -noHead')
   system(comm)
-  file.remove(file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
+  ### file.remove(file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
   
   if(file.exists(file.path(opt$outputDir, 'tmp', paste0(f, '.psl')))){
     b <- parseBLAToutput(file.path(opt$outputDir, 'tmp', paste0(f, '.psl')))
-    file.remove(file.path(opt$outputDir,  'tmp', paste0(f, '.psl')))
+    ### file.remove(file.path(opt$outputDir,  'tmp', paste0(f, '.psl')))
     b
   } else {
     return(tibble())
@@ -106,8 +112,11 @@ alignReads.BLAT <- function(x, db){
 parseBLAToutput <- function(f){
   if(! file.exists(f) | file.info(f)$size == 0) return(tibble::tibble())
   b <- readr::read_delim(f, delim = '\t', col_names = FALSE, col_types = readr::cols())
+  
   names(b) <- c('matches', 'misMatches', 'repMatches', 'nCount', 'qNumInsert', 'qBaseInsert', 'tNumInsert', 'tBaseInsert', 'strand',
                 'qName', 'qSize', 'qStart', 'qEnd', 'tName', 'tSize', 'tStart', 'tEnd', 'blockCount', 'blockSizes', 'qStarts', 'tStarts')
+  
+  b$tStart <- b$tStart + 1
   
   b$queryPercentID       <- (b$matches/b$qSize)*100
   b$tAlignmentWidth      <- (b$tEnd - b$tStart) + 1

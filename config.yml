@@ -1,49 +1,72 @@
-outputDir:         /home/everett/projects/AAVengeR2/out
+Rscript:           /home/opt/R-3.4.0/lib/R/bin/Rscript
 softwareDir:       /home/everett/projects/AAVengeR2
-sampleConfigFile:  /home/everett/projects/AAVengeR_runs/configs/sampleConfig.Sabatino.tsv
-
-
-
+outputDir:         /home/everett/projects/Sabatino_canine_hemophilia_AAV/out
+sampleConfigFile:  /home/everett/projects/Sabatino_canine_hemophilia_AAV/sampleConfig.tsv
+modules:           
+                   - demultiplex.R
+                   - prepReads.R
+                   - vectorFilter.R
+                   - mapLeaderSequences.R
+                   - alignReads.R 
+                   - buildFragments.R
+                   - standardizeFragments.R
+                   - buildSites.R
+                   - mapSiteLeaderSequences.R
+             
+#----------------------------------------------------------------------------
 
 demultiplex_outputDir: demultiplex
 demultiplex_CPUs: 20
+demultiplex_RC_I1_barcodes: FALSE
 demultiplex_qualtrim_code: '5'
 demultiplex_qualtrim_minLength: 100
-demultiplex_anchorReadsFile: /home/everett/projects/AAVengeR/data/testData/R2.test.fastq.gz
-demultiplex_adriftReadsFile: /home/everett/projects/AAVengeR/data/testData/R1.test.fastq.gz
-demultiplex_index1ReadsFile: /home/everett/projects/AAVengeR/data/testData/I1.test.fastq.gz
+demultiplex_anchorReadsFile: /home/everett/projects/canine_hemophilia_AAV/data/sequencingData/Undetermined_S0_L001_R2_001.fastq.gz
+demultiplex_adriftReadsFile: /home/everett/projects/canine_hemophilia_AAV/data/sequencingData/Undetermined_S0_L001_R1_001.fastq.gz
+demultiplex_index1ReadsFile: /home/everett/projects/canine_hemophilia_AAV/data/sequencingData/Undetermined_S0_L001_I1_001.fastq.gz
 demultiplex_correctGolayIndexReads: TRUE
-demultiplex_correctGolayIndexReads_CPUs: 20
 demultiplex_sequenceChunkSize: 100000
-demultiplex_index1ReadFileMaxMismatch: 1
+demultiplex_index1ReadMaxMismatch: 0
 demultiplex_useAdriftReadUniqueLinkers: TRUE
-demultiplex_adriftReadLinkerBarcodeMaxMismatch: 2
+demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1
 
+prepReads_CPUs: 20
+prepReads_outputDir: prepReads
+prepReads_inputDir:  demultiplex
+prepReads_minAnchorReadLength: 50
+prepReads_minAdriftReadLength: 50
 
-createUniqueFasta_CPUs: 20
-createUniqueFasta_outputDir: uniqueFasta
-createUniqueFasta_inputDir:  demultiplex
-
-
-vectorFilter_inputDir :  uniqueFasta
+vectorFilter_inputDir :  prepReads
 vectorFilter_outputDir:  vectorFilter
 vectorFilter_outputFile: vectorFilter.rds
 vectorFilter_CPUs: 25
 vectorFilter_anchorReadSampleLength: 25
-vectorFilter_percentID: 98
+vectorFilter_percentID: 90
 vectorFilter_percentCoverage: 90
 
-mapLeaderSequences_inputDir :  uniqueFasta
+mapLeaderSequences_inputDir :  prepReads
 mapLeaderSequences_outputDir:  mapLeaderSequences
 mapLeaderSequences_outputFile: mappings.rds
 mapLeaderSequences_CPUs: 25
 mapLeaderSequences_alignmentChunkSize: 10000
 mapLeaderSequences_minAlignmentLength: 10
-mapLeaderSequences_minAlignmentPercentID: 95
+mapLeaderSequences_minAlignmentPercentID: 90
 
+# Example buildSites_excludeSites parameter: chrX,122897024,123043178|chr1,107856070,107856080
+buildSites_inputFile: standardizeFragments/stdFragments.rds
+buildSites_outputDir: buildSites
+buildSites_outputFile: sites.rds
+buildSites_excludeSites: chrX,122897024,123043178
+
+mapSiteLeaderSequences_outputDir:  mapSiteLeaderSequences
+mapSiteLeaderSequences_inputFile:  buildSites/sites.rds
+mapSiteLeaderSequences_outputFile: sites.rds
+mapSiteLeaderSequences_CPUs: 25
+mapSiteLeaderSequences_alignmentChunkSize: 10000
+mapSiteLeaderSequences_minAlignmentLength: 10
+mapSiteLeaderSequences_minAlignmentPercentID: 90
 
 alignReads_outputDir: alignReads
-alignReads_inputDir:  uniqueFasta
+alignReads_inputDir:  prepReads
 alignReads_vectorFilterOutputFile: vectorFilter/vectorFilter.rds
 alignReads_mapLeaderSequencesOutputFile: mapLeaderSequences/mappings.rds
 alignReads_anchorReadAlignmentsOutputFile: anchorReadAlignments.rds
@@ -64,7 +87,7 @@ buildFragments_outputDir: fragments
 buildFragments_outputFile: fragments.rds
 buildFragments_anchorReadsAlignmentFile: alignReads/anchorReadAlignments.rds
 buildFragments_adriftReadsAlignmentFile: alignReads/adriftReadAlignments.rds
-buildFragments_duplicateReadFile: uniqueFasta/dupReadPairMap.tsv
+buildFragments_duplicateReadFile: prepReads/dupReadPairMap.tsv
 buildFragments_maxAlignmentsPerRead: 100
 buildFragments_minFragLength: 25
 buildFragments_maxFragLength: 2500
@@ -73,7 +96,6 @@ buildFragments_representativeSeqCalc_CPUs: 5
 buildFragments_maxLeaderSeqDiffScore: 0.15
 buildFragments_assemblyConflictResolution: 0.66
 
-
 standardizeFragments_CPUs: 10
 standardizeFragments_inputFile: fragments/fragments.rds
 standardizeFragments_outputDir: standardizeFragments
@@ -81,13 +103,6 @@ standardizeFragments_outputFile: stdFragments.rds
 standardizeFragments_standardizeSitesBy: subject
 standardizeFragments_standardizeBreaksBy: replicate
 standardizeFragments_maxLeaderSeqDiffScore: 0.15
-
-
-# chrX,122897024,123043178|chr1,107856070,107856080
-buildSites_inputFile: standardizeFragments/stdFragments.rds
-buildSites_outputDir: buildSites
-buildSites_excludeSites: chrX,122897024,123043178
-
 
 command_python2:     /usr/bin/python2
 command_blat:        /home/everett/ext/blat
