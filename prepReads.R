@@ -15,14 +15,6 @@ dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'dupTables'))
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'))
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'final'))
 
-
-#
-#o <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$prepReads_inputDir), pattern = '*.fasta', full.names = TRUE), readFasta))
-#expectedReads <- readLines('expectedReads_gte_estAbund_5')
-#table(expectedReads %in% as.character(o@id))
-#
-
-
 samples <- loadSamples()
 
 cluster <- makeCluster(opt$prepReads_CPUs)
@@ -74,15 +66,6 @@ invisible(parLapply(cluster, split(d, d$file), function(x){
 }))
 
 
-#---
-#o <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'trimmed'), full.names = TRUE, pattern = 'anchorReads'), readFasta))
-#table(expectedReads %in% as.character(o@id))
-#o <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'trimmed'), full.names = TRUE, pattern = 'adriftReads'), readFasta))
-#table(expectedReads %in% as.character(o@id))
-#---
-
-
-
 # Create unique FASTA files and record duplicate read pairs.
 
 files <- list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'trimmed'), pattern = 'anchorReads', full.names = TRUE)
@@ -126,13 +109,6 @@ invisible(parLapply(cluster, files, function(x){
 o <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'dupTables'), full.names = TRUE), readRDS))
 saveRDS(o, file.path(opt$outputDir, opt$prepReads_outputDir, 'duplicateReads.rds'))
     
-#--
-#a <- expectedReads[expectedReads %in% o$id2]
-#expectedReads <- expectedReads[! expectedReads %in% a]
-#
-#o <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'unique'), full.names = TRUE, pattern = 'anchorReads'), readFasta))
-#table(expectedReads %in% as.character(o@id))
-#--
 
 # Align anchor reads to vector sequences.
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'))))
@@ -251,10 +227,5 @@ invisible(lapply(files[grepl('anchorReads', files)], function(file){
   writeFasta(b, file.path(opt$outputDir, opt$prepReads_outputDir, 'final', sub('anchorReads', 'adriftReads', lpe(file))))
 }))
 
-
-#--
-#o <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'final'), full.names = TRUE, pattern = 'anchorReads'), readFasta))
-#table(expectedReads %in% as.character(o@id))
-#--
 
 stopCluster(cluster)

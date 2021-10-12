@@ -80,7 +80,6 @@ o <- unlist(lapply(split(readSampleMap, readSampleMap$refGenome.id), function(x)
 
 
 # For each BLAT chunk, create FASTA files and run BLAT.
-date()
 invisible(parLapply(cluster, o, function(x){
        f <-  file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1', 
                        paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = '')))
@@ -92,7 +91,6 @@ invisible(parLapply(cluster, o, function(x){
                      ' -stepSize=', opt$alignReads_genomeAlignment_blatStepSize, ' -minIdentity=', (opt$alignReads_genomeAlignment_minPercentID - 1), 
                      ' -out=psl -noHead'))
 }))
-date()
 
 
 # Parse and colate BLAT results.
@@ -104,8 +102,13 @@ b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputD
        dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
      }))
 
+# M03249:365:000000000-C3CH4:1:2105:18735:2259, M03249:365:000000000-C3CH4:1:2109:13866:20799
+#>M03249:365:000000000-C3CH4:1:2105:18735:22593
+#TCAGGATGTTCCTAAGAGGTCGTGCTGACCAGGCAGCTGCGCCTGGGGA
+
+
 b <- left_join(b, select(readSampleMap, id, seq), by = c('qName' = 'id'))
-anchorReadAlignments <- full_join(select(readSampleMap, id, seq), b, by = 'seq') %>% tidyr::drop_na() %>% select(-qName, -seq) %>% rename(qName = id) %>% distinct()
+anchorReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') %>% tidyr::drop_na() %>% select(-qName, -seq) %>% rename(qName = id) %>% distinct()
 
 
 # Select anchor reads where the ends align to the genome.
@@ -236,7 +239,7 @@ b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputD
 
 
 b <- left_join(b, select(readSampleMap, id, seq), by = c('qName' = 'id'))
-adriftReadAlignments <- full_join(select(readSampleMap, id, seq), b, by = 'seq') %>% tidyr::drop_na() %>% select(-qName, -seq) %>% rename(qName = id) %>% distinct()
+adriftReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') %>% tidyr::drop_na() %>% select(-qName, -seq) %>% rename(qName = id) %>% distinct()
 
 
 # Select adrift reads where the ends align to the genome.

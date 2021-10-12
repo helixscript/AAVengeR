@@ -19,10 +19,10 @@ dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitReads
 anchorReadAlignments <- select(anchorReadAlignments, sample, qName, tName, strand, tStart, tEnd, leaderSeq)
 adriftReadAlignments <- select(adriftReadAlignments, sample, qName, tName, strand, tStart, tEnd)
 
-# Some reads will have so many alignments that it will break the joining of the anchor and adrift reads
+# Some reads will have so many alignments after filtering that it will break the joining of the anchor and adrift reads
 # tables and should be abandoned. Setting buildFragments_maxAlignmentsPerRead to a high value will include 
 # these values but buildFragments_idGroup_size should be lowered to protect against breaking the joining 
-# function by exceeding R's build in max table size limit.
+# function by exceeding R's built in max table size limit.
 
 a <- table(anchorReadAlignments$qName)
 b <- table(adriftReadAlignments$qName)
@@ -32,8 +32,6 @@ write(x, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'highAlig
 
 anchorReadAlignments <- subset(anchorReadAlignments, ! qName %in% x)
 adriftReadAlignments <- subset(adriftReadAlignments, ! qName %in% x)
-
-
 
 names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads')
 names(adriftReadAlignments) <- paste0(names(adriftReadAlignments), '.adriftReads')

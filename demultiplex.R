@@ -49,19 +49,6 @@ adriftReads <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$d
 anchorReads <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), pattern = 'anchorReads', full.names = TRUE), function(x) shortRead2DNAstringSet(readFastq(x))))
 
 
-
-#--
-m <- readLines('expectedReads_gte_estAbund_5')
-table(m %in% names(anchorReads))
-table(m %in% names(adriftReads))
-
-# lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(x){
-#   load(x)
-#   if(any(names(anchorReads) %in% missing)) browser()
-# })
-#---
-
-
 reads <- syncReads(shortRead2DNAstringSet(readFastq(opt$demultiplex_index1ReadsFile)), anchorReads, adriftReads)
 index1Reads <- reads[[1]];  anchorReads  <- reads[[2]];  adriftReads  <- reads[[3]]
 
@@ -86,10 +73,6 @@ invisible(lapply(split(d, d$i), function(x){
 rm(d, chunkNum, index1Reads, anchorReads, adriftReads)
 gc()
 
-#--
-
-
-#--
 
 
 invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
@@ -151,12 +134,6 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
   }))
 }))
 
-#--
-o <- Reduce('append', lapply(list.files('out/tmp', full.names = TRUE, pattern = 'anchorReads'), readFasta))
-table(m %in% as.character(o@id)) 
-o <- Reduce('append', lapply(list.files('out/tmp', full.names = TRUE, pattern = 'adriftReads'), readFasta))
-table(m %in% as.character(o@id)) 
-#--
 
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), recursive = TRUE))
     
