@@ -5,6 +5,8 @@ options(stringsAsFactors = FALSE)
 
 opt <- yaml::read_yaml('config.yml')
 
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
+
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir))
@@ -89,8 +91,8 @@ invisible(parLapply(cluster, files, function(x){
     # Here we create a data frame that stores the ids of duplicate reads that we will be using (id)
     # and the equivelnt reads that we will not be using (id2)
     r <- bind_rows(lapply(split(o1, o1$seq), function(x){
-          x <- x[order(x$id),]
-          tibble(id = x$id[1], n = n_distinct(x$id) - 1, id2 = x$id[2:nrow(x)])
+           x <- x[order(x$id),]
+           tibble(id = x$id[1], n = n_distinct(x$id) - 1, id2 = x$id[2:nrow(x)])
          }))
     
     saveRDS(r, file.path(opt$outputDir, opt$prepReads_outputDir, 'dupTables', paste0(lpe(x), '.rds')))
@@ -111,7 +113,12 @@ saveRDS(o, file.path(opt$outputDir, opt$prepReads_outputDir, 'duplicateReads.rds
     
 
 # Align anchor reads to vector sequences.
-invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'))))
+# These alignments will be used to determine which parts of the start of anchor reads align to the vector 
+# and should be removed during alignments to the genome. This data will be overriden by HMM results if HHM libraries 
+# are provided in the sample data. These alignments will also be used to test if the end of anchor reads align to 
+# vectors and signal their removal. 
+
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 invisible(lapply(split(d, d$vectorFastaFile), function(x){
        invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
@@ -166,11 +173,8 @@ invisible(lapply(split(d, d$vectorFastaFile), function(x){
 }))
   
   
-invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'))))
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
-
-# Colate anchor read alignemnts.
-# Determine which reads aligned to the vector.
 
 # Create list of anchor reads with ends that align to the vector and tables of alignments need for trimming reads before genomic alignments.
 o <- lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), full.names = TRUE), function(x){
@@ -179,6 +183,7 @@ o <- lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchor
        b <- readRDS(x)
        
        # Alignments already %id filtered. Consider that there may be an accumilation of mismatches near the end.
+       # Split reads on query lengths then find alignments which include the end of query sequences. 
        vectorIDs <- unique(unname(unlist(lapply(split(b, b$qlength), function(a){
                         a <- subset(a, qstart <= (a$qlength[1] - opt$prepReads_vectorAlignmentTestLength) & 
                                        qend >= a$qlength[1] - opt$prepReads_vectorAlignmentTestLength_drift)
@@ -212,20 +217,61 @@ mappings <- bind_rows(lapply(o, '[[', 'mappings'))
 saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'alignments.rds'))
 
 vectorIDs <- unlist(lapply(o, '[[', 'vectorIDs'))
+saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorIDs.rds'))
 
+
+# If a leaderSeqHMM column is present then we run the anchor reads through the HMM, select reads with 
+# significant HMM hits, and rewrite the mapping object created earlier so that we can use the same code
+# in the alignment module.
+
+if('leaderSeqHMM' %in% names(samples)){
+ hmmResults <- bind_rows(parLapply(cluster, split(d, 1:nrow(d)), function(x){ 
+                 source(file.path(opt$softwareDir, 'lib.R'))
+                 library(dplyr)
+                 library(Biostrings)
+                 captureLTRseqsLentiHMM(readDNAStringSet(x$file), subset(samples, uniqueSample == x$uniqueSample)$leaderSeqHMM)
+              }))
+ 
+ 
+ saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'blast_alignments.rds'))
+ 
+ mappings <- tibble(id = hmmResults$id, leaderMapping.qStart = 1, leaderMapping.qEnd = nchar(hmmResults$LTRseq), 
+             leaderMapping.sStart = NA, leaderMapping.sEnd = NA)
+ 
+ saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'alignments.rds'))
+}
+
+
+# Make a list of FASTA files containing unique reads.
 files <- list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'unique'), full.names = TRUE)
+
 invisible(lapply(files[grepl('anchorReads', files)], function(file){
   a <- readDNAStringSet(file)
   b <- readDNAStringSet(sub('anchorReads', 'adriftReads', file))
+  
   a <- a[! names(a) %in% vectorIDs]
   b <- b[! names(b) %in% vectorIDs]
-
+  
   if(length(a) == 0 | length(b) == 0) return()
+  
+  # Limit reads to those with leader seq HMM hits since we know what
+  # the leader sequence should look like because the user provided an HMM.
+  if('leaderSeqHMM' %in% names(samples) & nrow(hmmResults) > 0){
+    a <- a[names(a) %in% hmmResults$id]
+    b <- b[names(b) %in% hmmResults$id]
+  }
+  
+  if(length(a) == 0 | length(b) == 0) return()
+  
   if(! all(names(a) == names(b))) stop('Error -- read ids do not match before final write out.')
   
   writeFasta(a, file.path(opt$outputDir, opt$prepReads_outputDir, 'final', lpe(file)))
   writeFasta(b, file.path(opt$outputDir, opt$prepReads_outputDir, 'final', sub('anchorReads', 'adriftReads', lpe(file))))
 }))
 
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 stopCluster(cluster)
+
+
+

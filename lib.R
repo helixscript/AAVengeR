@@ -86,29 +86,6 @@ loadSamples <- function(){
 }
 
 
-
-
-alignReads.BLAT <- function(x, db){
-  f <- tmpFile()
-  writeFasta(x, file = file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
-  
-  comm <- paste0(opt$command_blat, ' ', db, ' ',
-                 file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' ',
-                 file.path(opt$outputDir, 'tmp', paste0(f, '.psl')),
-                 ' -tileSize=11 -stepSize=9 -minIdentity=90 -out=psl -noHead')
-  system(comm)
-  ### file.remove(file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
-  
-  if(file.exists(file.path(opt$outputDir, 'tmp', paste0(f, '.psl')))){
-    b <- parseBLAToutput(file.path(opt$outputDir, 'tmp', paste0(f, '.psl')))
-    ### file.remove(file.path(opt$outputDir,  'tmp', paste0(f, '.psl')))
-    b
-  } else {
-    return(tibble())
-  }
-}
-
-
 parseBLAToutput <- function(f){
   if(! file.exists(f) | file.info(f)$size == 0) return(tibble::tibble())
   b <- readr::read_delim(f, delim = '\t', col_names = FALSE, col_types = readr::cols())
@@ -156,7 +133,6 @@ representativeSeq <- function(s, percentReads = 95){
 
   f <- tmpFile()
 
-
   # Align sequences in order to handle potential indels.
   inputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.fasta'))
   s <- Biostrings::DNAStringSet(s)
@@ -198,7 +174,6 @@ representativeSeq <- function(s, percentReads = 95){
 }
 
 
-
 standardizationSplitVector <- function(d, v){
   if(v == 'replicate'){
     return(d$uniqueSample)
@@ -208,7 +183,6 @@ standardizationSplitVector <- function(d, v){
     return(d$subject)
   }
 }
-
 
 
 standardizedFragments <- function(frags, opt){
@@ -293,7 +267,6 @@ golayCorrection <- function(x){
 }
 
 
-
 blast2rearangements <- function(x, minAlignmentLength = 10, minPercentID = 95, CPUs = 20){
   library(data.table)
   
@@ -361,6 +334,60 @@ blast2rearangements <- function(x, minAlignmentLength = 10, minPercentID = 95, C
   parallel::stopCluster(cluster)
   r
 }
+
+
+captureLTRseqsLentiHMM <- function(reads, hmm){
+  
+  # The passed HMM is expected to cover at least 100 NT of the end of the LTR
+  # being sequences out of and the HMM is expected to end in CA.
+  
+  outputFile <- file.path(opt$outputDir, 'tmp', tmpFile())
+  writeXStringSet(reads, outputFile)
+  comm <- paste0(opt$command.hmmsearch, ' --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', 
+                 hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
+  system(comm)
+  
+  r <- readLines(paste0(outputFile, '.domTbl'))
+  r <- r[!grepl('^\\s*#', r)]
+  r <- strsplit(r, '\\s+')
+  
+  o <- bind_rows(lapply(r, function(x) data.frame(t(x))))
+  
+  if(nrow(o) == 0) return(tibble())
+  
+  names(o) <- c('targetName', 'targetAcc', 'tlen', 'queryName', 'queryAcc', 'queryLength', 'fullEval', 
+                'fullScore', 'fullBias', 'domNum', 'totalDoms', 'dom_c-Eval', 'dom_i-Eval', 'domScore', 
+                'domBias', 'hmmStart', 'hmmEnd', 'targetStart', 'targetEnd', 'envStart', 'envEnd', 
+                'meanPostProb',  'desc') 
+  write.table(o, sep = '\t', file = paste0(outputFile, '.domTbl2'), col.names = TRUE, row.names = FALSE, quote = FALSE)
+  
+  o <- readr::read_delim(paste0(outputFile, '.domTbl2'), '\t', col_types = readr::cols())
+  
+  h <- readLines(hmm)
+  hmmLength <- as.integer(unlist(strsplit(h[grepl('^LENG', h)], '\\s+'))[2])
+  hmmName <- unlist(strsplit(h[grepl('^NAME', h)], '\\s+'))[2]
+  
+  # Subset HMM results such that alignments start at the start of reads, the end of the HMM
+  # which contains the CA is includes and the alignment has a significant alignment scores.
+  o <- subset(o, targetStart <= opt$prepReads_HMMmaxStartPos & 
+                hmmEnd == hmmLength & 
+                fullEval <= as.numeric(opt$prepReads_HMMminEval))
+  if(nrow(o) == 0) return(tibble())
+  
+  reads2 <- reads[names(reads) %in% o$targetName]
+  rm(reads)
+  gc()
+  reads2 <- reads2[match(o$targetName, names(reads2))]
+  
+  # Make sure all HMMs alignments result in an CA in the target sequences.
+  reads2 <- reads2[as.character(subseq(reads2, o$targetEnd-1, o$targetEnd)) == 'CA']
+  if(length(reads2) == 0) return(tibble())
+  
+  tibble(id = names(reads2),
+         LTRname = hmmName,
+         LTRseq = as.character(subseq(reads2, 1, o$targetEnd)))
+}
+
 
 
 

@@ -51,4 +51,6 @@ sites <- bind_rows(lapply(split(frags, paste(frags$subject, frags$sample, frags$
   }
 }))
 
+sites <- dplyr::rename(sites, chromosome = seqnames)
+
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))

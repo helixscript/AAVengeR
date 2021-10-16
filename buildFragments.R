@@ -42,6 +42,9 @@ id_groups <- split(ids, dplyr::ntile(1:length(ids), round(length(ids)/opt$buildF
 cluster <- makeCluster(opt$buildFragments_CPUs)
 clusterExport(cluster, c('opt', 'dups', 'anchorReadAlignments', 'adriftReadAlignments'))
 
+
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
+
 frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
 #frags <- bind_rows(lapply(id_groups, function(id_group){
   library(dplyr)
@@ -86,6 +89,8 @@ frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
   
   if(length(dupReads) > 0) write(dupReads, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitReads', tmpFile()))
   
+  # representativeSeq() is a bottle neck here -- develop speed up.
+  
   frags <- bind_rows(lapply(split(frags, paste(frags$uniqueSample, frags$strand, frags$fragStart, frags$fragEnd)), function(a){
              a <- left_join(a, dups, by = c('readID' = 'id'))
                          
@@ -98,7 +103,7 @@ frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
              
              # Exclude reads where the leaderSeq is not similiar to the representative sequence. 
              i <- stringdist::stringdist(r[[2]], a$leaderSeq.anchorReads) / nchar(r[[2]]) <= opt$buildFragments_maxLeaderSeqDiffScore
-             if(all(! i)) return(data.frame())
+             if(all(! i)) return(tibble())
              
              a <- a[i,]
              a$repLeaderSeq <- r[[2]]
@@ -107,6 +112,8 @@ frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
 
   frags
 }))
+
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 
 # Record multihit alignments for later analyses.

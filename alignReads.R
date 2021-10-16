@@ -28,7 +28,9 @@ anchorReads <- Reduce('append', parLapply(cluster, f[grepl('anchorReads', f)], f
   Biostrings::readDNAStringSet(file.path(opt$inputFastaDir, r))  
 }))
 
-# Remove recognizable leader sequences from anchorReads so that they do not interfer with alignments.
+
+# Remove recognizable leader sequences from anchorReads so that they do not interfer with alignments
+# and save the original sequences so that they can be reconstruted.
 
 anchorReads_preLeaderTrim <- anchorReads
 
@@ -75,7 +77,11 @@ o <- unlist(lapply(split(readSampleMap, readSampleMap$refGenome.id), function(x)
        a <- round(nrow(x) / 2)
        b <- suppressWarnings(unique(c(rbind(c(1:a),  rev(c((a+1):nrow(x)))))))
        x <- x[b,]
-       split(x, (seq(nrow(x))-1) %/% opt$alignReads_alignmentChunkSize)
+       
+       chunkSize <- floor(nrow(x) / opt$alignReads_CPUs)
+       if('alignReads_alignmentChunkSize' %in% names(opt)) chunkSize <- opt$alignReads_alignmentChunkSize
+       
+       split(x, (seq(nrow(x))-1) %/% chunkSize)
     }), recursive = FALSE)
 
 
@@ -94,6 +100,7 @@ invisible(parLapply(cluster, o, function(x){
 
 
 # Parse and colate BLAT results.
+# Here we filter on alignmentPercentID rather than % query alignment because we may not of removed all the not-genomic NTs from the anchor read.
 b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), pattern = '*.psl', full.names = TRUE), function(x){
        b <- parseBLAToutput(x)
        if(nrow(b) == 0) return(tibble())
@@ -102,13 +109,8 @@ b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputD
        dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
      }))
 
-# M03249:365:000000000-C3CH4:1:2105:18735:2259, M03249:365:000000000-C3CH4:1:2109:13866:20799
-#>M03249:365:000000000-C3CH4:1:2105:18735:22593
-#TCAGGATGTTCCTAAGAGGTCGTGCTGACCAGGCAGCTGCGCCTGGGGA
-
-
 b <- left_join(b, select(readSampleMap, id, seq), by = c('qName' = 'id'))
-anchorReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') %>% tidyr::drop_na() %>% select(-qName, -seq) %>% rename(qName = id) %>% distinct()
+anchorReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') %>% tidyr::drop_na() %>% select(-qName, -seq) %>% dplyr::rename(qName = id) %>% distinct()
 
 
 # Select anchor reads where the ends align to the genome.
@@ -149,6 +151,7 @@ adriftReads <- shortRead2DNAstringSet(Reduce('append', lapply(f[grepl('adriftRea
 adriftReads <- adriftReads[names(adriftReads) %in% anchorReadAlignments$qName]
 
 # Limit anchor read alignments to those with leader sequences >= 10 NT because we need to create adrift over-read adapters.
+# (!) This removed the possiblity for keeping alignments that start the near the beginning of reads. 
 anchorReadAlignments <- anchorReadAlignments[nchar(anchorReadAlignments$leaderSeq) >= opt$alignReads_genomeAlignment_anchorReadMinStart,]
 
 
@@ -210,7 +213,11 @@ o <- unlist(lapply(split(readSampleMap, readSampleMap$refGenome.id), function(x)
   a <- round(nrow(x) / 2)
   b <- suppressWarnings(unique(c(rbind(c(1:a),  rev(c((a+1):nrow(x)))))))
   x <- x[b,]
-  split(x, (seq(nrow(x))-1) %/% opt$alignReads_alignmentChunkSize)
+  
+  chunkSize <- floor(nrow(x) / opt$alignReads_CPUs)
+  if('alignReads_alignmentChunkSize' %in% names(opt)) chunkSize <- opt$alignReads_alignmentChunkSize
+  
+  split(x, (seq(nrow(x))-1) %/% chunkSize)
 }), recursive = FALSE)
 
 
@@ -228,6 +235,8 @@ invisible(parLapply(cluster, o, function(x){
               ' -out=psl -noHead'))
 }))
 
+
+stopCluster(cluster)
 
 # Parse and colate BLAT results.
 b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'), pattern = '*.psl', full.names = TRUE), function(x){

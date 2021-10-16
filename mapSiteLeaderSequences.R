@@ -7,6 +7,8 @@ opt <- yaml::read_yaml('config.yml')
 
 source(file.path(opt$softwareDir, 'lib.R'))
 
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
+
 sites <- readRDS(file.path(opt$outputDir, opt$mapSiteLeaderSequences_inputFile))
 
 dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir))
@@ -55,16 +57,14 @@ m <- bind_rows(lapply(split(samples, samples$vectorFastaFile), function(x){
   }))
   
   r <- blast2rearangements(b, minAlignmentLength = opt$mapSiteLeaderSequences_minAlignmentLength, 
-                           minPercentID = opt$mapLeaderSequences_minAlignmentPercentID, CPUs = opt$mapSiteLeaderSequences_CPUs)
-  
-  #browser()
+                           minPercentID = opt$mapSiteLeaderSequences_minAlignmentPercentID, CPUs = opt$mapSiteLeaderSequences_CPUs)
   
   left_join(tibble(qname = names(reads), leaderSeq = as.character(reads)), dplyr::rename(r, repLeaderSeqMap = rearrangement), by = 'qname')
 }))
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
-sites <- select(sites, -s) %>% left_join(select(m, -qname), by = c('repLeaderSeq' = 'leaderSeq'))
+sites <- select(sites, -s) %>% left_join(select(m, leaderSeq, repLeaderSeqMap), by = c('repLeaderSeq' = 'leaderSeq'))
 sites$repLeaderSeqLength <- nchar(sites$repLeaderSeq)
 
 sites <- select(sites, subject, sample, posid, estAbund, reads, repLeaderSeqLength, repLeaderSeqMap, repLeaderSeq)

@@ -74,7 +74,6 @@ rm(d, chunkNum, index1Reads, anchorReads, adriftReads)
 gc()
 
 
-
 invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
 #invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
   library(ShortRead)
@@ -91,7 +90,6 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
    
   # Capture the chunk identifier.
   chunk.n <- unlist(str_match_all(f, '(\\d+)$'))[2]
-  
   
   # Loop through samples in sample data file to demultiplex and apply read specific filters.
   invisible(lapply(1:nrow(samples), function(r){
@@ -124,6 +122,8 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
       if(length(index1Reads) == 0){
           log.report$demultiplexedReads <- 0
       } else {
+        
+        #browser()
         writeFasta(anchorReads, file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.anchorReads')))
         writeFasta(adriftReads, file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.adriftReads')))
         log.report$demultiplexedReads <- length(index1Reads)
@@ -132,6 +132,9 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
   
     write.table(log.report, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log', paste0(r$uniqueSample, '.', chunk.n, '.logReport')))
   }))
+  
+  
+  
 }))
 
 
@@ -151,6 +154,7 @@ invisible(lapply(unique(samples$uniqueSample), function(x){
   writeFasta(adriftReads, file.path(opt$outputDir, opt$demultiplex_outputDir, paste0(x, '.adriftReads.fasta')))
 }))
 
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 # Collect all the logs from the different computational nodes and create a single report.
 logReport <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), pattern = '*.logReport$', full.names = TRUE), function(f){
