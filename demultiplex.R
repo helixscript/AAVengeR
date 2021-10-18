@@ -83,11 +83,6 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
   
   load(f)
  
-  # if(any(missing %in% as.character(names(anchorReads)))) browser()
-  # findUs <- names(anchorReads)[names(anchorReads) %in% missing]
-  # missingI1 <- index1Reads[names(index1Reads) %in% findUs]
-  
-   
   # Capture the chunk identifier.
   chunk.n <- unlist(str_match_all(f, '(\\d+)$'))[2]
   
@@ -123,7 +118,6 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
           log.report$demultiplexedReads <- 0
       } else {
         
-        #browser()
         writeFasta(anchorReads, file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.anchorReads')))
         writeFasta(adriftReads, file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.adriftReads')))
         log.report$demultiplexedReads <- length(index1Reads)
@@ -132,9 +126,6 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
   
     write.table(log.report, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log', paste0(r$uniqueSample, '.', chunk.n, '.logReport')))
   }))
-  
-  
-  
 }))
 
 

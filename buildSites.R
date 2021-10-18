@@ -18,6 +18,7 @@ if('buildSites_excludeSites' %in% names(opt)){
   frags <- subset(frags, ! posid %in% p)
 }
 
+samples <- loadSamples()
 
 sites <- bind_rows(lapply(split(frags, paste(frags$subject, frags$sample, frags$posid)), function(x){
   if(nrow(x) > 1){
@@ -53,4 +54,12 @@ sites <- bind_rows(lapply(split(frags, paste(frags$subject, frags$sample, frags$
 
 sites <- dplyr::rename(sites, chromosome = seqnames)
 
+if('flags' %in% names(samples)){
+  samples$s <- paste(samples$subject, samples$sample)
+  sites$s <- paste(sites$subject, sites$sample)
+  sites <- left_join(sites, dplyr::distinct(dplyr::select(samples, flags, s)), by = 's') %>% dplyr::select(-s)
+}
+
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
+
+

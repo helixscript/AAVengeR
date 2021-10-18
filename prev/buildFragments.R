@@ -41,34 +41,16 @@ ids <- unique(anchorReadAlignments$qName.anchorReads)
 id_groups <- split(ids, dplyr::ntile(1:length(ids), round(length(ids)/opt$buildFragments_idGroup_size)))
 
 cluster <- makeCluster(opt$buildFragments_CPUs)
-clusterExport(cluster, c('opt', 'dups'))
+clusterExport(cluster, c('opt', 'dups', 'anchorReadAlignments', 'adriftReadAlignments'))
 
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
-
-# This is a worker function for the parLapply() in the following lapply() that calculates the number 
-# of reads per fragment and determines their representative leader sequences. 
-repWorker <- function(a){
+frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
+#frags <- bind_rows(lapply(id_groups, function(id_group){
   library(dplyr)
   source(file.path(opt$softwareDir, 'lib.R'))
-  a <- left_join(a, dups, by = c('readID' = 'id'))
   
-  a$reads <-sum(a$n, na.rm =TRUE) + nrow(a)
-  r <- representativeSeq(a$leaderSeq.anchorReads)
-  
-  # Exclude reads where the leaderSeq is not similiar to the representative sequence. 
-  i <- stringdist::stringdist(r[[2]], a$leaderSeq.anchorReads) / nchar(r[[2]]) <= opt$buildFragments_maxLeaderSeqDiffScore
-  if(all(! i)) return(tibble())
-  
-  a <- a[i,]
-  a$repLeaderSeq <- r[[2]]
-  a[1, c(1,3:7,9,10)]
-}
-
-
-# Combine read level fragments into unqiue fragments.
-frags <- bind_rows(lapply(id_groups, function(id_group){
   groupID <- paste0(stringi::stri_rand_strings(10, 1, '[A-Za-z0-9]'), collapse = '')
   
   a <- subset(anchorReadAlignments, qName.anchorReads %in% id_group)
@@ -76,7 +58,8 @@ frags <- bind_rows(lapply(id_groups, function(id_group){
   
   if(nrow(a) == 0 | nrow(b) == 0) return(data.frame())
   
-  # Join adrift reads alignemnts to anchor read alignments to create potential read pairs.
+  write(paste(date(), '\t', 'Starting join') , file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'logs', paste0(groupID, '.log')), append = FALSE)
+  
   frags <- left_join(a, b, by = c('qName.anchorReads' = 'qName.adriftReads')) %>% tidyr::drop_na()
   
   # Remove combinations not found on the same chromosome. 
@@ -89,8 +72,11 @@ frags <- bind_rows(lapply(id_groups, function(id_group){
   if(length(i) > 0) frags <- frags[-i,]
   if(nrow(frags) == 0) return(data.frame())
   
+  write(paste(date(), '\t', 'Starting to build fragments') , file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'logs', paste0(groupID, '.log')), append = TRUE)
+  
   # Determine the start and end of fragments based on their alignment strands
   # and perform some sanity tests then filter on fragment size. 
+  
   frags <- mutate(frags, 
                   fragStart  = ifelse(strand.anchorReads == '+', tStart.anchorReads + 1, tStart.adriftReads + 1),
                   fragEnd    = ifelse(strand.anchorReads == '+', tEnd.adriftReads + 1,   tEnd.anchorReads + 1),
@@ -108,17 +94,31 @@ frags <- bind_rows(lapply(id_groups, function(id_group){
   # A single fragment can map to multiple reads but a single read can only map to one fragment.
   dupReads <- unique(frags$readID[duplicated(frags$readID)])
   
-  # Remove multi-hit reads.
-  if(length(dupReads) > 0){
-    write(dupReads, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitReads', tmpFile()))
-    frags <- subset(frags, ! readID %in% dupReads)
-  }
+  if(length(dupReads) > 0) write(dupReads, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitReads', tmpFile()))
   
-  # Determine number of reads for each fragment by considering the duplicate reads object and calculate representative leader sequences.
-  frags <- bind_rows(parLapply(cluster, split(frags, paste(frags$uniqueSample, frags$strand, frags$fragStart, frags$fragEnd)), repWorker))
+  write(paste(date(), '\t', 'Starting to determin representative sequences') , file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'logs', paste0(groupID, '.log')), append = TRUE)
   
-  # Write out done files so that users can check progress of this loop which can be time consuming.
-  write(date(), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'logs', paste0(groupID, '.done')))
+  frags <- bind_rows(lapply(split(frags, paste(frags$uniqueSample, frags$strand, frags$fragStart, frags$fragEnd)), function(a){
+             a <- left_join(a, dups, by = c('readID' = 'id'))
+                         
+             # Remove multi-hit reads.
+             a <- subset(a, ! readID %in% dupReads)
+             if(nrow(a) == 0) return(tibble())
+             
+             a$reads <-sum(a$n, na.rm =TRUE) + nrow(a)
+             r <- representativeSeq(a$leaderSeq.anchorReads)
+             
+             # Exclude reads where the leaderSeq is not similiar to the representative sequence. 
+             i <- stringdist::stringdist(r[[2]], a$leaderSeq.anchorReads) / nchar(r[[2]]) <= opt$buildFragments_maxLeaderSeqDiffScore
+             if(all(! i)) return(tibble())
+             
+             a <- a[i,]
+             a$repLeaderSeq <- r[[2]]
+             a[1, c(1,3:7,9,10)]
+           }))
+  
+  write(paste(date(), '\t', 'done') , file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'logs', paste0(groupID, '.log')), append = TRUE)
+  write(date, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'logs', paste0(groupID, '.done')))
 
   frags
 }))

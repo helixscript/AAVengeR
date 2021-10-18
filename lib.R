@@ -93,7 +93,8 @@ parseBLAToutput <- function(f){
   names(b) <- c('matches', 'misMatches', 'repMatches', 'nCount', 'qNumInsert', 'qBaseInsert', 'tNumInsert', 'tBaseInsert', 'strand',
                 'qName', 'qSize', 'qStart', 'qEnd', 'tName', 'tSize', 'tStart', 'tEnd', 'blockCount', 'blockSizes', 'qStarts', 'tStarts')
   
-  b$tStart <- b$tStart + 1
+  ### b$tStart <- b$tStart + 1
+  b$tEnd <- b$tEnd - 1
   
   b$queryPercentID       <- (b$matches/b$qSize)*100
   b$tAlignmentWidth      <- (b$tEnd - b$tStart) + 1
