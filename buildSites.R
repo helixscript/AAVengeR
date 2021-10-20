@@ -40,25 +40,31 @@ sites <- bind_rows(lapply(split(frags, paste(frags$subject, frags$sample, frags$
     }
     
     r <- representativeSeq(x$repLeaderSeq)
-
+    
+    if('flags' %in% names(samples)){
+      x$flags <- names(sort(table(sapply(x$uniqueSample, function(x) samples[samples$uniqueSample == x,]$flags)), decreasing = TRUE))[1]
+    } else {
+      x$flags <- NA
+    }
+    
     return(dplyr::mutate(x, estAbund = n_distinct(width), position = ifelse(strand[1] == '+', start[1], end[1]), 
                   reads = sum(reads), repLeaderSeq = r[[2]], fragmentsRemoved = sum(!i)) %>%
-           dplyr::select(subject, sample, seqnames, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq) %>%
+           dplyr::select(subject, sample, seqnames, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags) %>%
            dplyr::slice(1))
     }else{
     
-    return(dplyr::mutate(x, estAbund = n_distinct(width), position = ifelse(strand[1] == '+', start[1], end[1]), fragmentsRemoved = 0) %>%
-           dplyr::select(subject, sample, seqnames, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq))
+      if('flags' %in% names(samples)){
+        x$flags <- samples[samples$uniqueSample == x$uniqueSample,]$flags
+      } else {
+        x$flags <- NA
+      }
+      
+      return(dplyr::mutate(x, estAbund = n_distinct(width), position = ifelse(strand[1] == '+', start[1], end[1]), fragmentsRemoved = 0) %>%
+             dplyr::select(subject, sample, seqnames, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags))
   }
 }))
 
 sites <- dplyr::rename(sites, chromosome = seqnames)
-
-if('flags' %in% names(samples)){
-  samples$s <- paste(samples$subject, samples$sample)
-  sites$s <- paste(sites$subject, sites$sample)
-  sites <- left_join(sites, dplyr::distinct(dplyr::select(samples, flags, s)), by = 's') %>% dplyr::select(-s)
-}
 
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
 

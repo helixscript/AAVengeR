@@ -23,6 +23,7 @@ cluster <- makeCluster(opt$prepReads_CPUs)
 clusterExport(cluster, c('opt', 'samples'))
 
 d <- tibble(file = list.files(file.path(opt$outputDir, opt$prepReads_inputDir), full.names = TRUE, pattern = 'anchor'))
+
 d$uniqueSample <- unlist(lapply(d$file, function(x){ 
   o <- unlist(strsplit(x, '/'))
   unlist(strsplit(o[length(o)], '\\.'))[1]
@@ -30,11 +31,10 @@ d$uniqueSample <- unlist(lapply(d$file, function(x){
 
 d <- left_join(d, select(samples, uniqueSample, adriftRead.linker.seq, vectorFastaFile), by = 'uniqueSample')
 
-# Trim anchor read overeading and adriftRead linker sequences.
-
 d$adapter <- substr(d$adriftRead.linker.seq, nchar(d$adriftRead.linker.seq) - 9, nchar(d$adriftRead.linker.seq))
 d$adapter <- as.character(reverseComplement(DNAStringSet(d$adapter)))
 
+message('Trim adapter sequences.')
 invisible(parLapply(cluster, split(d, d$file), function(x){
 #invisible(lapply(split(d, d$file), function(x){  
   source(file.path(opt$softwareDir, 'lib.R'))
@@ -71,11 +71,13 @@ invisible(parLapply(cluster, split(d, d$file), function(x){
 # Create unique FASTA files and record duplicate read pairs.
 
 files <- list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'trimmed'), pattern = 'anchorReads', full.names = TRUE)
+
+message('Create unique FASTA data.')
 invisible(parLapply(cluster, files, function(x){
+#invisible(lapply(files, function(x){  
   library(Biostrings)
   library(dplyr)
   source(file.path(opt$softwareDir, 'lib.R'))
-  
   
   a <- readDNAStringSet(x)
   b <- readDNAStringSet(sub('anchorReads', 'adriftReads', x))
@@ -107,7 +109,6 @@ invisible(parLapply(cluster, files, function(x){
   writeXStringSet(b, file.path(opt$outputDir, opt$prepReads_outputDir, 'unique', sub('anchorReads', 'adriftReads', lpe(x))))
 }))
 
-
 o <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'dupTables'), full.names = TRUE), readRDS))
 saveRDS(o, file.path(opt$outputDir, opt$prepReads_outputDir, 'duplicateReads.rds'))
     
@@ -120,6 +121,7 @@ saveRDS(o, file.path(opt$outputDir, opt$prepReads_outputDir, 'duplicateReads.rds
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
+message('Align anchor reads to vector sequences.')
 invisible(lapply(split(d, d$vectorFastaFile), function(x){
        invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
   
@@ -177,9 +179,9 @@ invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = T
 
 
 # Create list of anchor reads with ends that align to the vector and tables of alignments need for trimming reads before genomic alignments.
+message('Create list of reads aligning to the vector.')
 o <- lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), full.names = TRUE), function(x){
-  
-       message(date(), ' - processing ', x)
+
        b <- readRDS(x)
        
        # Alignments already %id filtered. Consider that there may be an accumilation of mismatches near the end.

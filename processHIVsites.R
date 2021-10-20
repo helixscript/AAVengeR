@@ -11,12 +11,36 @@ if(! all(grepl('HIV_u5|HIV_u3', sites$flags))) stop('Error -- all sites do not h
 
 if(file.exists(file.path(opt$outputDir, opt$processHIVsites_outputDir, 'dual_detections.tsv'))) file.remove(file.path(opt$outputDir, opt$processHIVsites_outputDir, 'dual_detections.tsv'))
 
+# Adjustments
+# + strand alignment: +2
+# - stramd alignment: -2
+# flip strands for u3 experiments. Aligning to the negative strand in u3 means a positive insertion orientation.
+
+sites.org <- sites
+sites$n <- 1:nrow(sites)
+a <- subset(sites, strand == '+')
+b <- subset(sites, strand == '-')
+
+a$position <- a$position + 2
+b$position <- b$position - 2
+
+sites <- bind_rows(a, b)
+a <- sites[grepl('HIV_u3', sites$flags, ignore.case = TRUE),]
+b <- sites[! grepl('HIV_u3', sites$flags, ignore.case = TRUE),]
+
+a$strand <- ifelse(a$strand == '+', '-', '+')
+sites <- bind_rows(a, b)
+sites$posid <- paste0(sites$chromosome, sites$strand, sites$position)
+
+
+
 sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
   merged_sites <- vector()
   new_sites <- vector()
-  
+
   sites2 <- bind_rows(lapply(1:nrow(x), function(y){
     y <- x[y,]
+    
     x <- subset(x, chromosome == y$chromosome)
     o <- subset(x, position >= (y$position - opt$processHIVsites_dualDetectDistance) & position <= (y$position + opt$processHIVsites_dualDetectDistance))
     
@@ -51,8 +75,8 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
         } else {
           o <- o[order(abs(mean(o$position) - o$position)),]  # order sites by distance from the center of the distance interval.
           tag <- stringr::str_extract(o$flags, 'HIV_u\\d')    # extract the HIV tags.
-          o$s <- paste(o$strand, tag)
-          i <- which(! o$s[2:nrow(o)] == o$s[1])[1]+1         # determine the position of the next site with opposite strand and tag.
+          o$s <- paste(o$strand, tag)                         # create new tag: strand + tag, eg.  + HIV_u5
+          i <- which(! o$s[2:nrow(o)] == o$s[1])[1]+1         # determine the position of the next closest site with opposite strand and tag.
           o1 <- o[c(1, i),]
           
           merged_sites <<- append(merged_sites, c(o1[1,]$posid, o1[2,]$posid))
@@ -84,11 +108,13 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
     }
   }))
   
-  new_sites <- unlist(lapply(new_sites, rep, 2))
-  a <- split( merged_sites, new_sites)
-  b <- bind_rows(mapply(function(s, n){ data.frame(site1 = s[1], site2 = s[2], merged_site = n)}, a, names(a), SIMPLIFY = FALSE))
-  b$subject <- x$subject[1]
-  readr::write_tsv(b, file.path(opt$outputDir, opt$processHIVsites_outputDir, 'dual_detections.tsv'), append = TRUE)
+  if(length(new_sites) > 0){
+    new_sites <- unlist(lapply(new_sites, rep, 2))
+    a <- split( merged_sites, new_sites)
+    b <- bind_rows(mapply(function(s, n){ data.frame(site1 = s[1], site2 = s[2], merged_site = n)}, a, names(a), SIMPLIFY = FALSE))
+    b$subject <- x$subject[1]
+    readr::write_tsv(b, file.path(opt$outputDir, opt$processHIVsites_outputDir, 'dual_detections.tsv'), append = TRUE)
+  }
   
   sites2
 }))
