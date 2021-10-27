@@ -120,7 +120,7 @@ b <- sites[! grepl('HIV_u3', sites$flags, ignore.case = TRUE),]
 a$strand <- ifelse(a$strand == '+', '-', '+')
 sites <- bind_rows(a, b)
 sites$posid <- paste0(sites$chromosome, sites$strand, sites$position)
-
+sites$n <- NULL
 
 
 saveRDS(sites, file = file.path(opt$outputDir, opt$processHIVsites_outputDir, opt$processHIVsites_outputFile))

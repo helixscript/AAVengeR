@@ -7,8 +7,6 @@ dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 
 frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile))
 
-frags$posid <- paste0(frags$seqnames, frags$strand, ifelse(frags$strand == '+', frags$start, frags$end))
-
 if('buildSites_excludeSites' %in% names(opt)){
   p <- unlist(lapply(strsplit(unlist(strsplit(opt$buildSites_excludeSites, '\\|')), ','), function(x){
     if(length(x) != 3) return()
@@ -19,6 +17,8 @@ if('buildSites_excludeSites' %in% names(opt)){
 }
 
 samples <- loadSamples()
+
+frags$fragWidth <- frags$fragEnd - frags$fragStart + 1
 
 sites <- bind_rows(lapply(split(frags, paste(frags$subject, frags$sample, frags$posid)), function(x){
   if(nrow(x) > 1){
@@ -47,9 +47,9 @@ sites <- bind_rows(lapply(split(frags, paste(frags$subject, frags$sample, frags$
       x$flags <- NA
     }
     
-    return(dplyr::mutate(x, estAbund = n_distinct(width), position = ifelse(strand[1] == '+', start[1], end[1]), 
+    return(dplyr::mutate(x, estAbund = n_distinct(fragWidth), position = ifelse(strand[1] == '+', fragStart[1], fragEnd[1]), 
                   reads = sum(reads), repLeaderSeq = r[[2]], fragmentsRemoved = sum(!i)) %>%
-           dplyr::select(subject, sample, seqnames, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags) %>%
+           dplyr::select(subject, sample, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags) %>%
            dplyr::slice(1))
     }else{
     
@@ -59,12 +59,11 @@ sites <- bind_rows(lapply(split(frags, paste(frags$subject, frags$sample, frags$
         x$flags <- NA
       }
       
-      return(dplyr::mutate(x, estAbund = n_distinct(width), position = ifelse(strand[1] == '+', start[1], end[1]), fragmentsRemoved = 0) %>%
-             dplyr::select(subject, sample, seqnames, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags))
+      return(dplyr::mutate(x, estAbund = n_distinct(fragWidth), position = ifelse(strand[1] == '+', fragStart[1], fragEnd[1]), fragmentsRemoved = 0) %>%
+             dplyr::select(subject, sample, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags))
   }
 }))
 
-sites <- dplyr::rename(sites, chromosome = seqnames)
 
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
 

@@ -186,10 +186,7 @@ standardizationSplitVector <- function(d, v){
 }
 
 
-standardizedFragments <- function(frags, opt){
-
-  cluster <- parallel::makeCluster(opt$standardizeFragments_CPUs)
-  parallel::clusterExport(cluster, 'opt')
+standardizedFragments <- function(frags, opt, cluster){
 
   g <- GenomicRanges::makeGRangesFromDataFrame(frags, keep.extra.columns = TRUE)
   g$s <- standardizationSplitVector(g, opt$standardizeFragments_standardizeSitesBy)
@@ -200,7 +197,7 @@ standardizedFragments <- function(frags, opt){
          source(file.path(opt$softwareDir, 'lib.R'))
          x$intSiteRefined <- FALSE
          out <- tryCatch({
-                           o <- gintools::standardize_sites(x)
+                           o <- gintools::standardize_sites(x, counts.col = 'reads')
                            o$intSiteRefined <- TRUE
                            o
                          },
