@@ -136,9 +136,8 @@ frags$fragID2 <- NULL
 frags$start <- NULL
 frags$end <- NULL
 
-
+# Create fragment position ids.
 frags$posid <-paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
-
 
 # Identify reads which map to more than position id and define these as multihit reads.
 o <- group_by(frags, readID) %>%
@@ -149,8 +148,11 @@ o <- group_by(frags, readID) %>%
 multiHitFrags <- tibble()
 
 if(nrow(o) > 0){
-  multiHitFrags <- subset(frags, readID %in% o$readID)
-  frags <- subset(frags, ! readID %in% o$readID)
+  multiHitFrags <- subset(frags, readID %in% o$readID)  # Reads which map to more than one intSite position.
+  frags <- subset(frags, ! readID %in% o$readID)        # Reads which map to a single intSite position.
+  
+  # Some intSites positions may be in both multiHitFrags and frags if longer reads were able to align
+  # uniquely while shorter reads aligned ambiguously.
 }
 
 
@@ -165,10 +167,8 @@ cluster <- makeCluster(opt$buildFragments_CPUs)
 clusterExport(cluster, c('opt'))
 
 
-
 # Collapse read level fragment records and determine the concensus leader sequences.
 frags <- bind_rows(parLapply(cluster, split(frags, frags$fragID), function(a){
-#frags <- bind_rows(lapply(split(frags, frags$fragID), function(a){  
        library(dplyr)
        source(file.path(opt$softwareDir, 'lib.R'))
 
@@ -188,8 +188,8 @@ frags <- bind_rows(parLapply(cluster, split(frags, frags$fragID), function(a){
 
 
 if(nrow(multiHitFrags) > 0){
-
-  multiHitReads <- group_by(multiHitFrags, readID) %>%
+  
+  multiHitReads <- group_by(unpackUniqueSampleID(multiHitFrags), subject, sample, readID) %>%
                    summarise(posids = I(list(posid))) %>%
                    ungroup() %>%
                    tidyr::unnest(posids) %>%
@@ -214,22 +214,13 @@ if(nrow(multiHitFrags) > 0){
     bind_cols(unpackUniqueSampleID(a[1,2]),  a[1, c(4:7, 11, 9, 10)])
    }))
    
-   
-   multiHitFrags$width <- multiHitFrags$fragEnd - multiHitFrags$fragStart + 1
-
-   multiHitSites <- group_by(multiHitFrags, subject, sample, posid) %>%
-                    summarise(reads = sum(reads), estAbund = n_distinct(width)) %>%
-                    ungroup()
-   
    saveRDS(multiHitReads, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitReads.rds'))
    saveRDS(multiHitFrags, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitFrags.rds'))
-   saveRDS(multiHitSites, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitSites.rds'))
 }
 
 
 # Clear out the tmp/ directory.
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
-
 
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
 

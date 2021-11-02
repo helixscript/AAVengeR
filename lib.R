@@ -93,7 +93,6 @@ parseBLAToutput <- function(f){
   names(b) <- c('matches', 'misMatches', 'repMatches', 'nCount', 'qNumInsert', 'qBaseInsert', 'tNumInsert', 'tBaseInsert', 'strand',
                 'qName', 'qSize', 'qStart', 'qEnd', 'tName', 'tSize', 'tStart', 'tEnd', 'blockCount', 'blockSizes', 'qStarts', 'tStarts')
   
-  ### b$tStart <- b$tStart + 1
   b$tEnd <- b$tEnd - 1
   
   b$queryPercentID       <- (b$matches/b$qSize)*100
@@ -188,6 +187,8 @@ standardizationSplitVector <- function(d, v){
 
 standardizedFragments <- function(frags, opt, cluster){
 
+  source(file.path(opt$softwareDir, 'lib.standardizePositions.R'))
+  
   g <- GenomicRanges::makeGRangesFromDataFrame(frags, keep.extra.columns = TRUE)
   g$s <- standardizationSplitVector(g, opt$standardizeFragments_standardizeSitesBy)
 
@@ -197,7 +198,7 @@ standardizedFragments <- function(frags, opt, cluster){
          source(file.path(opt$softwareDir, 'lib.R'))
          x$intSiteRefined <- FALSE
          out <- tryCatch({
-                           o <- gintools::standardize_sites(x, counts.col = 'reads')
+                           o <- standardize_sites(x, counts.col = 'reads')
                            o$intSiteRefined <- TRUE
                            o
                          },
@@ -217,7 +218,7 @@ standardizedFragments <- function(frags, opt, cluster){
          source(file.path(opt$softwareDir, 'lib.R'))
          x$breakPointRefined <- FALSE
          out <- tryCatch({
-                            o <- gintools::refine_breakpoints(x, counts.col = 'reads')
+                            o <- refine_breakpoints(x, counts.col = 'reads')
                             o$breakPointRefined <- TRUE
                             o
                          },
@@ -385,7 +386,4 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
          LTRname = hmmName,
          LTRseq = as.character(subseq(reads2, 1, o$targetEnd)))
 }
-
-
-
 
