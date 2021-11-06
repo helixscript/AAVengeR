@@ -228,6 +228,7 @@ saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorIDs.r
 
 if('leaderSeqHMM' %in% names(samples)){
  hmmResults <- bind_rows(parLapply(cluster, split(d, 1:nrow(d)), function(x){ 
+ #hmmResults <- bind_rows(lapply(split(d, 1:nrow(d)), function(x){ 
                  source(file.path(opt$softwareDir, 'lib.R'))
                  library(dplyr)
                  library(Biostrings)
@@ -237,8 +238,10 @@ if('leaderSeqHMM' %in% names(samples)){
  
  saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'blast_alignments.rds'))
  
- mappings <- tibble(id = hmmResults$id, leaderMapping.qStart = 1, leaderMapping.qEnd = nchar(hmmResults$LTRseq), 
-             leaderMapping.sStart = NA, leaderMapping.sEnd = NA)
+ if(nrow(hmmResults) > 0){
+   mappings <- tibble(id = hmmResults$id, leaderMapping.qStart = 1, leaderMapping.qEnd = nchar(hmmResults$LTRseq), 
+                      leaderMapping.sStart = NA, leaderMapping.sEnd = NA)
+ }
  
  saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'alignments.rds'))
 }

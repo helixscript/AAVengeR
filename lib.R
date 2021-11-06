@@ -190,15 +190,20 @@ standardizedFragments <- function(frags, opt, cluster){
   source(file.path(opt$softwareDir, 'lib.standardizePositions.R'))
   
   g <- GenomicRanges::makeGRangesFromDataFrame(frags, keep.extra.columns = TRUE)
-  g$s <- standardizationSplitVector(g, opt$standardizeFragments_standardizeSitesBy)
+  g$s <- standardizationSplitVector(g, opt$buildFragments_standardizeSitesBy)
 
-
+  #browser()
+  
   g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
   #g <- unlist(GRangesList(lapply(split(g, g$s), function(x){
+         library(dplyr)
+         library(GenomicRanges)
          source(file.path(opt$softwareDir, 'lib.R'))
+         source(file.path(opt$softwareDir, 'lib.standardizePositions.R'))
          x$intSiteRefined <- FALSE
+         
          out <- tryCatch({
-                           o <- standardize_sites(x, counts.col = 'reads')
+                           o <- standardize_sites(x, counts.col = 'reads', sata.gap = 7)
                            o$intSiteRefined <- TRUE
                            o
                          },
@@ -212,10 +217,14 @@ standardizedFragments <- function(frags, opt, cluster){
     return(out)
   })))
 
-  g$s <- standardizationSplitVector(g, opt$standardizeFragments_standardizeBreaksBy)
+  g$s <- standardizationSplitVector(g, opt$buildFragments_standardizeBreaksBy)
   g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
-
+  #g <- unlist(GenomicRanges::GRangesList(lapply(split(g, g$s), function(x){
+         library(dplyr) 
+         library(GenomicRanges)
          source(file.path(opt$softwareDir, 'lib.R'))
+         source(file.path(opt$softwareDir, 'lib.standardizePositions.R'))
+
          x$breakPointRefined <- FALSE
          out <- tryCatch({
                             o <- refine_breakpoints(x, counts.col = 'reads')
@@ -232,7 +241,6 @@ standardizedFragments <- function(frags, opt, cluster){
                  return(out)
   })))
 
-  parallel::stopCluster(cluster)
   g$s <- NULL
   data.frame(g)
 }
@@ -336,16 +344,12 @@ blast2rearangements <- function(x, minAlignmentLength = 10, minPercentID = 95, C
 
 
 captureLTRseqsLentiHMM <- function(reads, hmm){
-  
-  # The passed HMM is expected to cover at least 100 NT of the end of the LTR
-  # being sequences out of and the HMM is expected to end in CA.
-  
   outputFile <- file.path(opt$outputDir, 'tmp', tmpFile())
-  writeXStringSet(reads, outputFile)
-  comm <- paste0(opt$command.hmmsearch, ' --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', 
-                 hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
+  writeXStringSet(subseq(reads, opt$prepReads_HMMsearchReadStartPos, opt$prepReads_HMMsearchReadEndPos), outputFile)
+  comm <- paste0(opt$command.hmmsearch, ' --F1 ', opt$prepReads_HMM_F1, ' --F2 ', opt$prepReads_HMM_F2, ' --F3 ', opt$prepReads_HMM_F3,
+                 ' --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
   system(comm)
-  
+
   r <- readLines(paste0(outputFile, '.domTbl'))
   r <- r[!grepl('^\\s*#', r)]
   r <- strsplit(r, '\\s+')
@@ -361,6 +365,8 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
   write.table(o, sep = '\t', file = paste0(outputFile, '.domTbl2'), col.names = TRUE, row.names = FALSE, quote = FALSE)
   
   o <- readr::read_delim(paste0(outputFile, '.domTbl2'), '\t', col_types = readr::cols())
+  o$fullScore <- as.numeric(o$fullScore)
+  o$fullEval  <- as.numeric(o$fullEval)
   
   h <- readLines(hmm)
   hmmLength <- as.integer(unlist(strsplit(h[grepl('^LENG', h)], '\\s+'))[2])
@@ -370,7 +376,7 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
   # which contains the CA is includes and the alignment has a significant alignment scores.
   o <- subset(o, targetStart <= opt$prepReads_HMMmaxStartPos & 
                 hmmEnd == hmmLength & 
-                fullEval <= as.numeric(opt$prepReads_HMMminEval))
+                fullScore >= as.numeric(opt$prepReads_HMMminFullBitScore))
   if(nrow(o) == 0) return(tibble())
   
   reads2 <- reads[names(reads) %in% o$targetName]

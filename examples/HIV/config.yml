@@ -1,15 +1,14 @@
 Rscript:           /home/opt/R-3.4.0/lib/R/bin/Rscript
 softwareDir:       /home/everett/projects/AAVengeR2
-outputDir:         /home/everett/projects/Sabatino_canine_hemophilia_AAV/out
-sampleConfigFile:  /home/everett/projects/Sabatino_canine_hemophilia_AAV/sampleConfig.tsv
-modules:           
+outputDir:         /home/everett/projects/Persaud_HIV/210425_MN01490_0014_A000H3HK3G/out
+sampleConfigFile:  /home/everett/projects/Persaud_HIV/210425_MN01490_0014_A000H3HK3G/sampleData.tsv
+modules:
                    - demultiplex.R
                    - prepReads.R
                    - alignReads.R 
                    - buildFragments.R
-                   - standardizeFragments.R
                    - buildSites.R
-                   - mapSiteLeaderSequences.R
+                   - processHIVsites.R
              
 #----------------------------------------------------------------------------
 
@@ -18,12 +17,12 @@ demultiplex_CPUs: 20
 demultiplex_RC_I1_barcodes: FALSE
 demultiplex_qualtrim_code: '5'
 demultiplex_qualtrim_minLength: 50
-demultiplex_anchorReadsFile: /home/everett/projects/canine_hemophilia_AAV/data/sequencingData/Undetermined_S0_L001_R2_001.fastq.gz
-demultiplex_adriftReadsFile: /home/everett/projects/canine_hemophilia_AAV/data/sequencingData/Undetermined_S0_L001_R1_001.fastq.gz
-demultiplex_index1ReadsFile: /home/everett/projects/canine_hemophilia_AAV/data/sequencingData/Undetermined_S0_L001_I1_001.fastq.gz
+demultiplex_anchorReadsFile: /data/sequencing/Illumina-archive/210425_MN01490_0014_A000H3HK3G/Data/Intensities/BaseCalls/Undetermined_S0_R2_001.fastq.gz
+demultiplex_adriftReadsFile: /data/sequencing/Illumina-archive/210425_MN01490_0014_A000H3HK3G/Data/Intensities/BaseCalls/Undetermined_S0_R1_001.fastq.gz
+demultiplex_index1ReadsFile: /data/sequencing/Illumina-archive/210425_MN01490_0014_A000H3HK3G/Data/Intensities/BaseCalls/Undetermined_S0_I1_001.fastq.gz
 demultiplex_correctGolayIndexReads: TRUE
 demultiplex_sequenceChunkSize: 100000
-demultiplex_index1ReadMaxMismatch: 6  # All samples have the same barcode, use a high value to accept all codes.
+demultiplex_index1ReadMaxMismatch: 0
 demultiplex_useAdriftReadUniqueLinkers: TRUE
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1
 
@@ -38,13 +37,16 @@ prepReads_vectorAlignmentTestLength: 25
 prepReads_vectorAlignmentTestLength_drift: 2
 prepReads_vectorAlignmentChunkSize: 25000
 
+prepReads_HMMmaxStartPos: 3
+prepReads_HMMminEval: 0.001
+
 alignReads_outputDir: alignReads
 alignReads_inputDir:  prepReads/final
 alignReads_mapLeaderSequencesOutputFile: prepReads/alignments.rds
 alignReads_anchorReadAlignmentsOutputFile: anchorReadAlignments.rds
 alignReads_adriftReadAlignmentsOutputFile: adriftReadAlignments.rds
-alignReads_CPUs: 20
-alignReads_alignmentChunkSize: 10000
+alignReads_CPUs: 15
+alignReads_alignmentChunkSize: 25000
 alignReads_minAnchorReadLengthPostTrim: 25
 alignReads_minAdriftReadLengthPostTrim: 25
 alignReads_genomeAlignment_minPercentID: 97
@@ -57,7 +59,7 @@ alignReads_genomeAlignment_adriftReadMaxStart: 3
 alignReads_performSecondGenomeAlignment: TRUE
 
 buildFragments_CPUs: 25
-buildFragments_outputDir: fragments
+buildFragments_outputDir: buildFragments
 buildFragments_outputFile: fragments.rds
 buildFragments_anchorReadsAlignmentFile: alignReads/anchorReadAlignments.rds
 buildFragments_adriftReadsAlignmentFile: alignReads/adriftReadAlignments.rds
@@ -71,20 +73,25 @@ buildFragments_representativeSeqCalc_CPUs: 5
 buildFragments_maxLeaderSeqDiffScore: 0.15
 buildFragments_assemblyConflictResolution: 0.66
 
-standardizeFragments_CPUs: 10
-standardizeFragments_inputFile: fragments/fragments.rds
-standardizeFragments_outputDir: standardizeFragments
-standardizeFragments_outputFile: stdFragments.rds
 standardizeFragments_standardizeSitesBy: subject
 standardizeFragments_standardizeBreaksBy: replicate
 standardizeFragments_maxLeaderSeqDiffScore: 0.15
 
-
 # Example buildSites_excludeSites parameter: chrX,122897024,123043178|chr1,107856070,107856080
-buildSites_inputFile: standardizeFragments/stdFragments.rds
+buildSites_inputFile: buildFragments/fragments.rds
 buildSites_outputDir: buildSites
 buildSites_outputFile: sites.rds
-buildSites_excludeSites: chrX,122897024,123043178
+
+buildMultiHitSites_inputReadsFile: buildFragments/multiHitReads.rds
+buildMultiHitSites_inputFragsFile: buildFragments/multiHitFrags.rds
+buildMultiHitSites_outputDir:  buildMultiHitSites
+buildMultiHitSites_outputFile: multiHitSites.rds
+
+processHIVsites_inputFile: buildSites/sites.rds
+processHIVsites_outputDir: processHIVsites
+processHIVsites_dualDetectDistance: 3
+processHIVsites_dualDetectAubundanceMethod: max # options - max, average
+processHIVsites_outputFile: sites.rds
 
 mapSiteLeaderSequences_outputDir:  mapSiteLeaderSequences
 mapSiteLeaderSequences_inputFile:  buildSites/sites.rds
@@ -94,13 +101,10 @@ mapSiteLeaderSequences_alignmentChunkSize: 10000
 mapSiteLeaderSequences_minAlignmentLength: 10
 mapSiteLeaderSequences_minAlignmentPercentID: 90
 
-
-
-
-
 command_python2:     /usr/bin/python2
 command_blat:        /home/everett/ext/blat
 command_cutadapt:    /usr/local/bin/cutadapt
 command_muscle:      /home/everett/ext/muscle
 command_makeblastdb: /home/everett/ext/blast+/bin/makeblastdb
 command_blastn:      /home/everett/ext/blast+/bin/blastn
+command.hmmsearch:   /home/everett/ext/hmmer-3.3.1/bin/hmmsearch

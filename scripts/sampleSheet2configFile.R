@@ -3,13 +3,9 @@ library(stringr)
 library(RMySQL)
 options(stringsAsFactors = FALSE, useFancyQuotes = FALSE)
 
-sampleSheet <- '/data/sequencing/Illumina-archive/210625_M03249_0193_000000000-DCLJC/SampleSheet.csv'
-outputFile  <- '/home/everett/projects/Samelson-Jones_AAV/210625_M03249_0193_000000000-DCLJC/sampleConfig.tsv'
-
-refGenome.id <- 'mm9'
-anchorRead.seqFilter.file <- NA
-ITRseqs <- paste0('Flip,TCTGCGCGCTCGCTCGCTCACTGAGGCCGCCCGGGCAAAGCCCGGGCGTCGGGCGACCTTTGGTCGCCCGGCCTCAGTGAGCGAGCGAGCGCGCAG;',
-                  'Flop,TCTGCGCGCTCGCTCGCTCACTGAGGCCGGGCGACCAAAGGTCGCCCGACGCCCGGGCTTTGCCCGGGCGGCCTCAGTGAGCGAGCGAGCGCGCAG')
+sampleSheet <- '/data/sequencing/Illumina-archive/210316_MN01490_0011_A000H3FJL2/SampleSheet.csv'
+outputFile  <- '/home/everett/projects/AAVengeRvsIntSiteCaller/210316_MN01490_0011_A000H3FJL2/sampleConfig.tsv'
+refGenome.id <- 'hg38'
 
 f <- readLines(sampleSheet)
 s <- read.csv(textConnection(f[(which(grepl('\\[metaData\\]', f))+1):length(f)]), header = TRUE)
@@ -32,11 +28,12 @@ r <- tibble(subject = subjects,
             adriftRead.linkerBarcode.end = str_locate(s$linkerSequence, 'NNNNNNNNNNNN')[,1]-1,
             adriftRead.linker.seq = s$linkerSequence,
             index1.seq = s$bcSeq,
-            anchorRead.identification = ITRseqs,
-            anchorRead.seqFilter.file = anchorRead.seqFilter.file,
+            leaderSeqHMM = '/home/everett/projects/AAVengeR2/data/hmms/Bushman_SCID1.hmm',
             refGenome.id = refGenome.id,
             adriftRead.linkerRandomID.start =  str_locate(s$linkerSequence, 'NNNNNNNNNNNN')[,1],
-            adriftRead.linkerRandomID.end = str_locate(s$linkerSequence, 'NNNNNNNNNNNN')[,2])
-
+            adriftRead.linkerRandomID.end = str_locate(s$linkerSequence, 'NNNNNNNNNNNN')[,2],
+            vectorFastaFile = '/home/everett/data/BushmanGeneTherapy/vectorSequences/vector_SCID.fa',
+            flags = 'HIV_u5')
+            
 write.table(r, file = outputFile, sep='\t', col.names = TRUE, row.names = FALSE, quote = FALSE)
 

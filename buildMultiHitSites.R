@@ -12,9 +12,6 @@ if(! file.exists(file.path(opt$outputDir, opt$buildMultiHitSites_inputFragsFile)
 
 samples <- loadSamples()
 
-# !!!
-table(sites$posid %in% multiHitFrags$posid)
-
 multiHitFrags <- readRDS(file.path(opt$outputDir, opt$buildMultiHitSites_inputFragsFile))
 multiHitReads <- readRDS(file.path(opt$outputDir, opt$buildMultiHitSites_inputReadsFile))
 

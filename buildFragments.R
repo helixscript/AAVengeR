@@ -43,6 +43,9 @@ id_groups <- split(ids, dplyr::ntile(1:length(ids), round(length(ids)/opt$buildF
 cluster <- makeCluster(opt$buildFragments_CPUs)
 clusterExport(cluster, c('opt', 'anchorReadAlignments', 'adriftReadAlignments'))
 
+# !!! 
+# Add a constraint to leaderSeq.anchorReads for lenti work
+
 # Build intial fragments.
 frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
   library(dplyr)
@@ -148,11 +151,33 @@ o <- group_by(frags, readID) %>%
 multiHitFrags <- tibble()
 
 if(nrow(o) > 0){
-  multiHitFrags <- subset(frags, readID %in% o$readID)  # Reads which map to more than one intSite position.
-  frags <- subset(frags, ! readID %in% o$readID)        # Reads which map to a single intSite position.
+  multiHitFrags <- subset(frags, readID %in% o$readID)  # Reads which map to more than one intSite positions.
+  frags <- subset(frags, ! readID %in% o$readID)        # Reads which map to a single intSite positions.
   
-  # Some intSites positions may be in both multiHitFrags and frags if longer reads were able to align
-  # uniquely while shorter reads aligned ambiguously.
+  # There may be multi hit reads where one of their position ids is the same as those in the frags
+  # where the reads aligned uniquely. If only one of the possible alignment positions in multiHitFrags 
+  # is in frags (unique alignments), then move those reads to frags.
+  if(any(multiHitFrags$posid %in% frags$posid)){
+    multiHitFrags$returnToFrags <- FALSE
+    clusterExport(cluster, 'frags')
+    multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$readID), function(x){
+
+      if(sum(x$posid %in% frags$posid) == 1){
+        x[x$posid %in% frags$posid,]$returnToFrags <- TRUE
+      }
+      
+      x
+    }))
+    
+    if(any(multiHitFrags$returnToFrags == TRUE)){
+      m <- subset(multiHitFrags, returnToFrags == TRUE)
+      multiHitFrags <- subset(multiHitFrags, ! readID %in% m$readID)
+      m$returnToFrags <- NULL
+      multiHitFrags$returnToFrags <- NULL
+      frags <- bind_rows(frags, m)
+    }
+    
+  }
 }
 
 
@@ -195,10 +220,11 @@ if(nrow(multiHitFrags) > 0){
                    tidyr::unnest(posids) %>%
                    dplyr::distinct()
   
-   multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$fragID), function(a){
- 
+   #multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$fragID), function(a){
+   multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$fragID), function(a){
      library(dplyr)
      source(file.path(opt$softwareDir, 'lib.R'))
+     message(a$fragID, '\n')
   
      r <- representativeSeq(a$leaderSeq.anchorReads)
   
