@@ -104,8 +104,9 @@ invisible(parLapply(cluster, o, function(x){
 b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), pattern = '*.psl', full.names = TRUE), function(x){
        b <- parseBLAToutput(x)
        if(nrow(b) == 0) return(tibble())
-       
-       dplyr::filter(b, alignmentPercentID >= opt$alignReads_genomeAlignment_minPercentID, tNumInsert  <= 1, qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2) %>%
+
+       ### dplyr::filter(b, alignmentPercentID >= opt$alignReads_genomeAlignment_minPercentID, tNumInsert  <= 1, qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2) %>%
+       dplyr::filter(b, alignmentPercentID >= opt$alignReads_genomeAlignment_minPercentID, tNumInsert  <= 1, qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= opt$alignReads_genomeAlignment_anchorRead_maxStartPos) %>%
        dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
      }))
 
@@ -119,6 +120,8 @@ anchorReadAlignments$endDiff <- anchorReadAlignments$qSize - anchorReadAlignment
 
 i <- (anchorReadAlignments$qSize - anchorReadAlignments$qEnd) <= opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned
 anchorReadAlignments <- anchorReadAlignments[i,]
+
+
 
 
 # We need to reconstruct the leader sequencs by determining what we removed before aligning and adding on additional

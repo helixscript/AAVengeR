@@ -43,9 +43,6 @@ id_groups <- split(ids, dplyr::ntile(1:length(ids), round(length(ids)/opt$buildF
 cluster <- makeCluster(opt$buildFragments_CPUs)
 clusterExport(cluster, c('opt', 'anchorReadAlignments', 'adriftReadAlignments'))
 
-# !!! 
-# Add a constraint to leaderSeq.anchorReads for lenti work
-
 # Build intial fragments.
 frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
   library(dplyr)
@@ -191,7 +188,6 @@ gc()
 cluster <- makeCluster(opt$buildFragments_CPUs)
 clusterExport(cluster, c('opt'))
 
-
 # Collapse read level fragment records and determine the concensus leader sequences.
 frags <- bind_rows(parLapply(cluster, split(frags, frags$fragID), function(a){
        library(dplyr)
@@ -224,7 +220,7 @@ if(nrow(multiHitFrags) > 0){
    multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$fragID), function(a){
      library(dplyr)
      source(file.path(opt$softwareDir, 'lib.R'))
-     message(a$fragID, '\n')
+     #message(a$fragID, '\n')
   
      r <- representativeSeq(a$leaderSeq.anchorReads)
   
