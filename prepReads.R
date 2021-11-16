@@ -5,6 +5,8 @@ options(stringsAsFactors = FALSE)
 
 opt <- yaml::read_yaml('config.yml')
 
+write(c(paste(now(), 'Starting prepReads.R')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 source(file.path(opt$softwareDir, 'lib.R'))
@@ -18,6 +20,24 @@ dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignmen
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'final'))
 
 samples <- loadSamples()
+
+samples$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', samples$vectorFastaFile)
+
+if(! all(sapply(unique(samples$vectorFastaFile), file.exists))){
+  write(c(paste(now(), "Error - one or more vector FASTA files could not be found in AAVengeR's data/vectors directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+
+if('leaderSeqHMM' %in% names(samples)){
+  samples$leaderSeqHMM <- file.path(opt$softwareDir, 'data', 'hmms', samples$leaderSeqHMM)
+  
+  if(! all(sapply(unique(samples$leaderSeqHMM), file.exists))){
+    write(c(paste(now(), "Error - one or more leader sequence HMM files could not be found in AAVengeR's data/hmms directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
+}
+
 
 cluster <- makeCluster(opt$prepReads_CPUs)
 clusterExport(cluster, c('opt', 'samples'))
@@ -278,5 +298,4 @@ invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = T
 
 stopCluster(cluster)
 
-
-
+q(save = 'no', status = 0, runLast = FALSE) 

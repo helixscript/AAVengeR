@@ -19,20 +19,22 @@ if('buildSites_excludeSites' %in% names(opt)){
 samples <- loadSamples()
 
 frags$fragWidth <- frags$fragEnd - frags$fragStart + 1
+frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 
-sites <- bind_rows(lapply(split(frags, paste(frags$subject, frags$sample, frags$posid)), function(x){
+
+sites <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$sample, frags$posid)), function(x){
   if(nrow(x) > 1){
     i <- rep(TRUE, nrow(x))
     
     # Check that leader sequences are all similar now that we are combining fragments from different replicates.
     r <- representativeSeq(x$repLeaderSeq)
     
-    if(r[[1]] > opt$buildFragments_maxLeaderSeqDiffScore){
+    if(r[[1]] > opt$buildStdFragments_maxLeaderSeqDiffScore){
       # There is a conflict, one or more fragments have a markedly different leader sequences then the other fragments.
       # Attempt to salvage this site by retaining the majority of fragments with similiar leader sequences.
       
       i <- as.vector(stringdist::stringdistmatrix(x$repLeaderSeq, r[[2]]) / nchar(x$repLeaderSeq) < opt$buildFragments_maxLeaderSeqDiffScore)
-      if(sum(i)/nrow(x) >= opt$buildFragments_assemblyConflictResolution){
+      if(sum(i)/nrow(x) >= opt$buildSites_assemblyConflictResolution){
         x <- x[i,]
       } else {
         return(tibble())
@@ -42,7 +44,7 @@ sites <- bind_rows(lapply(split(frags, paste(frags$subject, frags$sample, frags$
     r <- representativeSeq(x$repLeaderSeq)
     
     if('flags' %in% names(samples)){
-      x$flags <- names(sort(table(sapply(x$uniqueSample, function(x) samples[samples$uniqueSample == x,]$flags)), decreasing = TRUE))[1]
+      x$flags <- paste0(unique(subset(samples, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1])$flags), collapse = ',')
     } else {
       x$flags <- NA
     }
@@ -54,7 +56,7 @@ sites <- bind_rows(lapply(split(frags, paste(frags$subject, frags$sample, frags$
     }else{
     
       if('flags' %in% names(samples)){
-        x$flags <- samples[samples$uniqueSample == x$uniqueSample,]$flags
+        x$flags <- paste0(unique(subset(samples, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1])$flags), collapse = ',')
       } else {
         x$flags <- NA
       }

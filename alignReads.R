@@ -275,3 +275,5 @@ adriftReadAlignments <- left_join(adriftReadAlignments, select(readSampleMap, sa
 
 saveRDS(anchorReadAlignments, file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_anchorReadAlignmentsOutputFile))  
 saveRDS(adriftReadAlignments, file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_adriftReadAlignmentsOutputFile)) 
+
+q(save = 'no', status = 0, runLast = FALSE) 

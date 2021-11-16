@@ -2,15 +2,11 @@ library(dplyr)
 library(parallel)
 library(data.table)
 library(GenomicRanges)
+library(Biostrings)
 
 opt <- yaml::read_yaml('config.yml')
 source(file.path(opt$softwareDir, 'lib.R'))
 
-dups <- tibble()
-if('buildFragments_duplicateReadFile' %in% names(opt)){
-  dups <- readRDS(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile))
-  dups <- data.table(dplyr::distinct(dplyr::select(dups, id, n)))
-}
 
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adriftReadsAlignmentFile))
@@ -76,173 +72,78 @@ frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
          filter(fragTest == TRUE, 
                 fragWidth <= opt$buildFragments_maxFragLength,
                 fragWidth >= opt$buildFragments_minFragLength) %>%
-                mutate(uniqueSample = sample.anchorReads, readID = qName.anchorReads, fragID = paste0(uniqueSample, ':', chromosome, ':', strand, ':', fragStart, ':', fragEnd)) %>%
-                select(fragID, uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads)
+                mutate(uniqueSample = sample.anchorReads, readID = qName.anchorReads) %>%
+                select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads)
 }))
+
+
+# Random ids.
+if(opt$demultiplex_captureRandomLinkerSeq){
+  startingReadCount <- n_distinct(frags$readID)
+  
+  # Collect the random IDs isolated during demultiplexing.
+  files <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir), pattern = 'randomIDs', full.names = TRUE)
+  randomIDs <- Reduce('append', lapply(files,  readDNAStringSet))
+  r <- tibble(readID = names(randomIDs), randomLinkerSeq = as.character(randomIDs))
+  
+  frags <- left_join(frags, r, by = 'readID')
+  frags <- unpackUniqueSampleID(frags)
+  
+  # Random linker ids should be sample specific
+  frags$s <- paste(frags$trial, frags$subject, frags$sample)
+  o <- group_by(frags, randomLinkerSeq) %>%
+       summarise(nSamples = n_distinct(s), reads = n_distinct(readID)) %>%
+       ungroup() %>%
+       filter(nSamples > 1)
+  
+  # Remove reads where the random id was seen in two or more samples and there are 
+  # too few reads were associated with the random id to attemept to segreagate. 
+  z <- subset(o, reads < opt$buildFragments_randomLinkerID_minReadCountToSegreagate)$randomLinkerSeq
+  if(length(z) > 0){
+    frags <- subset(frags, ! randomLinkerSeq %in% z)
+  }
+  
+  z <- subset(o, reads >= opt$buildFragments_randomLinkerID_minReadCountToSegreagate)$randomLinkerSeq
+  
+  if(length(z) > 0){
+    a <- subset(frags, ! randomLinkerSeq %in% z)  # Undisputed reads
+    b <- subset(frags, randomLinkerSeq %in% z)    # Reads which need to be examined.
+    
+    c <- bind_rows(lapply(split(b, b$randomLinkerSeq), function(x){
+           tab <- data.frame(table(x$s))
+           tab$percentReads <- (tab$Freq / n_distinct(x$readID))*100 
+           topSample <- dplyr::arrange(tab, desc(percentReads)) %>% dplyr::slice(1)
+           
+           if(topSample$percentReads >= opt$buildFragments_randomLinkerID_minSingleSampleMajorityPercent){
+             return(subset(x, s %in% topSample$Var1))
+           } else{
+             return(tibble())
+           }
+         }))
+    
+    if(nrow(c) > 0){
+      frags <- bind_rows(a, c)
+    } else {
+      frags <- a
+    }
+  }
+  
+  frags <- dplyr::select(frags, -randomLinkerSeq, -trial, -subject, -sample, -replicate, -s)
+  msg <- paste0(startingReadCount - n_distinct(frags$readID), ' reads, ', sprintf("%.2f%%", (1 - n_distinct(frags$readID) / startingReadCount)*100), ' of total reads, removed due to random linker ID conflicts.')
+  write(msg, file = file.path(opt$outputDir, 'log'), append = TRUE)
+}
 
 
 # Stop and rebuild cluster objects to release alignment objects from memory.
 stopCluster(cluster)
 gc()
-cluster <- makeCluster(opt$buildFragments_CPUs)
-clusterExport(cluster, c('opt', 'dups'))
 
-
-# Tally the number of reads for each fragment which is needed for standardization.
-f1 <- data.table(dplyr::select(frags, fragID, readID))
-f2 <- bind_rows(parLapply(cluster, split(f1, f1$fragID), function(a){
-        library(data.table)
-        if(nrow(a) == 1){
-          a$reads = 1
-        } else {
-          a$reads <- nrow(a) 
-          o <- dups[dups$id %in% a$readID]
-          if(nrow(o) > 0) a$reads <- a$reads + sum(o$n)
-        }
-  
-        a[1, c(1, 3)]
-      }))
-
-# Unpack ids and build a data frame for standardizaing fragments.
-o <- stringr::str_split(f2$fragID, ':')
-i <- stringr::str_split(f2$fragID, '[~:]')
-d <- tibble(uniqueSample = unlist(lapply(o, '[[', 1)),
-            subject      = unlist(lapply(i, '[[', 1)),
-            sample       = unlist(lapply(i, '[[', 2)),
-            replicate    = unlist(lapply(i, '[[', 3)),
-            seqnames     = unlist(lapply(o, '[[', 2)),
-            strand       = unlist(lapply(o, '[[', 3)),
-            start        = unlist(lapply(o, '[[', 4)),
-            end          = unlist(lapply(o, '[[', 5)),
-            fragID       = f2$fragID,
-            reads        = f2$reads)
-
-
-# Standardize fragments.
-frags_std <- standardizedFragments(d, opt, cluster)
-frags_std <- subset(frags_std, intSiteRefined == TRUE & breakPointRefined == TRUE) %>% dplyr::select(-intSiteRefined, -breakPointRefined, -width)
-
-
-# Expand standardized fragments back to the read level.
-frags_std$fragID2 <- paste0(frags_std$uniqueSample, ':', frags_std$seqnames, ':', frags_std$strand, ':', frags_std$start, ':', frags_std$end)
-frags <- left_join(frags, dplyr::select(frags_std, fragID, fragID2, start, end), by = 'fragID')
-
-
-# Over-write previous fragment boundaries with standardized boundary paositions.
-frags$fragID <- frags$fragID2
-frags$fragStart <- frags$start
-frags$fragEnd <- frags$end
-frags$fragID2 <- NULL
-frags$start <- NULL
-frags$end <- NULL
-
-# Create fragment position ids.
-frags$posid <-paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
-
-# Identify reads which map to more than position id and define these as multihit reads.
-o <- group_by(frags, readID) %>%
-     summarise(n = n_distinct(posid)) %>%
-     ungroup() %>%
-     dplyr::filter(n > 1)
-
-multiHitFrags <- tibble()
-
-if(nrow(o) > 0){
-  multiHitFrags <- subset(frags, readID %in% o$readID)  # Reads which map to more than one intSite positions.
-  frags <- subset(frags, ! readID %in% o$readID)        # Reads which map to a single intSite positions.
-  
-  # There may be multi hit reads where one of their position ids is the same as those in the frags
-  # where the reads aligned uniquely. If only one of the possible alignment positions in multiHitFrags 
-  # is in frags (unique alignments), then move those reads to frags.
-  if(any(multiHitFrags$posid %in% frags$posid)){
-    multiHitFrags$returnToFrags <- FALSE
-    clusterExport(cluster, 'frags')
-    multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$readID), function(x){
-
-      if(sum(x$posid %in% frags$posid) == 1){
-        x[x$posid %in% frags$posid,]$returnToFrags <- TRUE
-      }
-      
-      x
-    }))
-    
-    if(any(multiHitFrags$returnToFrags == TRUE)){
-      m <- subset(multiHitFrags, returnToFrags == TRUE)
-      multiHitFrags <- subset(multiHitFrags, ! readID %in% m$readID)
-      m$returnToFrags <- NULL
-      multiHitFrags$returnToFrags <- NULL
-      frags <- bind_rows(frags, m)
-    }
-    
-  }
-}
-
-
-# Clear out the tmp/ directory.
-invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
-
-
-# Redefine the cluster since it goes away sometimes.
-stopCluster(cluster)
-gc()
-cluster <- makeCluster(opt$buildFragments_CPUs)
-clusterExport(cluster, c('opt'))
-
-# Collapse read level fragment records and determine the concensus leader sequences.
-frags <- bind_rows(parLapply(cluster, split(frags, frags$fragID), function(a){
-       library(dplyr)
-       source(file.path(opt$softwareDir, 'lib.R'))
-
-       r <- representativeSeq(a$leaderSeq.anchorReads)
-    
-       # Exclude reads where the leaderSeq is not similiar to the representative sequence. 
-       i <- stringdist::stringdist(r[[2]], a$leaderSeq.anchorReads) / nchar(r[[2]]) <= opt$buildFragments_maxLeaderSeqDiffScore
-       if(all(! i)) return(tibble())
-    
-       a <- a[i,]
-       a$repLeaderSeq <- r[[2]]
-    
-       a$reads <- n_distinct(a$readID)
-       
-       bind_cols(unpackUniqueSampleID(a[1,2]),  a[1, c(4:7, 11, 9, 10)])
-   }))
-
-
-if(nrow(multiHitFrags) > 0){
-  
-  multiHitReads <- group_by(unpackUniqueSampleID(multiHitFrags), subject, sample, readID) %>%
-                   summarise(posids = I(list(posid))) %>%
-                   ungroup() %>%
-                   tidyr::unnest(posids) %>%
-                   dplyr::distinct()
-  
-   #multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$fragID), function(a){
-   multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$fragID), function(a){
-     library(dplyr)
-     source(file.path(opt$softwareDir, 'lib.R'))
-     #message(a$fragID, '\n')
-  
-     r <- representativeSeq(a$leaderSeq.anchorReads)
-  
-     # Exclude reads where the leaderSeq is not similiar to the representative sequence. 
-     i <- stringdist::stringdist(r[[2]], a$leaderSeq.anchorReads) / nchar(r[[2]]) <= opt$buildFragments_maxLeaderSeqDiffScore
-     if(all(! i)) return(tibble())
-  
-     a <- a[i,]
-     a$repLeaderSeq <- r[[2]]
-  
-     a$reads <- n_distinct(a$readID)
-  
-    bind_cols(unpackUniqueSampleID(a[1,2]),  a[1, c(4:7, 11, 9, 10)])
-   }))
-   
-   saveRDS(multiHitReads, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitReads.rds'))
-   saveRDS(multiHitFrags, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'multiHitFrags.rds'))
-}
-
-
-# Clear out the tmp/ directory.
-invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
+frags <- unpackUniqueSampleID(frags)
+frags$uniqueSample <- NULL
 
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
 
+
+
+
+q(save = 'no', status = 0, runLast = FALSE) 

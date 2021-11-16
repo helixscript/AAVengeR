@@ -65,9 +65,10 @@ syncReads <-function(...){
 
 
 unpackUniqueSampleID <- function(d){
-  d$subject   <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 1))
-  d$sample    <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 2))
-  d$replicate <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 3))
+  d$trial     <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 1))
+  d$subject   <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 2))
+  d$sample    <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 3))
+  d$replicate <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 4))
   d
 }
 
@@ -76,11 +77,30 @@ loadSamples <- function(){
   samples <- readr::read_tsv(opt$sampleConfigFile, col_types = readr::cols())
   if(nrow(samples) == 0) stop('Error - no lines of information was read from the sample configuration file.')
   
-  if(! 'subject' %in% names(samples))   samples$subject <- 'subject'
-  if(! 'replicate' %in% names(samples)) samples$replicate <- 1
-  if(any(grepl('~|\\|', paste(samples$subject, samples$sample, samples$replicate)))) stop('Error -- tildas (~) and pipes (|) are reserved characters and can not be used in the subject, sample, or replicate sample configuration columns.')
+  requiredColumns <- c("trial", "subject", "sample", "replicate",  
+                       "adriftRead.linker.seq", "index1.seq", "leaderSeqHMM", "refGenome.id", "vectorFastaFile", "flags")
   
-  samples$uniqueSample <- paste0(samples$subject, '~', samples$sample, '~', samples$replicate)
+  if(opt$demultiplex_useAdriftReadUniqueLinkers){
+    requiredColumns <- c(requiredColumns, "adriftRead.linkerBarcode.start", "adriftRead.linkerBarcode.end")
+  }
+  
+  if(opt$demultiplex_captureRandomLinkerSeq){
+    requiredColumns <- c(requiredColumns, "adriftRead.linkerRandomID.start", "adriftRead.linkerRandomID.end")
+  }
+  
+  if(! all(requiredColumns %in% names(samples))){
+    missingCols <- paste0(requiredColumns[! requiredColumns %in% names(samples)], collapse = ', ')
+    write(c(paste(now(), 'Error - the following columns were missing from the sample data file: '), missingCols), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE)
+  }
+  
+  if(any(grepl('\\s|~|\\||\\.', paste0(samples$trial, samples$subject, samples$sample, samples$replicate)))){
+    write('Error -- spaces, tildas (~), pipes (|), and dots (.) are reserved characters and can not be used in the trial, subject, sample, or replicate sample configuration columns.', 
+          file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE)
+  }
+  
+  samples$uniqueSample <- paste0(samples$trial, '~', samples$subject, '~', samples$sample, '~', samples$replicate)
   
   samples
 }
@@ -124,37 +144,37 @@ parseCutadaptLog <- function(f){
 
 
 representativeSeq <- function(s, percentReads = 95){
-  if(length(s) == 1 | n_distinct(s) == 1) return(list(0, s[1]))
+  if(length(s) == 1 | dplyr::n_distinct(s) == 1) return(list(0, s[1]))
 
-  if(length(s) > opt$buildFragments_representativeSeqCalc_maxReads){
-    set.seed(1)
-    s <- sample(s, opt$buildFragments_representativeSeqCalc_maxReads)
+  if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
+    s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
   }
 
   f <- tmpFile()
 
   # Align sequences in order to handle potential indels.
   inputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.fasta'))
-  s <- Biostrings::DNAStringSet(s)
-  names(s) <- paste0('s', 1:length(s))
-  Biostrings::writeXStringSet(s, file = inputFile)
+ 
+  write(paste0('>', paste0('s', 1:length(s)), '\n', s), file = inputFile)
+  
   outputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.representativeSeq.muscle'))
 
   system(paste(opt$command_muscle, '-quiet -maxiters 1 -diags -in ', inputFile, ' -out ', outputFile))
-
+  
   if(! file.exists(outputFile)) waitForFile(outputFile)
 
-  s <- as.character(ShortRead::readFasta(outputFile)@sread)
+  s <- as.character(Biostrings::readDNAStringSet(outputFile))
   
-  file.remove(outputFile)
+  #file.remove(outputFile)
 
   # Create an all vs. all edit distnace matrix.
-  m <- as.matrix(stringdist::stringdistmatrix(s, nthread = opt$buildFragments_representativeSeqCalc_CPUs))
+  m <- as.matrix(stringdist::stringdistmatrix(s, nthread = opt$buildStdFragments_representativeSeqCalc_CPUs))
 
   # Create a data frame of string indcies and the sum of their edit distances to all other strings
   # and then order this data frame such that the strings with the small edit distnaces to other
   # strings are at the top of the data frame.
-  maxDiffPerNT <- data.frame(n = 1:length(s), diffs = apply(m, 1, sum)) %>% dplyr::arrange(diffs)
+  maxDiffPerNT <- data.frame(n = 1:length(s), diffs = apply(m, 1, sum)) # %>% dplyr::arrange(diffs)
+  maxDiffPerNT <- dplyr::arrange(maxDiffPerNT, diffs)
 
   # The function returns both the representative sequence (sequence with the lowest edit distnaces to others)
   # and a metric max edit distance of any string / num characters in the selected representaive.
@@ -176,11 +196,13 @@ representativeSeq <- function(s, percentReads = 95){
 
 standardizationSplitVector <- function(d, v){
   if(v == 'replicate'){
-    return(d$uniqueSample)
+    return(paste(d$trial, d$subject, d$sample, d$replicate))
   } else if (v == 'sample'){
-    return(d$sample)
+    return(paste(d$trial, d$subject, d$sample))
+  } else if( v == 'subject'){
+    return(paste(d$trial, d$subject))
   } else {
-    return(d$subject)
+    stop('Error - standardization vector can not be created.')
   }
 }
 
@@ -189,10 +211,8 @@ standardizedFragments <- function(frags, opt, cluster){
 
   source(file.path(opt$softwareDir, 'lib.standardizePositions.R'))
   
-  g <- GenomicRanges::makeGRangesFromDataFrame(frags, keep.extra.columns = TRUE)
-  g$s <- standardizationSplitVector(g, opt$buildFragments_standardizeSitesBy)
-
-  #browser()
+  g <- GenomicRanges::makeGRangesFromDataFrame(frags, start.field = 'fragStart', end.field = 'fragEnd', keep.extra.columns = TRUE)
+  g$s <- standardizationSplitVector(g, opt$buildStdFragments_standardizeSitesBy)
   
   g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
   #g <- unlist(GRangesList(lapply(split(g, g$s), function(x){
@@ -217,7 +237,7 @@ standardizedFragments <- function(frags, opt, cluster){
     return(out)
   })))
 
-  g$s <- standardizationSplitVector(g, opt$buildFragments_standardizeBreaksBy)
+  g$s <- standardizationSplitVector(g, opt$buildStdFragments_standardizeBreaksBy)
   g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
   #g <- unlist(GenomicRanges::GRangesList(lapply(split(g, g$s), function(x){
          library(dplyr) 

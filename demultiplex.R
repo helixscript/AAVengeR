@@ -1,25 +1,44 @@
 library(ShortRead)
 library(readr)
 library(parallel)
+library(lubridate)
 library(dplyr)
 
 opt <- yaml::read_yaml('config.yml')
 source(file.path(opt$softwareDir, 'lib.R'))
 
+# The launch script creates (if missing) and writes to the output directory.
+# File write permission issues should be caught before starting modules.
+dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
+dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'))
+dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'))
+
+if(! file.exists(opt$sampleConfigFile)){
+  write(c(paste(now(), 'Error - the sample configuration file could not be found')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+
 samples <- loadSamples()
+
+if(! file.exists(opt$demultiplex_adriftReadsFile)){
+  write(c(paste(now(), 'Error - the adrift reads file could not be found')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+if(! file.exists(opt$demultiplex_anchorReadsFile)){
+    write(c(paste(now(), 'Error - the index reads file could not be found')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+if(! file.exists(opt$demultiplex_index1ReadsFile)){
+  write(c(paste(now(), 'Error - the anchor reads file could not be found')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+} 
 
 # Reverse compliment index1 sequences if requested.
 if(opt$demultiplex_RC_I1_barcodes) samples$index1.seq <- as.character(reverseComplement(DNAStringSet(samples$index1.seq)))
 
-
-if(! file.exists(opt$sampleConfigFile)) stop('Error - sample configuration file could not be found.')
-if(! file.exists(opt$demultiplex_adriftReadsFile))  stop('Error - R1 seq file could not be found.')
-if(! file.exists(opt$demultiplex_anchorReadsFile))  stop('Error - R2 seq file could not be found.')
-if(! file.exists(opt$demultiplex_index1ReadsFile))  stop('Error - I1 seq file could not be found.')
-
-dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
-dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'))
-dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'))
 
 index1Reads <- shortRead2DNAstringSet(readFastq(opt$demultiplex_index1ReadsFile))
 
@@ -28,14 +47,16 @@ clusterExport(cluster, c('opt', 'samples'))
 
 # Correct Golay encoded barcodes if requested.
 if(opt$demultiplex_correctGolayIndexReads){
+  write(paste(now(), 'Starting Golay correction.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
   index1Reads.org <- index1Reads
   index1Reads <- Reduce('append', parLapply(cluster, split(index1Reads, ntile(1:length(index1Reads), opt$demultiplex_CPUs)), golayCorrection))
   percentChanged <- (sum(! as.character(index1Reads.org) == as.character(index1Reads)) / length(index1Reads))*100
-  message(percentChanged, '% of reads updated via Golay correction')
+  write(paste0(now(), ' Starting Golay complete. ', percentChanged, '% of reads updated via Golay correction'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 }
 
 
 # Quality trim virus reads and break reads.
+write(paste(now(), 'Trimming anchor and adrift reads'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 invisible(parLapply(cluster,     
                     list(c(opt$demultiplex_adriftReadsFile,  opt$demultiplex_sequenceChunkSize, 'adriftReads',  file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks')),
                          c(opt$demultiplex_anchorReadsFile,  opt$demultiplex_sequenceChunkSize, 'anchorReads',  file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'))), 
@@ -45,6 +66,7 @@ invisible(parLapply(cluster,
                       qualTrimReads(x[[1]], x[[2]], x[[3]], x[[4]])
                     }))
 
+write(paste(now(), 'Syncing anchor and adrift reads post-trimming.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 adriftReads <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), pattern = 'adriftReads', full.names = TRUE), function(x) shortRead2DNAstringSet(readFastq(x))))
 anchorReads <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), pattern = 'anchorReads', full.names = TRUE), function(x) shortRead2DNAstringSet(readFastq(x))))
 
@@ -73,6 +95,8 @@ invisible(lapply(split(d, d$i), function(x){
 rm(d, chunkNum, index1Reads, anchorReads, adriftReads)
 gc()
 
+
+write(paste(now(), 'Starting demultiplexing.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
 #invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
@@ -117,6 +141,9 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
       if(length(index1Reads) == 0){
           log.report$demultiplexedReads <- 0
       } else {
+        if(opt$demultiplex_captureRandomLinkerSeq){
+          writeFasta(subseq(adriftReads, r$adriftRead.linkerRandomID.start, r$adriftRead.linkerRandomID.end), file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.randomAdriftReadIDs')))
+        }
         
         writeFasta(anchorReads, file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.anchorReads')))
         writeFasta(adriftReads, file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.adriftReads')))
@@ -128,6 +155,7 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
   }))
 }))
 
+stopCluster(cluster)
 
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), recursive = TRUE))
     
@@ -144,6 +172,16 @@ invisible(lapply(unique(samples$uniqueSample), function(x){
   writeFasta(anchorReads, file.path(opt$outputDir, opt$demultiplex_outputDir, paste0(x, '.anchorReads.fasta')))
   writeFasta(adriftReads, file.path(opt$outputDir, opt$demultiplex_outputDir, paste0(x, '.adriftReads.fasta')))
 }))
+
+
+# Collate random linker ids if collected.   FIX
+if(opt$demultiplex_captureRandomLinkerSeq){
+  invisible(lapply(unique(samples$uniqueSample), function(x){
+    f <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.anchorReads'), full.names = TRUE)
+    if(length(f) == 0) return()
+    writeFasta(Reduce('append', lapply(f, readFasta)), file.path(opt$outputDir, opt$demultiplex_outputDir, paste0(x, '.randomIDs.fasta')))
+  }))
+}
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
@@ -163,8 +201,9 @@ logReport <- bind_rows(lapply(split(logReport, logReport$sample), function(x){
   
   names(o) <- names(x)[2:length(x)]
   bind_cols(data.frame(sample = x[1,1]), o)
-}))
+})) %>% dplyr::arrange(demultiplexedReads)
 
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), recursive = TRUE))
 write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'))
 
+q(save = 'no', status = 0, runLast = FALSE) 
