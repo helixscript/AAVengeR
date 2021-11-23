@@ -78,7 +78,7 @@ loadSamples <- function(){
   if(nrow(samples) == 0) stop('Error - no lines of information was read from the sample configuration file.')
   
   requiredColumns <- c("trial", "subject", "sample", "replicate",  
-                       "adriftRead.linker.seq", "index1.seq", "leaderSeqHMM", "refGenome.id", "vectorFastaFile", "flags")
+                       "adriftRead.linker.seq", "index1.seq", "refGenome.id", "vectorFastaFile", "flags")
   
   if(opt$demultiplex_useAdriftReadUniqueLinkers){
     requiredColumns <- c(requiredColumns, "adriftRead.linkerBarcode.start", "adriftRead.linkerBarcode.end")
@@ -294,25 +294,7 @@ golayCorrection <- function(x){
 }
 
 
-blast2rearangements <- function(x, minAlignmentLength = 10, minPercentID = 95, CPUs = 20){
-  library(data.table)
-  
-  if(nrow(x) == 0) return(data.frame())
-  x <- subset(x, alignmentLength >= minAlignmentLength & gapopen <= 1 & pident >= minPercentID)
-  if(nrow(x) == 0) return(data.frame())
-  
-  cluster <- parallel::makeCluster(CPUs)
-  
-  # Here we create a spliting variable across the blast data frame
-  # being careful not to split read ids into different chunks.
-  a <- floor(n_distinct(x$qname) / CPUs)
-  b <- 1
-  
-  z <- dplyr::select(x,  qname, qstart, qend, sstart, send, evalue) %>% group_split(qname)
-  z <- as.data.table(bind_rows(mapply(function(x, n){ x$n <- n; x }, z, dplyr::ntile(1:length(z), CPUs), SIMPLIFY = FALSE)))
-  
-  r <- bind_rows(parallel::parLapply(cluster, split(z, z$n), function(b){
-    #r <- rbindlist(lapply(split(z, z$n), function(b){
+blast2rearangements_worker <-  function(b){
     library(dplyr)
     library(IRanges)
     library(data.table)
@@ -356,7 +338,27 @@ blast2rearangements <- function(x, minAlignmentLength = 10, minPercentID = 95, C
       
       data.frame(qname = b2$qname[1], rearrangement = r)
     }))
-  }))
+  }
+
+
+blast2rearangements <- function(x, minAlignmentLength = 10, minPercentID = 95, CPUs = 20){
+  library(data.table)
+  
+  if(nrow(x) == 0) return(data.frame())
+  x <- subset(x, alignmentLength >= minAlignmentLength & gapopen <= 1 & pident >= minPercentID)
+  if(nrow(x) == 0) return(data.frame())
+  
+  cluster <- parallel::makeCluster(CPUs)
+  
+  # Here we create a spliting variable across the blast data frame
+  # being careful not to split read ids into different chunks.
+  a <- floor(n_distinct(x$qname) / CPUs)
+  b <- 1
+  
+  z <- dplyr::select(x,  qname, qstart, qend, sstart, send, evalue) %>% group_split(qname)
+  z <- as.data.table(bind_rows(mapply(function(x, n){ x$n <- n; x }, z, dplyr::ntile(1:length(z), CPUs), SIMPLIFY = FALSE)))
+  
+  r <- bind_rows(parallel::parLapply(cluster, split(z, z$n), blast2rearangements_worker))
   
   parallel::stopCluster(cluster)
   r

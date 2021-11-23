@@ -189,6 +189,6 @@ if(nrow(multiHitFrags) > 0){
 # Clear out the tmp/ directory.
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
-saveRDS(frags, file.path(opt$outputDir, opt$buildStdFragments_outputDir, opt$buildStdFragments_outputFile))
+saveRDS(data.frame(frags), file.path(opt$outputDir, opt$buildStdFragments_outputDir, opt$buildStdFragments_outputFile))
 
 q(save = 'no', status = 0, runLast = FALSE) 

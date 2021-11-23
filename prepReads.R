@@ -1,6 +1,7 @@
 library(ShortRead)
 library(dplyr)
 library(parallel)
+library(lubridate)
 options(stringsAsFactors = FALSE)
 
 opt <- yaml::read_yaml('config.yml')
@@ -281,9 +282,11 @@ invisible(lapply(files[grepl('anchorReads', files)], function(file){
   
   # Limit reads to those with leader seq HMM hits since we know what
   # the leader sequence should look like because the user provided an HMM.
-  if('leaderSeqHMM' %in% names(samples) & nrow(hmmResults) > 0){
-    a <- a[names(a) %in% hmmResults$id]
-    b <- b[names(b) %in% hmmResults$id]
+  if('leaderSeqHMM' %in% names(samples)){
+    if(names(samples) & nrow(hmmResults) > 0){
+      a <- a[names(a) %in% hmmResults$id]
+      b <- b[names(b) %in% hmmResults$id]
+    }
   }
   
   if(length(a) == 0 | length(b) == 0) return()

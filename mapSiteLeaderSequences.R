@@ -18,11 +18,15 @@ samples <- loadSamples()
 
 sites$s <- paste(sites$subject, sites$sample)
 
+#
+# Need to parallelize the BLAT step -- break leader sequences into chunks then BLAST.
+#
+
 m <- bind_rows(lapply(split(samples, samples$vectorFastaFile), function(x){
   
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'), full.names = TRUE)))
   
-  system(paste0(opt$command_makeblastdb, ' -in ',x$vectorFastaFile[1], 
+  system(paste0(opt$command_makeblastdb, ' -in ', file.path(opt$softwareDir, 'data', 'vectors', x$vectorFastaFile[1]), 
                 ' -dbtype nucl -out ', file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
   
   waitForFile(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs', 'd.nin'))
@@ -32,6 +36,7 @@ m <- bind_rows(lapply(split(samples, samples$vectorFastaFile), function(x){
   
   reads <- DNAStringSet(unique(s$repLeaderSeq))
   names(reads) <- paste0('s', 1:length(reads))
+  
   
   b <- bind_rows(lapply(mixAndChunkSeqs(reads, opt$mapSiteLeaderSequences_alignmentChunkSize), function(a){
     f <- tmpFile()
@@ -56,6 +61,7 @@ m <- bind_rows(lapply(split(samples, samples$vectorFastaFile), function(x){
     dplyr::filter(b, pident >= opt$mapSiteLeaderSequences_minAlignmentPercentID, alignmentLength >= opt$mapSiteLeaderSequences_minAlignmentLength)
   }))
   
+  message('BLAST done')
   r <- blast2rearangements(b, minAlignmentLength = opt$mapSiteLeaderSequences_minAlignmentLength, 
                            minPercentID = opt$mapSiteLeaderSequences_minAlignmentPercentID, CPUs = opt$mapSiteLeaderSequences_CPUs)
   

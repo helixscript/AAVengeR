@@ -1,7 +1,9 @@
+library(lubridate)
 library(ShortRead)
 library(dplyr)
 library(parallel)
 library(readr)
+
 options(stringsAsFactors = FALSE)
 
 opt <- yaml::read_yaml('config.yml')
