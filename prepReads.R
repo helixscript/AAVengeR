@@ -198,6 +198,7 @@ invisible(lapply(split(d, d$vectorFastaFile), function(x){
   
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
+stopCluster(cluster)
 
 # Create list of anchor reads with ends that align to the vector and tables of alignments need for trimming reads before genomic alignments.
 message('Create list of reads aligning to the vector.')
@@ -217,21 +218,57 @@ o <- lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchor
                         }
                      }))))
   
+       message('f0 ', length(vectorIDs))
+       if(nrow(b) == 0) return(list(vectorIDs = vectorIDs, mappings = tibble()))
+       message('f1 ', nrow(b))
        b0 <- b
        b <- subset(b, ! qname %in% vectorIDs)
+       message('f2 ', nrow(b))
+       if(nrow(b) == 0) return(list(vectorIDs = vectorIDs, mappings = tibble()))
        message('Removed ', n_distinct(b0$qname) - n_distinct(b$qname), ' reads aligning to the vector')
        
        b <- select(b, qname, evalue, alignmentLength, sseqid, qstart, qend, sstart, send)
- 
-       # Capturing concatenated lists of hit sequence ids greatly slowed the code below and was omitted.
-       mappings <- group_by(b, qname) %>%
-         filter(evalue == min(evalue)) %>%
-         filter(alignmentLength == max(alignmentLength)) %>%
-         summarise(id = qname[1],
-                   leaderMapping.qStart = min(qstart), leaderMapping.qEnd = max(qend),
-                   leaderMapping.sStart = min(sstart), leaderMapping.sEnd = max(send)) %>%
-         ungroup() %>%
-         select(-qname)
+       
+       # Split read alignments into CPU chunks while making sure read ids do not span multiple chunks. 
+       z <- split(b, b$qname)
+       z <- bind_rows(mapply(function(a, n){ a$n <- n; a}, z, ntile(1:length(z), opt$prepReads_CPUs), SIMPLIFY = FALSE))
+       cluster <- makeCluster(opt$prepReads_CPUs)
+       
+       mappings <- tibble()
+       
+       if(! 'leaderSeqHMM' %in% names(samples)){
+          message('Building mapping...')
+          mappings <- bind_rows(parLapply(cluster, split(z, z$n), function(b){
+                        library(GenomicRanges)
+                        library(dplyr)
+
+                        bind_rows(lapply(split(b, b$qname), function(a){
+                          g <- makeGRangesFromDataFrame(a, ignore.strand = TRUE, seqnames.field = 'sseqid', 
+                                                        start.field = 'qstart', end.field = 'qend')
+                          g <- g[width(g) >= 10] # Only consider alignments >= 10 NT
+                          if(length(g) == 0) return(tibble())
+                          g <- GenomicRanges::reduce(g, min.gapwidth = 4, ignore.strand = TRUE) # Allow merging if ranges separated by <= 3 NTs.
+                          g <- g[start(g) <= 3]
+                          if(length(g) == 0) return(tibble())
+                          g <- g[width(g) == max(width(g))][1]
+                          return(tibble(id = a$qname[1], leaderMapping.qStart = 1, leaderMapping.qEnd = end(g), 
+                                        leaderMapping.sStart = NA, leaderMapping.sEnd = NA))
+                       }))
+                    }))
+       }
+       
+       stopCluster(cluster)
+       
+       #browser()
+       
+      # mappings <- group_by(b, qname) %>%
+      #   filter(evalue == min(evalue)) %>%
+      #  filter(alignmentLength == max(alignmentLength)) %>%
+      #   summarise(id = qname[1],
+      #             leaderMapping.qStart = min(qstart), leaderMapping.qEnd = max(qend),
+      #             leaderMapping.sStart = min(sstart), leaderMapping.sEnd = max(send)) %>%
+      #   ungroup() %>%
+      #   select(-qname)
       
        list(vectorIDs = vectorIDs, mappings = mappings)
 })
@@ -240,7 +277,7 @@ mappings <- bind_rows(lapply(o, '[[', 'mappings'))
 saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'alignments.rds'))
 
 vectorIDs <- unlist(lapply(o, '[[', 'vectorIDs'))
-saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorIDs.rds'))
+saveRDS(vectorIDs, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorIDs.rds'))
 
 
 # If a leaderSeqHMM column is present then we run the anchor reads through the HMM, select reads with 

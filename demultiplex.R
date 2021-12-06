@@ -98,8 +98,8 @@ gc()
 
 write(paste(now(), 'Starting demultiplexing.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
-#invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
+#invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
+invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
   library(ShortRead)
   library(dplyr)
   library(stringr)
@@ -116,6 +116,9 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
     
     # Create barcode demultiplexing vectors.
     v1 <- vcountPattern(r$index1.seq, index1Reads, max.mismatch = opt$demultiplex_index1ReadMaxMismatch) > 0
+    
+    #z <- data.frame(sort(table(as.character(subseq(adriftReads[v1], r$adriftRead.linkerBarcode.start, r$adriftRead.linkerBarcode.end))), decreasing = TRUE)[1:10])
+    #z <- mutate(z, subject = r$subject, replicate = r$replicate, barcode = r$index1.seq, expectedLinker = r$adriftRead.linker.seq)
     
     log.report <- tibble(sample = r$uniqueSample, demultiplexedIndex1Reads = sum(v1))
     
@@ -142,6 +145,7 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
           log.report$demultiplexedReads <- 0
       } else {
         if(opt$demultiplex_captureRandomLinkerSeq){
+          #browser()
           writeFasta(subseq(adriftReads, r$adriftRead.linkerRandomID.start, r$adriftRead.linkerRandomID.end), file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.randomAdriftReadIDs')))
         }
         
@@ -174,10 +178,12 @@ invisible(lapply(unique(samples$uniqueSample), function(x){
 }))
 
 
-# Collate random linker ids if collected.   FIX
+# Collate random linker ids if collected.
 if(opt$demultiplex_captureRandomLinkerSeq){
   invisible(lapply(unique(samples$uniqueSample), function(x){
-    f <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.anchorReads'), full.names = TRUE)
+    
+    # f <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.anchorReads'), full.names = TRUE)
+    f <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.randomAdriftReadIDs'), full.names = TRUE)
     if(length(f) == 0) return()
     writeFasta(Reduce('append', lapply(f, readFasta)), file.path(opt$outputDir, opt$demultiplex_outputDir, paste0(x, '.randomIDs.fasta')))
   }))

@@ -223,7 +223,7 @@ standardizedFragments <- function(frags, opt, cluster){
          x$intSiteRefined <- FALSE
          
          out <- tryCatch({
-                           o <- standardize_sites(x, counts.col = 'reads', sata.gap = 7)
+                           o <- standardize_sites(x, counts.col = 'reads', sata.gap = 5)
                            o$intSiteRefined <- TRUE
                            o
                          },

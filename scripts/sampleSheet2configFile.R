@@ -3,10 +3,10 @@ library(stringr)
 library(RMySQL)
 options(stringsAsFactors = FALSE, useFancyQuotes = FALSE)
 
-sampleSheet <- '/data/sequencing/Illumina-archive/211111_M03249_0226_000000000-G9MTK/SampleSheet.csv'
-outputFile  <- '/home/everett/projects/Spark/210316_MN01490_0011_A000H3FJL2/sampleConfig.tsv'
+sampleSheet <- '/data/sequencing/Illumina-archive/201218_M02973_0294_000000000-J96T7/SampleSheet.csv'
+outputFile  <- '/home/everett/projects/AAVengeR2/scripts/201218_M02973_0294_000000000-J96T7_sampleConfig.tsv'
 refGenome.id <- 'hg38'
-trialID <- 'Spark_AAV_FNRG_3006'
+trialID <- 'CSL'
 
 f <- readLines(sampleSheet)
 s <- read.csv(textConnection(f[(which(grepl('\\[metaData\\]', f))+1):length(f)]), header = TRUE)
@@ -33,7 +33,7 @@ r <- tibble(trial = trialID,
             refGenome.id = refGenome.id,
             adriftRead.linkerRandomID.start =  str_locate(s$linkerSequence, 'NNNNNNNNNNNN')[,1],
             adriftRead.linkerRandomID.end = str_locate(s$linkerSequence, 'NNNNNNNNNNNN')[,2],
-            vectorFastaFile = '/home/everett/projects/AAVengeR2/data/vectors/vector_SPK-3006.fasta',
+            vectorFastaFile = s$vectorSeq,
             flags = 'AAV')
             
 write.table(r, file = outputFile, sep='\t', col.names = TRUE, row.names = FALSE, quote = FALSE)
