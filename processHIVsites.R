@@ -1,13 +1,24 @@
 library(dplyr)
+library(lubridate)
 
-opt <- yaml::read_yaml('config.yml')
+configFile <- commandArgs(trailingOnly=TRUE)
+if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+opt <- yaml::read_yaml(configFile)
+
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$processHIVsites_outputDir))
 
 sites <- readRDS(file.path(opt$outputDir, opt$processHIVsites_inputFile))
-if(! 'flags' %in% names(sites)) stop('Error -- the flags column is not in the sites data object.')
-if(! all(grepl('HIV_u5|HIV_u3', sites$flags))) stop('Error -- all sites do not have either a HIV_u5 or HIV_u3 flag.')
+if(! 'flags' %in% names(sites)){
+  write(c(paste(now(), 'Error -- the flags column is not in the sites data object.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+  
+if(! all(grepl('HIV_u5|HIV_u3', sites$flags))){
+  write(c(paste(now(), 'Error -- all sites do not have either a HIV_u5 or HIV_u3 flag.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
 
 if(file.exists(file.path(opt$outputDir, opt$processHIVsites_outputDir, 'dual_detections.tsv'))) file.remove(file.path(opt$outputDir, opt$processHIVsites_outputDir, 'dual_detections.tsv'))
 
@@ -47,9 +58,7 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
     
     if(length(unique(o$strand)) == 1) return(y)  # Want a mix of both + and - strand alignemnts.
 
-    if(! any(grepl('HIV_u5', o$flags)) & any(grepl('HIV_u3', o$flags))) return(return(y)) # Want a mix of u5 and u3 flags.
-    
-    # if('chr1+1567779' %in% o$posid) browser()
+    if(!(any(grepl('HIV_u5', o$flags)) & any(grepl('HIV_u3', o$flags)))) return(return(y)) # Want a mix of u5 and u3 flags.
 
     if(nrow(o) == 2){
           merged_sites <<- append(merged_sites, c(o[1,]$posid, o[2,]$posid))
@@ -66,7 +75,8 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
           } else if(opt$processHIVsites_dualDetectAubundanceMethod == 'average'){
             y$estAbund <- floor(mean(o$estAbund))
           } else {
-            stop('Error - unknown value for processHIVsites_dualDetectAubundanceMethod')
+            write(c(paste(now(), 'Error - unknown value for processHIVsites_dualDetectAubundanceMethod')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+            q(save = 'no', status = 1, runLast = FALSE) 
           }
           
           return(y)
@@ -94,7 +104,8 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
           } else if(opt$processHIVsites_dualDetectAubundanceMethod == 'average'){
             y$estAbund <- floor(mean(o1[1,]$estAbund, o1[2,]$estAbund))
           } else {
-            stop('Error - unknown value for processHIVsites_dualDetectAubundanceMethod')
+            write(c(paste(now(), 'Error - unknown value for processHIVsites_dualDetectAubundanceMethod.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+            q(save = 'no', status = 1, runLast = FALSE)
           }
           
           return(y)
@@ -122,5 +133,6 @@ sites <- bind_rows(a, b)
 sites$posid <- paste0(sites$chromosome, sites$strand, sites$position)
 sites$n <- NULL
 
-
 saveRDS(sites, file = file.path(opt$outputDir, opt$processHIVsites_outputDir, opt$processHIVsites_outputFile))
+
+q(save = 'no', status = 0, runLast = FALSE) 

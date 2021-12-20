@@ -3,8 +3,8 @@ library(stringr)
 library(RMySQL)
 options(stringsAsFactors = FALSE, useFancyQuotes = FALSE)
 
-sampleSheet <- '/data/sequencing/Illumina-archive/201218_M02973_0294_000000000-J96T7/SampleSheet.csv'
-outputFile  <- '/home/everett/projects/AAVengeR2/scripts/201218_M02973_0294_000000000-J96T7_sampleConfig.tsv'
+sampleSheet <- '/data/sequencing/Illumina-archive/201221_M02973_0295_000000000-JDY29/SampleSheet.csv'
+outputFile  <- '/home/everett/projects/AAVengeR2/scripts/201221_M02973_0295_000000000-JDY29_sampleConfig.tsv'
 refGenome.id <- 'hg38'
 trialID <- 'CSL'
 

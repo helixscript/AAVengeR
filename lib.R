@@ -75,7 +75,10 @@ unpackUniqueSampleID <- function(d){
 
 loadSamples <- function(){
   samples <- readr::read_tsv(opt$sampleConfigFile, col_types = readr::cols())
-  if(nrow(samples) == 0) stop('Error - no lines of information was read from the sample configuration file.')
+  if(nrow(samples) == 0){
+    write(c(paste(lubridate::now(), 'Error - no lines of information was read from the sample configuration file.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
   
   requiredColumns <- c("trial", "subject", "sample", "replicate",  
                        "adriftRead.linker.seq", "index1.seq", "refGenome.id", "vectorFastaFile", "flags")
@@ -90,7 +93,7 @@ loadSamples <- function(){
   
   if(! all(requiredColumns %in% names(samples))){
     missingCols <- paste0(requiredColumns[! requiredColumns %in% names(samples)], collapse = ', ')
-    write(c(paste(now(), 'Error - the following columns were missing from the sample data file: '), missingCols), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    write(c(paste(lubridate::now(), 'Error - the following columns were missing from the sample data file: '), missingCols), file = file.path(opt$outputDir, 'log'), append = TRUE)
     q(save = 'no', status = 1, runLast = FALSE)
   }
   
@@ -202,7 +205,8 @@ standardizationSplitVector <- function(d, v){
   } else if( v == 'subject'){
     return(paste(d$trial, d$subject))
   } else {
-    stop('Error - standardization vector can not be created.')
+    write(c(paste(lubridate::now(), 'Error - standardization vector can not be created.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
   }
 }
 
@@ -286,7 +290,10 @@ golayCorrection <- function(x){
   i <- which(a$editDist <= 2)
   a[i,]$seq <- a[i,]$seq2
   
-  if(! all(names(x) == a$id)) stop('There was an ordering error during the Golay correction step.')
+  if(! all(names(x) == a$id)){
+    write(c(paste(lubridate::now(), 'Error - There was an ordering error during the Golay correction step.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
   
   r <- DNAStringSet(a$seq)
   names(r) <- a$id
@@ -367,6 +374,11 @@ blast2rearangements <- function(x, minAlignmentLength = 10, minPercentID = 95, C
 
 captureLTRseqsLentiHMM <- function(reads, hmm){
   outputFile <- file.path(opt$outputDir, 'tmp', tmpFile())
+  
+  reads <- reads[width(reads) > opt$prepReads_HMMsearchReadEndPos]
+  if(length(reads) == 0) return(tibble())
+  
+  # HERE
   writeXStringSet(subseq(reads, opt$prepReads_HMMsearchReadStartPos, opt$prepReads_HMMsearchReadEndPos), outputFile)
   comm <- paste0(opt$command.hmmsearch, ' --F1 ', opt$prepReads_HMM_F1, ' --F2 ', opt$prepReads_HMM_F2, ' --F3 ', opt$prepReads_HMM_F3,
                  ' --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')

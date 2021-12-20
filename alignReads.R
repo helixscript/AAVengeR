@@ -3,10 +3,12 @@ library(ShortRead)
 library(dplyr)
 library(parallel)
 library(readr)
-
 options(stringsAsFactors = FALSE)
 
-opt <- yaml::read_yaml('config.yml')
+configFile <- commandArgs(trailingOnly=TRUE)
+if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+opt <- yaml::read_yaml(configFile)
+
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$alignReads_outputDir))
@@ -18,7 +20,10 @@ opt$inputFastaDir <- file.path(opt$outputDir, opt$alignReads_inputDir)
 
 samples <- loadSamples()
 
-if(! all(file.exists(file.path(opt$softwareDir, 'data', 'blatDBs', paste0(unique(samples$refGenome.id), '.2bit'))))) stop('All reference genomes are not available.')
+if(! all(file.exists(file.path(opt$softwareDir, 'data', 'blatDBs', paste0(unique(samples$refGenome.id), '.2bit'))))){
+  write(c(paste(now(), 'Errror -- all reference genomes are not available.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
 
 f <- list.files(opt$inputFastaDir, full.names = FALSE) 
 
@@ -265,15 +270,12 @@ adriftReadAlignments <- adriftReadAlignments[i,]
 i <- adriftReadAlignments$qStart <= opt$alignReads_genomeAlignment_adriftReadMaxStart
 adriftReadAlignments <- adriftReadAlignments[i,]
 
-
 i <- base::intersect(anchorReadAlignments$qName, adriftReadAlignments$qName)
 anchorReadAlignments <- anchorReadAlignments[anchorReadAlignments$qName %in% i,]
 adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$qName %in% i,]
 
-
 anchorReadAlignments <- left_join(anchorReadAlignments, select(readSampleMap, sample, id), by = c('qName' = 'id'))
 adriftReadAlignments <- left_join(adriftReadAlignments, select(readSampleMap, sample, id), by = c('qName' = 'id'))
-
 
 saveRDS(anchorReadAlignments, file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_anchorReadAlignmentsOutputFile))  
 saveRDS(adriftReadAlignments, file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_adriftReadAlignmentsOutputFile)) 

@@ -4,7 +4,9 @@ library(parallel)
 library(lubridate)
 options(stringsAsFactors = FALSE)
 
-opt <- yaml::read_yaml('config.yml')
+configFile <- commandArgs(trailingOnly=TRUE)
+if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+opt <- yaml::read_yaml(configFile)
 
 write(c(paste(now(), 'Starting prepReads.R')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
@@ -124,7 +126,10 @@ invisible(parLapply(cluster, files, function(x){
     b <- b[! names(b) %in% r$id2]
   }
   
-  if(! names(a) == names(b)) stop('Read names did not match after creating unique FASTA files.')
+  if(! names(a) == names(b)){
+    write(c(paste(now(), 'Error -Read names did not match after creating unique FASTA files.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
   
   writeXStringSet(a, file.path(opt$outputDir, opt$prepReads_outputDir, 'unique', lpe(x)))
   writeXStringSet(b, file.path(opt$outputDir, opt$prepReads_outputDir, 'unique', sub('anchorReads', 'adriftReads', lpe(x))))
@@ -200,6 +205,11 @@ invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = T
 
 stopCluster(cluster)
 
+
+# (!) When searching for WT lenti viruses -- there is not vector sequence to use 
+# So no reads will be removed. 
+#
+
 # Create list of anchor reads with ends that align to the vector and tables of alignments need for trimming reads before genomic alignments.
 message('Create list of reads aligning to the vector.')
 o <- lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), full.names = TRUE), function(x){
@@ -218,12 +228,12 @@ o <- lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchor
                         }
                      }))))
   
-       message('f0 ', length(vectorIDs))
+
        if(nrow(b) == 0) return(list(vectorIDs = vectorIDs, mappings = tibble()))
-       message('f1 ', nrow(b))
+
        b0 <- b
        b <- subset(b, ! qname %in% vectorIDs)
-       message('f2 ', nrow(b))
+
        if(nrow(b) == 0) return(list(vectorIDs = vectorIDs, mappings = tibble()))
        message('Removed ', n_distinct(b0$qname) - n_distinct(b$qname), ' reads aligning to the vector')
        
@@ -258,17 +268,6 @@ o <- lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchor
        }
        
        stopCluster(cluster)
-       
-       #browser()
-       
-      # mappings <- group_by(b, qname) %>%
-      #   filter(evalue == min(evalue)) %>%
-      #  filter(alignmentLength == max(alignmentLength)) %>%
-      #   summarise(id = qname[1],
-      #             leaderMapping.qStart = min(qstart), leaderMapping.qEnd = max(qend),
-      #             leaderMapping.sStart = min(sstart), leaderMapping.sEnd = max(send)) %>%
-      #   ungroup() %>%
-      #   select(-qname)
       
        list(vectorIDs = vectorIDs, mappings = mappings)
 })
@@ -285,6 +284,10 @@ saveRDS(vectorIDs, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorIDs.
 # in the alignment module.
 
 if('leaderSeqHMM' %in% names(samples)){
+  
+ cluster <- makeCluster(opt$prepReads_CPUs)
+ clusterExport(cluster, c('opt', 'samples'))
+  
  hmmResults <- bind_rows(parLapply(cluster, split(d, 1:nrow(d)), function(x){ 
  #hmmResults <- bind_rows(lapply(split(d, 1:nrow(d)), function(x){ 
                  source(file.path(opt$softwareDir, 'lib.R'))
@@ -300,6 +303,8 @@ if('leaderSeqHMM' %in% names(samples)){
    mappings <- tibble(id = hmmResults$id, leaderMapping.qStart = 1, leaderMapping.qEnd = nchar(hmmResults$LTRseq), 
                       leaderMapping.sStart = NA, leaderMapping.sEnd = NA)
  }
+ 
+ stopCluster(cluster)
  
  saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'alignments.rds'))
 }
@@ -320,22 +325,23 @@ invisible(lapply(files[grepl('anchorReads', files)], function(file){
   # Limit reads to those with leader seq HMM hits since we know what
   # the leader sequence should look like because the user provided an HMM.
   if('leaderSeqHMM' %in% names(samples)){
-    if(names(samples) & nrow(hmmResults) > 0){
-      a <- a[names(a) %in% hmmResults$id]
-      b <- b[names(b) %in% hmmResults$id]
+    if(nrow(hmmResults) > 0){
+      if(any(names(a) %in% hmmResults$id)) a <- a[names(a) %in% hmmResults$id]
+      if(any(names(b) %in% hmmResults$id)) b <- b[names(b) %in% hmmResults$id]
     }
   }
   
   if(length(a) == 0 | length(b) == 0) return()
   
-  if(! all(names(a) == names(b))) stop('Error -- read ids do not match before final write out.')
+  if(! all(names(a) == names(b))){
+    write(c(paste(now(), 'Errror -- read ids do not match before final write out.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
   
   writeFasta(a, file.path(opt$outputDir, opt$prepReads_outputDir, 'final', lpe(file)))
   writeFasta(b, file.path(opt$outputDir, opt$prepReads_outputDir, 'final', sub('anchorReads', 'adriftReads', lpe(file))))
 }))
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
-
-stopCluster(cluster)
 
 q(save = 'no', status = 0, runLast = FALSE) 

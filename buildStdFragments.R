@@ -1,9 +1,13 @@
 library(dplyr)
+library(lubridate)
 library(parallel)
 library(data.table)
 library(GenomicRanges)
 
-opt <- yaml::read_yaml('config.yml')
+configFile <- commandArgs(trailingOnly=TRUE)
+if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+opt <- yaml::read_yaml(configFile)
+
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))

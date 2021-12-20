@@ -1,6 +1,10 @@
 library(dplyr)
+library(lubridate)
 
-opt <- yaml::read_yaml('config.yml')
+configFile <- commandArgs(trailingOnly=TRUE)
+if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+opt <- yaml::read_yaml(configFile)
+
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
@@ -66,7 +70,6 @@ sites <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$s
   }
 }))
 
-
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
 
-
+q(save = 'no', status = 0, runLast = FALSE) 

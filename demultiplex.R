@@ -4,7 +4,9 @@ library(parallel)
 library(lubridate)
 library(dplyr)
 
-opt <- yaml::read_yaml('config.yml')
+configFile <- commandArgs(trailingOnly=TRUE)
+if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
 # The launch script creates (if missing) and writes to the output directory.
@@ -98,8 +100,8 @@ gc()
 
 write(paste(now(), 'Starting demultiplexing.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-#invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
-invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
+invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
+#invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
   library(ShortRead)
   library(dplyr)
   library(stringr)
@@ -125,6 +127,7 @@ invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 
     # Create break read linker barcode demultiplexing vector.
     v2 <- rep(TRUE, length(adriftReads))
     if(opt$demultiplex_useAdriftReadUniqueLinkers){
+      #browser()
       testSeq <- substr(r$adriftRead.linker.seq, r$adriftRead.linkerBarcode.start, r$adriftRead.linkerBarcode.end)
       v2 <- vcountPattern(testSeq, subseq(adriftReads, r$adriftRead.linkerBarcode.start, r$adriftRead.linkerBarcode.end), max.mismatch = opt$demultiplex_adriftReadLinkerBarcodeMaxMismatch) > 0
       log.report$demultiplexedLinkerReads <- sum(v2)

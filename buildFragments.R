@@ -1,12 +1,15 @@
 library(dplyr)
+library(lubridate)
 library(parallel)
 library(data.table)
 library(GenomicRanges)
 library(Biostrings)
 
-opt <- yaml::read_yaml('config.yml')
-source(file.path(opt$softwareDir, 'lib.R'))
+configFile <- commandArgs(trailingOnly=TRUE)
+if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+opt <- yaml::read_yaml(configFile)
 
+source(file.path(opt$softwareDir, 'lib.R'))
 
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adriftReadsAlignmentFile))
@@ -89,7 +92,7 @@ if(opt$demultiplex_captureRandomLinkerSeq){
   frags <- left_join(frags, r, by = 'readID')
   frags <- unpackUniqueSampleID(frags)
   
-  # Random linker ids should be sample specific
+  # Random linker ids should be sample specific.
   frags$s <- paste(frags$trial, frags$subject, frags$sample)
   o <- group_by(frags, randomLinkerSeq) %>%
        summarise(nSamples = n_distinct(s), reads = n_distinct(readID)) %>%
@@ -142,8 +145,5 @@ frags <- unpackUniqueSampleID(frags)
 frags$uniqueSample <- NULL
 
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
-
-
-
 
 q(save = 'no', status = 0, runLast = FALSE) 
