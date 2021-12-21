@@ -142,7 +142,9 @@ stopCluster(cluster)
 gc()
 
 frags <- unpackUniqueSampleID(frags)
-frags$uniqueSample <- NULL
+
+
+#frags$uniqueSample <- NULL
 
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
 

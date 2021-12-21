@@ -19,14 +19,19 @@ if('buildStdFragments_duplicateReadFile' %in% names(opt)){
   dups <- data.table(dplyr::distinct(dplyr::select(dups, id, n)))
 }
 
+
 # Read in read level fragments records.
 frags <- readRDS(file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
 
+#z <- readRDS('/home/everett/projects/Persaud_HIV/211208_M03249_0229_000000000-G9RT3/U5_out/buildFragments/fragments.rds')
+#frags <- bind_rows(frags, z)
 
 cluster <- makeCluster(opt$buildFragments_CPUs)
 clusterExport(cluster, c('opt', 'dups'))
 
 frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', frags$replicate, ':', frags$strand, ':', frags$fragStart, ':', frags$fragEnd)
+
+# Check -- frags should alrady have read counts ???
 
 # Tally the number of reads for each fragment which is needed for standardization.
 f1 <- data.table(dplyr::select(frags, fragID, readID))
