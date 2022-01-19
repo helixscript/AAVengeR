@@ -350,8 +350,8 @@ invisible(lapply(files[grepl('anchorReads', files)], function(file){
   a <- readDNAStringSet(file)
   b <- readDNAStringSet(sub('anchorReads', 'adriftReads', file))
   
-  a <- a[! names(a) %in% vectorIDs]
-  b <- b[! names(b) %in% vectorIDs]
+  a <- a[ names(a) %in% vectorIDs]
+  b <- b[ names(b) %in% vectorIDs]
   
   if(length(a) == 0 | length(b) == 0) return()
   

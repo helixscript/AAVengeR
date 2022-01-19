@@ -9,7 +9,11 @@ source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$processHIVsites_outputDir))
 
-sites <- readRDS(file.path(opt$outputDir, opt$processHIVsites_inputFile))
+# Multiple site files supported, eg. load U3 and U5 experiments.
+sites <- bind_rows(lapply(unlist(strsplit(opt$processHIVsites_inputFiles, ',')), function(x){
+           readRDS(file.path(opt$outputDir, x))
+         }))
+
 if(! 'flags' %in% names(sites)){
   write(c(paste(now(), 'Error -- the flags column is not in the sites data object.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE) 

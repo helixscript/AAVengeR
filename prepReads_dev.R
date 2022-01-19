@@ -242,6 +242,24 @@ vectorHits <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$prepReads
                 group_by(o, qname) %>% top_n(1, wt = pident) %>% arrange(desc(strand)) %>% dplyr::slice(1) %>% ungroup()
               }))
 
+
+d <- data.frame(x1=c(1, 146, 376, 498, 4880, 4926), 
+                x2=c(141, 370, 483, 4871, 4925, 5066), 
+                y1=rep(-10, 6), 
+                y2=rep(-2500,6), 
+                f = c("5' ITR", "Promoter", "SynIntron", "Transgene", "Poly-A", "3' ITR"))
+d$f <- factor(d$f, levels = unique(d$f))
+
+# library(scales)
+# ggplot(vectorHits, aes(end)) + 
+#   theme_bw()+
+#   scale_y_continuous(label=comma) + 
+#   scale_x_continuous(limits = c(0,110), expand = c(0, 0), breaks = seq(1, 110, 10)-1) + 
+#   geom_histogram(bins = 90) +
+#   labs(x = 'ITR position', y = 'Unique read pairs') +
+#   theme(text = element_text(size=16), axis.text = element_text(size=14)) 
+
+  
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 stopCluster(cluster)
@@ -253,20 +271,31 @@ stopCluster(cluster)
 
 # Create list of anchor reads with ends that align to the vector and tables of alignments need for trimming reads before genomic alignments.
 message('Create list of reads aligning to the vector.')
-
-f <- list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), full.names = TRUE)
-f <- f[! grepl('\\.ends\\.', f)]
-                
-o <- lapply(f, function(x){
+o <- lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), full.names = TRUE), function(x){
 
        b <- readRDS(x)
        
-       if(nrow(b) == 0) return(list(mappings = tibble()))
+       # Alignments already %id filtered. Consider that there may be an accumilation of mismatches near the end.
+       # Split reads on query lengths then find alignments which include the end of query sequences. 
+       vectorIDs <- unique(unname(unlist(lapply(split(b, b$qlength), function(a){
+                        a <- subset(a, qstart <= (a$qlength[1] - opt$prepReads_vectorAlignmentTestLength) & 
+                                       qend >= a$qlength[1] - opt$prepReads_vectorAlignmentTestLength_drift)
+                        if(nrow(a) > 0){
+                          browser()
+                          return(a$qname)
+                        } else {
+                          return(NULL)
+                        }
+                     }))))
+  
+     
+       
+       if(nrow(b) == 0) return(list(vectorIDs = vectorIDs, mappings = tibble()))
 
        b0 <- b
-       b <- subset(b, ! qname %in% unique(vectorHits$qname))
+       b <- subset(b, ! qname %in% vectorIDs)
 
-       if(nrow(b) == 0) return(list(mappings = tibble()))
+       if(nrow(b) == 0) return(list(vectorIDs = vectorIDs, mappings = tibble()))
        message('Removed ', n_distinct(b0$qname) - n_distinct(b$qname), ' reads aligning to the vector')
        
        b <- select(b, qname, evalue, alignmentLength, sseqid, qstart, qend, sstart, send)
@@ -301,15 +330,14 @@ o <- lapply(f, function(x){
        
        stopCluster(cluster)
       
-       list(mappings = mappings)
+       list(vectorIDs = vectorIDs, mappings = mappings)
 })
 
 mappings <- bind_rows(lapply(o, '[[', 'mappings'))
 saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'alignments.rds'))
 
-vectorIDs <- unique(vectorHits$qname)
+vectorIDs <- unlist(lapply(o, '[[', 'vectorIDs'))
 saveRDS(vectorIDs, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorIDs.rds'))
-saveRDS(vectorHits, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorHits.rds'))
 
 
 # If a leaderSeqHMM column is present then we run the anchor reads through the HMM, select reads with 
@@ -376,20 +404,5 @@ invisible(lapply(files[grepl('anchorReads', files)], function(file){
 }))
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
-
-if(file.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'))){
-  o <- readr::read_tsv(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'))
-  o$preppedReads <- 0
-    
-  for(x in o$sample){
-    file <- file.path(opt$outputDir, opt$prepReads_outputDir, 'final', paste0(x, '.anchorReads.fasta'))
-    if(file.exists(file)) o[o$sample == x,]$preppedReads <- length(Biostrings::readDNAStringSet(file))
-  }
-  
-  t <- length(ShortRead::readFastq(opt$demultiplex_anchorReadsFile))
-  o <- tibble::add_column(o, .after = 'sample', 'totalReads' = t)
-  o$preppedReadsPercentTotal <- (o$preppedReads / o$totalReads)*100
-  readr::write_tsv(o, file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionTable.tsv'))
-}
 
 q(save = 'no', status = 0, runLast = FALSE) 

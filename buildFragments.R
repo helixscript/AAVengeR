@@ -143,9 +143,68 @@ gc()
 
 frags <- unpackUniqueSampleID(frags)
 
+samples <- loadSamples()
+frags <- left_join(frags, select(samples, uniqueSample, flags), by = 'uniqueSample')
 
-#frags$uniqueSample <- NULL
+dups <- tibble()
 
-saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
+if('buildStdFragments_duplicateReadFile' %in% names(opt)){
+  dups <- readRDS(file.path(opt$outputDir, opt$buildStdFragments_duplicateReadFile))
+  dups <- data.table(dplyr::distinct(dplyr::select(dups, id, n)))
+}
+
+cluster <- makeCluster(opt$buildFragments_CPUs)
+clusterExport(cluster, c('opt', 'dups'))
+
+frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', frags$replicate, ':', frags$strand, ':', frags$fragStart, ':', frags$fragEnd)
+
+# Combine read level fragments into unique fragments with read counts.
+f1 <- data.table(frags)
+f2 <- split(f1, f1$fragID)
+
+frags <- parLapply(cluster, f2, function(x){
+#frags <- (lapply(f2, function(x){  
+           library(dplyr)
+           library(data.table)
+           source(file.path(opt$softwareDir, 'lib.R'))
+  
+           if(nrow(x) == 1){
+             x$reads <- nrow(x)
+             x$repLeaderSeq <- x$leaderSeq.anchorReads
+             x$readIDlist <- x$readID
+             return(select(as_tibble(x), -readID, -leaderSeq.anchorReads))
+           }
+  
+           r <- representativeSeq(x$leaderSeq.anchorReads)
+  
+           # Exclude reads where the leaderSeq is not similiar to the representative sequence. 
+           i <- stringdist::stringdist(r[[2]], x$leaderSeq.anchorReads) / nchar(r[[2]]) <= opt$buildStdFragments_maxLeaderSeqDiffScore
+           if(all(! i)) return(data.table::data.table())
+  
+           x <- x[i,]
+          
+           x$reads <- nrow(x)
+           x$repLeaderSeq <- r[[2]]
+  
+           o <- dups[dups$id %in% x$readID]
+           if(nrow(o) > 0){
+             x$reads <- nrow(x) + sum(o$n)
+           }
+           readIDs <- x$readID
+           x <- as_tibble(x[1,])
+           x$readIDlist <- list(readIDs)
+           
+           return(select(x[1,], -readID, -leaderSeq.anchorReads))
+})
+
+
+frags <- bind_rows(lapply(frags, function(x){
+           if(! is.list(x$readIDlist)) x$readIDlist <- list(x$readIDlist)
+           x
+        }))
+
+stopCluster(cluster)
+
+saveRDS(distinct(frags), file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
 
 q(save = 'no', status = 0, runLast = FALSE) 

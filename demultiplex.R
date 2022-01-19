@@ -20,7 +20,6 @@ if(! file.exists(opt$sampleConfigFile)){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-
 samples <- loadSamples()
 
 if(! file.exists(opt$demultiplex_adriftReadsFile)){
@@ -115,7 +114,12 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
   # Loop through samples in sample data file to demultiplex and apply read specific filters.
   invisible(lapply(1:nrow(samples), function(r){
     r <- samples[r,]
-    
+
+    v0 <- rep(TRUE, length(anchorReads))
+    if('anchorRead.startSeq' %in% names(r)){
+      v0 <- vcountPattern(r$anchorRead.startSeq, subseq(anchorReads, 1, nchar(r$anchorRead.startSeq)), max.mismatch = opt$demultiplex_anchorRead.startSeq.maxMisMatch) == 1
+    }
+       
     # Create barcode demultiplexing vectors.
     v1 <- vcountPattern(r$index1.seq, index1Reads, max.mismatch = opt$demultiplex_index1ReadMaxMismatch) > 0
     
@@ -135,9 +139,8 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
       log.report$demultiplexedLinkerReads <- NA
     }
     
-    
     # Test to see if any reads demultiplex to this row of the sample table and then subset reads to this sample.
-    i <- base::intersect(which(v1), which(v2))
+    i <- Reduce(base::intersect, list(which(v0), which(v1), which(v2)))
     if(length(i) == 0){
       log.report$demultiplexedReads <- 0
     } else {

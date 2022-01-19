@@ -1,7 +1,7 @@
 library(ShortRead)
 library(dplyr)
 library(Biostrings)
-config <- yaml::read_yaml('/home/everett/projects/CSL/201218_M02973_0294_000000000-J96T7/config.yml')
+config <- yaml::read_yaml('/home/everett/projects/AAV_controls/211221_M03249_0230_000000000-K4WDM/config.yml')
 I1 <- as.character(readFastq(config$demultiplex_index1ReadsFile)@sread)
 samples <- readr::read_tsv(config$sampleConfigFile)
                            
