@@ -145,6 +145,9 @@ saveRDS(o, file.path(opt$outputDir, opt$prepReads_outputDir, 'duplicateReads.rds
 # are provided in the sample data. These alignments will also be used to test if the end of anchor reads align to 
 # vectors and signal their removal. 
 
+# When searching for WT lenti viruses -- there may not be a vector file to use.
+# Use 'none' in the sample data file. This is a special 3 NT fasta file that nothing should significantly align against.
+
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 message('Align anchor reads to vector sequences.')
@@ -247,9 +250,8 @@ invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = T
 stopCluster(cluster)
 
 
-# (!) When searching for WT lenti viruses -- there is not vector sequence to use 
-# So no reads will be removed. 
-#
+
+
 
 # Create list of anchor reads with ends that align to the vector and tables of alignments need for trimming reads before genomic alignments.
 message('Create list of reads aligning to the vector.')
@@ -263,6 +265,8 @@ o <- lapply(f, function(x){
        
        if(nrow(b) == 0) return(list(mappings = tibble()))
 
+       # Remove reads that align well to the vector.
+       # vectorHits has already been filtered for well scoring hits.
        b0 <- b
        b <- subset(b, ! qname %in% unique(vectorHits$qname))
 
@@ -279,7 +283,8 @@ o <- lapply(f, function(x){
        mappings <- tibble()
        
        if(! 'leaderSeqHMM' %in% names(samples)){
-          message('Building mapping...')
+          # Use the local alignments to the vector to build models of the start of anchor reads
+          # that can be used to trim reads before aligning to the genome.
           mappings <- bind_rows(parLapply(cluster, split(z, z$n), function(b){
                         library(GenomicRanges)
                         library(dplyr)
@@ -377,8 +382,8 @@ invisible(lapply(files[grepl('anchorReads', files)], function(file){
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
-if(file.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'))){
-  o <- readr::read_tsv(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'))
+if(file.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))){
+  o <- readr::read_tsv(file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))
   o$preppedReads <- 0
     
   for(x in o$sample){
@@ -389,7 +394,7 @@ if(file.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'))){
   t <- length(ShortRead::readFastq(opt$demultiplex_anchorReadsFile))
   o <- tibble::add_column(o, .after = 'sample', 'totalReads' = t)
   o$preppedReadsPercentTotal <- (o$preppedReads / o$totalReads)*100
-  readr::write_tsv(o, file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionTable.tsv'))
+  readr::write_tsv(o, file.path(opt$outputDir, opt$prepReads_outputDir, 'readAttritionTbl.tsv'))
 }
 
 q(save = 'no', status = 0, runLast = FALSE) 

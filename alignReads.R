@@ -37,7 +37,7 @@ anchorReads <- Reduce('append', parLapply(cluster, f[grepl('anchorReads', f)], f
 
 
 # Remove recognizable leader sequences from anchorReads so that they do not interfer with alignments
-# and save the original sequences so that they can be reconstruted.
+# and save the original sequences so that they can be reconstructed.
 
 anchorReads_preLeaderTrim <- anchorReads
 
@@ -86,7 +86,8 @@ o <- unlist(lapply(split(readSampleMap, readSampleMap$refGenome.id), function(x)
        x <- x[b,]
        
        chunkSize <- floor(nrow(x) / opt$alignReads_CPUs)
-       if('alignReads_alignmentChunkSize' %in% names(opt)) chunkSize <- opt$alignReads_alignmentChunkSize
+       if(opt$alignReads_alignmentChunkSize > 0) chunkSize <- opt$alignReads_alignmentChunkSize
+       # if('alignReads_alignmentChunkSize' %in% names(opt)) chunkSize <- opt$alignReads_alignmentChunkSize
        
        split(x, (seq(nrow(x))-1) %/% chunkSize)
     }), recursive = FALSE)
@@ -161,7 +162,7 @@ adriftReads <- shortRead2DNAstringSet(Reduce('append', lapply(f[grepl('adriftRea
 adriftReads <- adriftReads[names(adriftReads) %in% anchorReadAlignments$qName]
 
 # Limit anchor read alignments to those with leader sequences >= 10 NT because we need to create adrift over-read adapters.
-# (!) This removed the possiblity for keeping alignments that start the near the beginning of reads. 
+# (!) This removed the possibility for keeping alignments that start the near the beginning of reads. 
 anchorReadAlignments <- anchorReadAlignments[nchar(anchorReadAlignments$leaderSeq) >= opt$alignReads_genomeAlignment_anchorReadMinStart,]
 
 
@@ -172,7 +173,7 @@ adriftReadsAdapters <- tibble(id = anchorReadAlignments$qName,
 
 
 # An anchor read may align to multiples positions in the genome each with a different start position (qStart).
-# We need to trim all posibilities which will reduce the length of the adrift genomic letters in some cases. 
+# We need to trim all possibilities which will reduce the length of the adrift genomic letters in some cases. 
 
 dupReadIds <- adriftReadsAdapters$id[duplicated(adriftReadsAdapters$id)]
 adriftReadsAdapters.dups <- subset(adriftReadsAdapters, id %in% dupReadIds)
@@ -225,7 +226,9 @@ o <- unlist(lapply(split(readSampleMap, readSampleMap$refGenome.id), function(x)
   x <- x[b,]
   
   chunkSize <- floor(nrow(x) / opt$alignReads_CPUs)
-  if('alignReads_alignmentChunkSize' %in% names(opt)) chunkSize <- opt$alignReads_alignmentChunkSize
+  
+  if(opt$alignReads_alignmentChunkSize > 0) chunkSize <- opt$alignReads_alignmentChunkSize
+  # if('alignReads_alignmentChunkSize' %in% names(opt)) chunkSize <- opt$alignReads_alignmentChunkSize
   
   split(x, (seq(nrow(x))-1) %/% chunkSize)
 }), recursive = FALSE)
@@ -270,12 +273,15 @@ adriftReadAlignments <- adriftReadAlignments[i,]
 i <- adriftReadAlignments$qStart <= opt$alignReads_genomeAlignment_adriftReadMaxStart
 adriftReadAlignments <- adriftReadAlignments[i,]
 
+
 i <- base::intersect(anchorReadAlignments$qName, adriftReadAlignments$qName)
 anchorReadAlignments <- anchorReadAlignments[anchorReadAlignments$qName %in% i,]
 adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$qName %in% i,]
 
+
 anchorReadAlignments <- left_join(anchorReadAlignments, select(readSampleMap, sample, id), by = c('qName' = 'id'))
 adriftReadAlignments <- left_join(adriftReadAlignments, select(readSampleMap, sample, id), by = c('qName' = 'id'))
+
 
 saveRDS(anchorReadAlignments, file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_anchorReadAlignmentsOutputFile))  
 saveRDS(adriftReadAlignments, file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_adriftReadAlignmentsOutputFile)) 

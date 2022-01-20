@@ -49,7 +49,7 @@ if(nrow(o) > 0){
   multiHitFrags <- subset(z, readIDlist %in% o$readIDlist)  # Reads which map to more than one intSite positions.
   frags <- subset(z, ! readIDlist %in% o$readIDlist)        # Reads which map to a single intSite positions.
   
-  # There may be multi hit reads where one of their position ids is the same as those in the frags
+  # There may be multihit reads where one of their position ids is the same as those in the frags
   # where the reads aligned uniquely. If only one of the possible alignment positions in multiHitFrags 
   # is in frags (unique alignments), then move those reads to frags.
   
@@ -62,9 +62,11 @@ if(nrow(o) > 0){
     
     # Split multi hit frags by read id.
     multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$readIDlist), function(x){
+    #multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$readIDlist), function(x){
                                 # x will contain two or more frag ids.
                                 # Create a list of non-ambiguous sites from the subject this read came from.
                                 posidList <- subset(frags_sites, trial == x$trial[1] & subject == x$subject[1])$posid
+                                
                                 
                                 # Return sites to the non-ambigious read list if they map to a single site from the 
                                 # non-ambiguous site list.
@@ -85,13 +87,13 @@ if(nrow(o) > 0){
   }
 }
 
-frags <- tidyr::nest(frags, readIDlist, .data = 'readIDlist')
-frags$readIDlist <- NULL
+frags <- tidyr::nest(frags, data = c(readIDlist))
+frags$data <- NULL
 
-if(nrow(multiHitFrags) > 0){
-  multiHitFrags <- tidyr::nest(multiHitFrags, readIDlist, .data = 'readIDlist')
-  multiHitFrags$readIDlist <- NULL
-}
+# if(nrow(multiHitFrags) > 0){
+#   multiHitFrags <- tidyr::nest(multiHitFrags, data = c(readIDlist))
+#   multiHitFrags$data <- NULL
+# }
 
 
 # Clear out the tmp/ directory.
@@ -110,7 +112,6 @@ clusterExport(cluster, 'opt')
 f <- as.data.table(frags)
 s <- split(f, f$fragID)
  
-
 frags <- bind_rows(parLapply(cluster, s, function(a){ 
 #frags <- bind_rows(lapply(s, function(a){   
   library(dplyr)
@@ -127,14 +128,13 @@ frags <- bind_rows(parLapply(cluster, s, function(a){
   a$repLeaderSeq <- r[[2]]
   a$reads <- sum(a$reads)
   
-  a[1, c(7:10, 2:5, 13:14, 12)]
+  a[1, c(6:10, 2:5, 13:14, 12)]
 }))
 
 
 
 if(nrow(multiHitFrags) > 0){
-  
-  multiHitReads <- group_by(multiHitFrags, trial, subject, sample, readID) %>%
+  multiHitReads <- group_by(multiHitFrags, trial, subject, sample, readIDlist) %>%
     summarise(posids = I(list(posid))) %>%
     ungroup() %>%
     tidyr::unnest(posids) %>%
@@ -158,7 +158,7 @@ if(nrow(multiHitFrags) > 0){
     a$repLeaderSeq <- r[[2]]
     a$reads <- sum(a$reads)
     
-    a[1, c(7:10, 2:5, 13:14, 12)]
+    a[1, c(6:10, 2:5, 13:14, 12)]
   }))
   
   saveRDS(multiHitReads, file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitReads.rds'))

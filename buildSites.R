@@ -58,7 +58,6 @@ sites <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$s
            dplyr::select(subject, sample, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags) %>%
            dplyr::slice(1))
     }else{
-    
       if('flags' %in% names(samples)){
         x$flags <- paste0(unique(subset(samples, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1])$flags), collapse = ',')
       } else {

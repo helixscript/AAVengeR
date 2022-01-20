@@ -216,6 +216,6 @@ logReport <- bind_rows(lapply(split(logReport, logReport$sample), function(x){
 })) %>% dplyr::arrange(demultiplexedReads)
 
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), recursive = TRUE))
-write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'))
+write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
