@@ -73,6 +73,19 @@ unpackUniqueSampleID <- function(d){
 }
 
 
+parse_cdhitest_output <- function (file) {
+  clusters <- readChar(file, file.info(file)$size)
+  clusters <- unlist(base::strsplit(clusters, ">Cluster"))
+  clusters <- clusters[2:length(clusters)]
+  lapply(clusters, function(x) {
+    gsub("\\.\\.\\.", "", unlist(lapply(stringr::str_match_all(x,
+                                                      ">([^\\s]+)"), function(y) {
+                                                        y[, 2]
+                                                      })))
+  })
+}
+
+
 loadSamples <- function(){
   samples <- readr::read_tsv(opt$sampleConfigFile, col_types = readr::cols())
   if(nrow(samples) == 0){
@@ -217,53 +230,62 @@ standardizedFragments <- function(frags, opt, cluster){
   
   g <- GenomicRanges::makeGRangesFromDataFrame(frags, start.field = 'fragStart', end.field = 'fragEnd', keep.extra.columns = TRUE)
   g$s <- standardizationSplitVector(g, opt$buildStdFragments_standardizeSitesBy)
+  g$s <- paste(g$s, g$repLeaderSeqGroup)
   
-  g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
-  #g <- unlist(GRangesList(lapply(split(g, g$s), function(x){
-         library(dplyr)
-         library(GenomicRanges)
-         source(file.path(opt$softwareDir, 'lib.R'))
-         source(file.path(opt$softwareDir, 'lib.standardizePositions.R'))
-         x$intSiteRefined <- FALSE
+  if(opt$buildStdFragments_standardizeSites){
+    g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
+           library(dplyr)
+           library(GenomicRanges)
+           source(file.path(opt$softwareDir, 'lib.R'))
+           source(file.path(opt$softwareDir, 'lib.standardizePositions.R'))
+           x$intSiteRefined <- FALSE
          
-         out <- tryCatch({
-                           o <- standardize_sites(x, counts.col = 'reads', sata.gap = 5)
-                           o$intSiteRefined <- TRUE
-                           o
-                         },
-         error=function(cond) {
-                                x
-                              },
-        warning=function(cond) {
-                                o
-        })
+           out <- tryCatch({
+                             o <- standardize_sites(x, counts.col = 'reads', sata.gap = 5)
+                             o$intSiteRefined <- TRUE
+                             o
+                           },
+           error=function(cond) {
+                                  x
+                                },
+          warning=function(cond) {
+                                  o
+          })
 
-    return(out)
-  })))
+      return(out)
+    })))
+  } else {
+    g$intSiteRefined <- FALSE
+  }
 
   g$s <- standardizationSplitVector(g, opt$buildStdFragments_standardizeBreaksBy)
-  g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
-  #g <- unlist(GenomicRanges::GRangesList(lapply(split(g, g$s), function(x){
-         library(dplyr) 
-         library(GenomicRanges)
-         source(file.path(opt$softwareDir, 'lib.R'))
-         source(file.path(opt$softwareDir, 'lib.standardizePositions.R'))
+  g$s <- paste(g$s, g$repLeaderSeqGroup)
+  
+  if(opt$buildStdFragments_standardizeBreaks){
+    g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
+           library(dplyr) 
+           library(GenomicRanges)
+           source(file.path(opt$softwareDir, 'lib.R'))
+           source(file.path(opt$softwareDir, 'lib.standardizePositions.R'))
 
-         x$breakPointRefined <- FALSE
-         out <- tryCatch({
-                            o <- refine_breakpoints(x, counts.col = 'reads')
-                            o$breakPointRefined <- TRUE
-                            o
-                         },
-                         error=function(cond) {
-                                                 x
-                         },
-                         warning=function(cond) {
-                                                  o
-                         })
+           x$breakPointRefined <- FALSE
+           out <- tryCatch({
+                              o <- refine_breakpoints(x, counts.col = 'reads')
+                              o$breakPointRefined <- TRUE
+                              o
+                           },
+                           error=function(cond) {
+                                                   x
+                           },
+                           warning=function(cond) {
+                                                    o
+                             })
 
-                 return(out)
-  })))
+                   return(out)
+    })))
+  } else {
+    g$breakPointRefined <- FALSE
+  }
 
   g$s <- NULL
   data.frame(g)
@@ -426,4 +448,33 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
          LTRname = hmmName,
          LTRseq = as.character(subseq(reads2, 1, o$targetEnd)))
 }
+
+
+blastReads <- function(reads){
+  library(Biostrings)
+  library(dplyr)
+
+  f <- tmpFile()
+  writeXStringSet(reads,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
+  
+  system(paste0(opt$command_blastn, ' -word_size 6 -evalue 10 -outfmt 6 -query ',
+                file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
+                file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'),
+                ' -num_threads 2 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),
+         ignore.stdout = TRUE, ignore.stderr = TRUE)
+  
+  waitForFile(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))
+  
+  if(file.info(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))$size > 0){
+    b <- read.table(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
+    names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
+    return(b)
+  } else {
+    return(tibble())
+  }
+}
+  
+
+
+
 

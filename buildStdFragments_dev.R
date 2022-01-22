@@ -3,6 +3,7 @@ library(lubridate)
 library(parallel)
 library(data.table)
 library(GenomicRanges)
+library(Biostrings)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
@@ -19,6 +20,20 @@ frags <- bind_rows(lapply(unlist(strsplit(opt$buildStdFragments_inputFiles, ',')
 
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
+
+d <- DNAStringSet(frags$repLeaderSeq)
+names(d) <- frags$fragID
+writeXStringSet(d, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'repLeaderSeqs.fasta'))
+system(paste(opt$command.dnaclust, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'repLeaderSeqs.fasta'), '-l -k',
+             opt$buildStdFragments_representativeSeq_dnaclust_k, '-s', opt$buildStdFragments_representativeSeq_dnaclust_s, ' > ', file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'clusters')))
+             
+n <- 0
+repLeaderSeqGroups <- bind_rows(lapply(readLines(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'clusters')), function(x){
+  n <<- n + 1
+  tibble(fragID = unlist(base::strsplit(x, '\t')), repLeaderSeqGroup = n)
+}))
+
+frags <- left_join(frags, repLeaderSeqGroups, by = 'fragID')
 
 # Standardize fragments.
 frags_std <- standardizedFragments(frags, opt, cluster)
@@ -139,7 +154,7 @@ frags <- bind_rows(parLapply(cluster, s, function(a){
   a$repLeaderSeq <- r[[2]]
   a$reads <- sum(a$reads)
   
-  a[1, c(6:10, 2:5, 13:14, 12)]
+  a[1, c(6:10, 2:5, 13:14, 12, 15)]
 }))
 
 
@@ -169,7 +184,7 @@ if(nrow(multiHitFrags) > 0){
     a$repLeaderSeq <- r[[2]]
     a$reads <- sum(a$reads)
     
-    a[1, c(6:10, 2:5, 13:14, 12)]
+    a[1, c(6:10, 2:5, 13:14, 12, 15)]
   }))
   
   saveRDS(multiHitReads, file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitReads.rds'))
