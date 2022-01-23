@@ -21,19 +21,28 @@ frags <- bind_rows(lapply(unlist(strsplit(opt$buildStdFragments_inputFiles, ',')
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
 
-d <- DNAStringSet(frags$repLeaderSeq)
-names(d) <- frags$fragID
-writeXStringSet(d, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'repLeaderSeqs.fasta'))
-system(paste(opt$command.dnaclust, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'repLeaderSeqs.fasta'), '-l -k',
-             opt$buildStdFragments_representativeSeq_dnaclust_k, '-s', opt$buildStdFragments_representativeSeq_dnaclust_s, ' > ', file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'clusters')))
-             
-n <- 0
-repLeaderSeqGroups <- bind_rows(lapply(readLines(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'clusters')), function(x){
-  n <<- n + 1
-  tibble(fragID = unlist(base::strsplit(x, '\t')), repLeaderSeqGroup = n)
-}))
 
-frags <- left_join(frags, repLeaderSeqGroups, by = 'fragID')
+# Cluster repLeaderSequences, define cluster groups and then add them to the fragments.
+s <- DNAStringSet(unique(frags$repLeaderSeq))
+names(s) <- paste0('s', 1:length(s))
+
+d <- tibble(id = names(s), seq = as.character(s))
+
+writeXStringSet(s, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'repLeaderSeqs.fasta'))
+
+system(paste(opt$command.cdhitest, '-i', file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'repLeaderSeqs.fasta'),
+             '-o', file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'repLeaderSeqs.cdhit'),
+             opt$buildStdFragments_representativeSeq_cdhitest_params))
+             
+r <- parse_cdhitest_output(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'repLeaderSeqs.cdhit.clstr'))
+
+repLeaderSeqGroups <- bind_rows(mapply(function(x, n){
+  tibble(repLeaderSeqGroup = n, repLeaderSeq = subset(d, id %in% x)$seq)
+}, r, 1:length(r), SIMPLIFY = FALSE))
+
+frags <- left_join(frags, repLeaderSeqGroups, by = 'repLeaderSeq')
+
+
 
 # Standardize fragments.
 frags_std <- standardizedFragments(frags, opt, cluster)

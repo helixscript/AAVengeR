@@ -33,7 +33,7 @@ sites <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$s
   if(nrow(x) > 1){
     i <- rep(TRUE, nrow(x))
     
-    browser()
+    #browser()
     
     # Check that leader sequences are all similar now that we are combining fragments from different replicates.
     r <- representativeSeq(x$repLeaderSeq)
