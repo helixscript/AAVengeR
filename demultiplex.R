@@ -202,6 +202,7 @@ logReport <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$demultiple
   read.table(f, header = TRUE, sep = '\t')
 }))
 
+
 logReport <- bind_rows(lapply(split(logReport, logReport$sample), function(x){
   o <- data.frame(lapply(2:length(x), function(y){
     if(all(is.na(x[,y]))){
@@ -214,6 +215,7 @@ logReport <- bind_rows(lapply(split(logReport, logReport$sample), function(x){
   names(o) <- names(x)[2:length(x)]
   bind_cols(data.frame(sample = x[1,1]), o)
 })) %>% dplyr::arrange(demultiplexedReads)
+
 
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), recursive = TRUE))
 write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))

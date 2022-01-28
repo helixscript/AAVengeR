@@ -3,8 +3,8 @@ library(stringr)
 library(RMySQL)
 options(stringsAsFactors = FALSE, useFancyQuotes = FALSE)
 
-sampleSheet <- '/data/sequencing/Illumina-archive/211208_M03249_0229_000000000-G9RT3/SampleSheet.csv'
-outputFile  <- '/home/everett/projects/AAVengeR2/scripts/211208_M03249_0229_000000000-G9RT3_sampleConfig.tsv'
+sampleSheet <- '/data/sequencingData/220124_MN01490_0059_A000H3M2VG/SampleSheet.csv'
+outputFile  <- '/data/project/Persaud_HIV/x'
 refGenome.id <- 'hg38'
 trialID <- 'Persaud_HIV'
 
@@ -42,7 +42,8 @@ r <- tibble(trial = trialID,
             refGenome.id = refGenome.id,
             adriftRead.linkerRandomID.start =  str_locate(s$linker, 'NNNNNNNNNNNN')[,1],
             adriftRead.linkerRandomID.end = str_locate(s$linker, 'NNNNNNNNNNNN')[,2],
-            vectorFastaFile = ifelse(s$uniqueRegion == 'U5', 'u5_100_v1.fasta', 'u3_100_v1.fasta'),
+            vectorFastaFile = 'HIV-1_reference.fasta',
+            leaderSeqHMM = ifelse(s$uniqueRegion == 'U5', 'u5_100.hmm', 'u3_100_rc.hmm'),
             flags = ifelse(s$uniqueRegion == 'U5', 'HIV_u5', 'HIV_u3'))
             
 write.table(r, file = outputFile, sep='\t', col.names = TRUE, row.names = FALSE, quote = FALSE)

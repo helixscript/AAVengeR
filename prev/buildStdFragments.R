@@ -3,7 +3,6 @@ library(lubridate)
 library(parallel)
 library(data.table)
 library(GenomicRanges)
-library(Biostrings)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
@@ -20,29 +19,6 @@ frags <- bind_rows(lapply(unlist(strsplit(opt$buildStdFragments_inputFiles, ',')
 
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
-
-
-# Cluster repLeaderSequences, define cluster groups and then add them to the fragments.
-s <- DNAStringSet(unique(frags$repLeaderSeq))
-names(s) <- paste0('s', 1:length(s))
-
-d <- tibble(id = names(s), seq = as.character(s))
-
-writeXStringSet(s, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'repLeaderSeqs.fasta'))
-
-system(paste(opt$command.cdhitest, '-i', file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'repLeaderSeqs.fasta'),
-             '-o', file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'repLeaderSeqs.cdhit'),
-             opt$buildStdFragments_representativeSeq_cdhitest_params))
-             
-r <- parse_cdhitest_output(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'repLeaderSeqs.cdhit.clstr'))
-
-repLeaderSeqGroups <- bind_rows(mapply(function(x, n){
-  tibble(repLeaderSeqGroup = n, repLeaderSeq = subset(d, id %in% x)$seq)
-}, r, 1:length(r), SIMPLIFY = FALSE))
-
-frags <- left_join(frags, repLeaderSeqGroups, by = 'repLeaderSeq')
-
-
 
 # Standardize fragments.
 frags_std <- standardizedFragments(frags, opt, cluster)
@@ -163,7 +139,7 @@ frags <- bind_rows(parLapply(cluster, s, function(a){
   a$repLeaderSeq <- r[[2]]
   a$reads <- sum(a$reads)
   
-  a[1, c(6:10, 2:5, 13:14, 12, 15)]
+  a[1, c(6:10, 2:5, 13:14, 12)]
 }))
 
 
@@ -193,7 +169,7 @@ if(nrow(multiHitFrags) > 0){
     a$repLeaderSeq <- r[[2]]
     a$reads <- sum(a$reads)
     
-    a[1, c(6:10, 2:5, 13:14, 12, 15)]
+    a[1, c(6:10, 2:5, 13:14, 12)]
   }))
   
   saveRDS(multiHitReads, file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitReads.rds'))

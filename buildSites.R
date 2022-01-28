@@ -28,12 +28,13 @@ frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+'
 
 sites <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$sample, frags$repLeaderSeqGroup, frags$posid)), function(x){
   
-  x$posid <- paste0(x$posid, '.', x$repLeaderSeqGroup)
+  if(opt$buildStdFragments_categorize_anchorRead_remnants) x$posid <- paste0(x$posid, '.', x$repLeaderSeqGroup)
   
   if(nrow(x) > 1){
     i <- rep(TRUE, nrow(x))
     
     #browser()
+    #if(nrow(subset(x, chromosome == 'chr22' & fragEnd >= (1840213-10) & fragEnd <= (1840213+10))) >= 5) browser()
     
     # Check that leader sequences are all similar now that we are combining fragments from different replicates.
     r <- representativeSeq(x$repLeaderSeq)
@@ -42,7 +43,7 @@ sites <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$s
       # There is a conflict, one or more fragments have a markedly different leader sequences then the other fragments.
       # Attempt to salvage this site by retaining the majority of fragments with similiar leader sequences.
       
-      i <- as.vector(stringdist::stringdistmatrix(x$repLeaderSeq, r[[2]]) / nchar(x$repLeaderSeq) < opt$buildFragments_maxLeaderSeqDiffScore)
+      i <- as.vector(stringdist::stringdistmatrix(x$repLeaderSeq, r[[2]]) / nchar(x$repLeaderSeq) <= opt$buildStdFragments_maxLeaderSeqDiffScore)
       if(sum(i)/nrow(x) >= opt$buildSites_assemblyConflictResolution){
         x <- x[i,]
         r <- representativeSeq(x$repLeaderSeq)

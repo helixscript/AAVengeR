@@ -3,6 +3,7 @@ library(lubridate)
 library(parallel)
 library(data.table)
 library(GenomicRanges)
+library(Biostrings)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
@@ -14,11 +15,29 @@ dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
 
 # Read in read level fragments records.
 frags <- bind_rows(lapply(unlist(strsplit(opt$buildStdFragments_inputFiles, ',')), function(x){
+           message('reading in ', x)
            readRDS(file.path(opt$outputDir, x))
          }))
 
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
+
+if(opt$buildStdFragments_categorize_anchorRead_remnants){
+  n <- 1
+  frags$repLeaderSeqGroup <- 0
+
+  while(any(frags$repLeaderSeqGroup == 0)){
+      o <- dplyr::filter(frags, repLeaderSeqGroup == 0) %>% top_n(1, wt = reads) %>% dplyr::slice(1)
+     
+      i1 <- stringdist::stringdist(o$repLeaderSeq, frags$repLeaderSeq) <= ceiling(nchar(o$repLeaderSeq)*opt$buildStdFragments_categorize_anchorRead_remnants_percentDiff)
+      i2 <- frags$repLeaderSeqGroup == 0
+      frags[i1 & i2,]$repLeaderSeqGroup <- n
+      n <- n+1
+  }
+} else {
+  frags$repLeaderSeqGroup <- 0
+}
+
 
 # Standardize fragments.
 frags_std <- standardizedFragments(frags, opt, cluster)
@@ -119,7 +138,6 @@ gc()
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
 
-
 f <- as.data.table(frags)
 s <- split(f, f$fragID)
  
@@ -139,7 +157,7 @@ frags <- bind_rows(parLapply(cluster, s, function(a){
   a$repLeaderSeq <- r[[2]]
   a$reads <- sum(a$reads)
   
-  a[1, c(6:10, 2:5, 13:14, 12)]
+  a[1, c(6:10, 2:5, 13:14, 12, 15)]
 }))
 
 
@@ -169,7 +187,7 @@ if(nrow(multiHitFrags) > 0){
     a$repLeaderSeq <- r[[2]]
     a$reads <- sum(a$reads)
     
-    a[1, c(6:10, 2:5, 13:14, 12)]
+    a[1, c(6:10, 2:5, 13:14, 12, 15)]
   }))
   
   saveRDS(multiHitReads, file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitReads.rds'))
