@@ -37,12 +37,12 @@ names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads
 names(adriftReadAlignments) <- paste0(names(adriftReadAlignments), '.adriftReads')
 
 ids <- unique(anchorReadAlignments$qName.anchorReads)
-id_groups <- split(ids, dplyr::ntile(1:length(ids), round(length(ids)/opt$buildFragments_idGroup_size)))
+id_groups <- split(ids, dplyr::ntile(1:length(ids), ceiling(length(ids)/opt$buildFragments_idGroup_size)))
 
 cluster <- makeCluster(opt$buildFragments_CPUs)
 clusterExport(cluster, c('opt', 'anchorReadAlignments', 'adriftReadAlignments'))
 
-# Build intial fragments.
+# Build initial fragments.
 frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
   library(dplyr)
   a <- subset(anchorReadAlignments, qName.anchorReads %in% id_group)

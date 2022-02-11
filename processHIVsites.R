@@ -60,7 +60,7 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
     
     if(nrow(o) == 1) return(y) # No other sites nearby to compare with.
     
-    if(length(unique(o$strand)) == 1) return(y)  # Want a mix of both + and - strand alignemnts.
+    if(length(unique(o$strand)) == 1) return(y)  # Want a mix of both + and - strand alignments.
 
     if(!(any(grepl('HIV_u5', o$flags)) & any(grepl('HIV_u3', o$flags)))) return(return(y)) # Want a mix of u5 and u3 flags.
 

@@ -306,8 +306,7 @@ if('leaderSeqHMM' %in% names(samples)){
                  source(file.path(opt$softwareDir, 'lib.R'))
                  library(dplyr)
                  library(Biostrings)
-                 #message(x$file)
-                 #if(x$file == '') browser()
+                 message(x$file)
                  captureLTRseqsLentiHMM(readDNAStringSet(x$file), subset(samples, uniqueSample == x$uniqueSample)$leaderSeqHMM)
               }))
  
@@ -316,9 +315,20 @@ if('leaderSeqHMM' %in% names(samples)){
  if(nrow(hmmResults) > 0){
    mappings <- tibble(id = hmmResults$id, leaderMapping.qStart = 1, leaderMapping.qEnd = nchar(hmmResults$LTRseq), 
                       leaderMapping.sStart = NA, leaderMapping.sEnd = NA)
+ } else {
+   write(c(paste(now(), "Error - no reads matched the HMMs.")), file = file.path(opt$outputDir, 'log'), append = TRUE)
+   q(save = 'no', status = 1, runLast = FALSE) 
  }
  
- mappings <- subset(mappings, ! id %in% vectorHits$qname)
+ if(nrow(mappings) > 0 & nrow(vectorHits) > 0){
+   mappings <- subset(mappings, ! id %in% vectorHits$qname)
+ }
+ 
+ if(nrow(mappings) == 0){
+   write(c(paste(now(), "Error - no read mappings remain after vector filter.")), file = file.path(opt$outputDir, 'log'), append = TRUE)
+   q(save = 'no', status = 1, runLast = FALSE) 
+ }
+ 
  saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'alignments.rds'))
 }
 

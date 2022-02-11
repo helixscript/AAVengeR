@@ -174,7 +174,6 @@ if(nrow(multiHitFrags) > 0){
     library(dplyr)
     library(data.table)
     source(file.path(opt$softwareDir, 'lib.R'))
-    #message(a$fragID, '\n')
     
     r <- representativeSeq(a$repLeaderSeq)
     
