@@ -51,6 +51,8 @@ clusterExport(cluster, c('opt', 'samples', 'tmpFile', 'waitForFile'))
 
 d <- tibble(file = list.files(file.path(opt$outputDir, opt$prepReads_inputDir), full.names = TRUE, pattern = 'anchor'))
 
+# d <- d[grepl('Pos', d$file),]
+
 d$uniqueSample <- unlist(lapply(d$file, function(x){ 
   o <- unlist(strsplit(x, '/'))
   unlist(strsplit(o[length(o)], '\\.'))[1]
@@ -253,6 +255,7 @@ if('vectorFastaFile' %in% names(samples)){
     f <- list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), full.names = TRUE)
 
     mappings <- bind_rows(lapply(f, function(x){
+       message(x)
        b <- readRDS(x)
        
        if(nrow(b) == 0) return(tibble())

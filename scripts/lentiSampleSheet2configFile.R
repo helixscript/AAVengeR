@@ -3,8 +3,8 @@ library(stringr)
 library(RMySQL)
 options(stringsAsFactors = FALSE, useFancyQuotes = FALSE)
 
-sampleSheet <- '/data/sequencingData/220208_M03249_0241_000000000-K4YRL/SampleSheet.csv'
-outputFile  <- '/data/project/Encoded/x'
+sampleSheet <- '/data/sequencingData/220212_M03249_0242_000000000-K4J8D/SampleSheet.csv'
+outputFile  <- '/data/project/Encoded/220212_M03249_0242_000000000-K4J8D/x'
 refGenome.id <- 'macFas5'
 trialID <- 'Encoded'
 
