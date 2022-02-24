@@ -53,6 +53,7 @@ if(opt$demultiplex_correctGolayIndexReads){
   index1Reads <- Reduce('append', parLapply(cluster, split(index1Reads, ntile(1:length(index1Reads), opt$demultiplex_CPUs)), golayCorrection))
   percentChanged <- (sum(! as.character(index1Reads.org) == as.character(index1Reads)) / length(index1Reads))*100
   write(paste0(now(), ' Starting Golay complete. ', percentChanged, '% of reads updated via Golay correction'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  rm(index1Reads.org)
 }
 
 

@@ -8,6 +8,9 @@ configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
 
+# Move to config.
+opt$prepReads_R1_commonLinkerLength <- 9
+
 write(c(paste(now(), 'Starting prepReads.R')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
@@ -49,10 +52,10 @@ if('leaderSeqHMM' %in% names(samples)){
 cluster <- makeCluster(opt$prepReads_CPUs)
 clusterExport(cluster, c('opt', 'samples', 'tmpFile', 'waitForFile'))
 
+# Create a tibble of anchor read files from the demultiplexing output directory.
 d <- tibble(file = list.files(file.path(opt$outputDir, opt$prepReads_inputDir), full.names = TRUE, pattern = 'anchor'))
 
-# d <- d[grepl('Pos', d$file),]
-
+# Extract unique sample ids from file paths.
 d$uniqueSample <- unlist(lapply(d$file, function(x){ 
   o <- unlist(strsplit(x, '/'))
   unlist(strsplit(o[length(o)], '\\.'))[1]
@@ -61,7 +64,7 @@ d$uniqueSample <- unlist(lapply(d$file, function(x){
 d <- left_join(d, select(samples, uniqueSample, adriftRead.linker.seq, vectorFastaFile), by = 'uniqueSample')
 
 # Extract the common linker -- make its length a setting.
-d$adapter <- substr(d$adriftRead.linker.seq, nchar(d$adriftRead.linker.seq) - 9, nchar(d$adriftRead.linker.seq))
+d$adapter <- substr(d$adriftRead.linker.seq, nchar(d$adriftRead.linker.seq) - opt$prepReads_R1_commonLinkerLength, nchar(d$adriftRead.linker.seq))
 d$adapter <- as.character(reverseComplement(DNAStringSet(d$adapter)))
 
 message('Trim adapter sequences.')
@@ -69,9 +72,11 @@ invisible(parLapply(cluster, split(d, d$file), function(x){
 #invisible(lapply(split(d, d$file), function(x){  
   source(file.path(opt$softwareDir, 'lib.R'))
   library(Biostrings)
+  
   system(paste0(opt$command_cutadapt, ' -f fasta  -e 0.15 -a ', x$adapter, ' --overlap 2 ',
                 x$file, ' > ', file.path(opt$outputDir, opt$prepReads_outputDir, lpe(x$file))), ignore.stderr = TRUE)
   
+  # Read in trimmed R1 sequences.
   r1 <- readDNAStringSet(file.path(opt$outputDir, opt$prepReads_outputDir, lpe(x$file)))
   file.remove(file.path(opt$outputDir, opt$prepReads_outputDir, lpe(x$file)))
   r1 <- r1[width(r1) >= opt$prepReads_minAnchorReadLength]
@@ -111,6 +116,11 @@ invisible(parLapply(cluster, files, function(x){
   
   a <- readDNAStringSet(x)
   b <- readDNAStringSet(sub('anchorReads', 'adriftReads', x))
+  
+  if(length(a) != length(b)){
+    message('Error -- ', x)
+    return()
+  }
   
   d <- tibble(id = names(a), seq = paste0(as.character(a), as.character(b)))
   

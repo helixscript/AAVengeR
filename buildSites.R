@@ -60,7 +60,7 @@ sites <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$s
     
     return(dplyr::mutate(x, estAbund = n_distinct(fragWidth), position = ifelse(strand[1] == '+', fragStart[1], fragEnd[1]), 
                   reads = sum(reads), repLeaderSeq = r[[2]], fragmentsRemoved = sum(!i)) %>%
-           dplyr::select(subject, sample, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags) %>%
+           dplyr::select(trial, subject, sample, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags) %>%
            dplyr::slice(1))
     }else{
       if('flags' %in% names(samples)){
@@ -70,7 +70,7 @@ sites <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$s
       }
       
       return(dplyr::mutate(x, estAbund = n_distinct(fragWidth), position = ifelse(strand[1] == '+', fragStart[1], fragEnd[1]), fragmentsRemoved = 0) %>%
-             dplyr::select(subject, sample, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags))
+             dplyr::select(trial, subject, sample, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags))
   }
 }))
 

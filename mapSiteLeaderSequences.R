@@ -3,7 +3,9 @@ library(dplyr)
 library(parallel)
 options(stringsAsFactors = FALSE)
 
-opt <- yaml::read_yaml('config.yml')
+configFile <- commandArgs(trailingOnly=TRUE)
+if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+opt <- yaml::read_yaml(configFile)
 
 source(file.path(opt$softwareDir, 'lib.R'))
 
