@@ -174,6 +174,8 @@ if('vectorFastaFile' %in% names(samples)){
   
   clusterExport(cluster, c('tmpFile', 'waitForFile', 'opt', 'lpe'))
   
+  e <- readLines('/data/project/Encoded/expectedUniqueReads.ids')
+  
   invisible(lapply(split(d, d$vectorFastaFile), function(x){
          invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
   
@@ -201,7 +203,10 @@ if('vectorFastaFile' %in% names(samples)){
               b <- dplyr::left_join(b, readLengths, by = 'qname') 
             
               b$alignmentLength <- b$qend - b$qstart + 1
+              # JKE
+             
               b <- dplyr::filter(b, pident >= opt$prepReads_minAlignmentPercentID, alignmentLength >= floor(opt$prepReads_vectorAlignmentTestLength * 0.90), gapopen <= 1)
+              if(any(b$qname) %in% e) browser()
             }
             
             saveRDS(b, sub('fasta$', 'ends.rds', file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments', lpe(file))))
@@ -209,11 +214,13 @@ if('vectorFastaFile' %in% names(samples)){
   }))
 
   # Retrieve the anchor read ends alignments and create a tibble with most significant hit for each read.
-  vectorHits <- bind_rows(parLapply(cluster, list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), 
+ # vectorHits <- bind_rows(parLapply(cluster, list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), 
+  vectorHits <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), 
                                             pattern = 'ends.rds', full.names = TRUE), function(x){
                   library(dplyr)
                   o <- readRDS(x)
                   
+                  browser()
                   if(nrow(o) == 0) return(tibble())
                   o$start <- ifelse(o$sstart > o$send, o$send, o$sstart)
                   o$end <- ifelse(o$sstart > o$send,  o$sstart, o$send)
@@ -261,9 +268,16 @@ if('vectorFastaFile' %in% names(samples)){
 
   invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
   stopCluster(cluster)
+  ### save.image('~/dev.RData')
 
   if(! 'leaderSeqHMM' %in% names(samples)){
     f <- list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), full.names = TRUE)
+
+    #--
+    z <- bind_rows(lapply(f, readRDS))
+    e <- readLines('/data/project/Encoded/expectedUniqueReads.ids')
+    #--
+    
     
     mappings <- bind_rows(lapply(f, function(x){
        message(x)

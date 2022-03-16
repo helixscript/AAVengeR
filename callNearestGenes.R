@@ -22,7 +22,7 @@ sites$n <- paste0(samples$trial, '~', sites$subject, '~', sites$sample)
 
 sites <- left_join(sites, select(samples, n, refGenome.id), by = 'n')
 
-sites <- bind_rows(lapply(split(sites, sites$refGenome.id), function(x){
+sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome.id), function(x){
   
            ### if(x$refGenome.id[1] == 'hg38') return(tibble())
   
@@ -44,8 +44,8 @@ sites <- bind_rows(lapply(split(sites, sites$refGenome.id), function(x){
              if(! file.exists(exons)) stop(paste0('Error -- could not file ', exons))
            }
   
-           genes <- readRDS(genes)
-           exons <- readRDS(exons)
+           message('loading ', genes); genes <- readRDS(genes)
+           message('loading ', exons); exons <- readRDS(exons)
   
            # Collapse TUs to single positions if requested. 
            # Remove exons since they would not be relevant.
@@ -59,13 +59,14 @@ sites <- bind_rows(lapply(split(sites, sites$refGenome.id), function(x){
            }
   
           message(x$refGenome.id[1])
-          n <- nearestGene(x$posid, genes, exons, CPUs = opt$callNearestGenes_CPUs)
+          n <- nearestGene(unique(sub('\\.\\d+$', '', x$posid)), genes, exons, CPUs = opt$callNearestGenes_CPUs)
  
-          n$posid <- paste0(n$chromosome, n$strand, n$position)
-          n <- n[!duplicated(n$posid),]
-  
-          left_join(x, select(n, nearestGene, nearestGeneStrand, nearestGeneDist, inGene, inExon, beforeNearestGene, posid), by = 'posid') %>% select(-n)
-       }))
+          n$posid2 <- paste0(n$chromosome, n$strand, n$position)
+          n <- n[!duplicated(n$posid2),]
+          x$posid2 <- sub('\\.\\d+', '', x$posid)
+          
+          left_join(x, select(n, nearestGene, nearestGeneStrand, nearestGeneDist, inGene, inExon, beforeNearestGene, posid2), by = 'posid2') %>% select(-n, -posid2)
+       })))
 
 saveRDS(sites, file.path(opt$outputDir, opt$callNearestGenes_outputDir, opt$callNearestGenes_outputFile))
 

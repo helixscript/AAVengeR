@@ -3,8 +3,8 @@ library(stringr)
 library(RMySQL)
 options(stringsAsFactors = FALSE, useFancyQuotes = FALSE)
 
-sampleSheet <- '/data/sequencingData/220212_M03249_0242_000000000-K4J8D/SampleSheet.csv'
-outputFile  <- '/data/project/Encoded/220212_M03249_0242_000000000-K4J8D/x'
+sampleSheet <- '/data/sequencingData/220304_M03249_0245_000000000-K36JD/SampleSheet.csv'
+outputFile  <- '/data/project/Encoded/220304_M03249_0245_000000000-K36JD/sampleData.tsv'
 refGenome.id <- 'macFas5'
 trialID <- 'Encoded'
 
@@ -45,6 +45,7 @@ r <- tibble(trial = trialID,
             vectorFastaFile = 'encoded.fasta',
             #leaderSeqHMM = ifelse(s$uniqueRegion == 'U5', 'u5_100.hmm', 'u3_100_rc.hmm'),
             #flags = ifelse(s$uniqueRegion == 'U5', 'HIV_u5', 'HIV_u3')
+            anchorRead.startSeq = 'TCTGCGCGCTCGCTC',
             flags = 'AAV')
             
 write.table(r, file = outputFile, sep='\t', col.names = TRUE, row.names = FALSE, quote = FALSE)

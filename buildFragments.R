@@ -80,6 +80,8 @@ frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
 }))
 
 
+write(c(paste(now(), 'F1')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 # Random ids.
 if(opt$demultiplex_captureRandomLinkerSeq){
   startingReadCount <- n_distinct(frags$readID)
@@ -136,6 +138,7 @@ if(opt$demultiplex_captureRandomLinkerSeq){
   write(msg, file = file.path(opt$outputDir, 'log'), append = TRUE)
 }
 
+write(c(paste(now(), 'F2')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 # Stop and rebuild cluster objects to release alignment objects from memory.
 stopCluster(cluster)
@@ -162,30 +165,32 @@ frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', 
 f1 <- data.table(frags)
 f2 <- split(f1, f1$fragID)
 
+write(c(paste(now(), 'F3')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 frags <- parLapply(cluster, f2, function(x){
-#frags <- (lapply(f2, function(x){  
+#frags <- (lapply(f2, function(x){
            library(dplyr)
            library(data.table)
            source(file.path(opt$softwareDir, 'lib.R'))
-  
+
            if(nrow(x) == 1){
              x$reads <- nrow(x)
              x$repLeaderSeq <- x$leaderSeq.anchorReads
              x$readIDlist <- x$readID
              return(select(as_tibble(x), -readID, -leaderSeq.anchorReads))
            }
-  
+
            r <- representativeSeq(x$leaderSeq.anchorReads)
-  
-           # Exclude reads where the leaderSeq is not similiar to the representative sequence. 
+
+           # Exclude reads where the leaderSeq is not similiar to the representative sequence.
            i <- stringdist::stringdist(r[[2]], x$leaderSeq.anchorReads) / nchar(r[[2]]) <= opt$buildStdFragments_maxLeaderSeqDiffScore
            if(all(! i)) return(data.table::data.table())
-  
+
            x <- x[i,]
-          
+
            x$reads <- nrow(x)
            x$repLeaderSeq <- r[[2]]
-  
+
            o <- dups[dups$id %in% x$readID]
            if(nrow(o) > 0){
              x$reads <- nrow(x) + sum(o$n)
@@ -193,10 +198,11 @@ frags <- parLapply(cluster, f2, function(x){
            readIDs <- x$readID
            x <- as_tibble(x[1,])
            x$readIDlist <- list(readIDs)
-           
+
            return(select(x[1,], -readID, -leaderSeq.anchorReads))
 })
 
+write(c(paste(now(), 'F4')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 frags <- bind_rows(lapply(frags, function(x){
            if(! is.list(x$readIDlist)) x$readIDlist <- list(x$readIDlist)

@@ -6,11 +6,11 @@ library(Biostrings)
 n <- 500
 BushmanBarCodes <- readr::read_tsv('/home/ubuntu/software/AAVengeR/data/misc/BushmanGroup_barCodes')
 
-sampleConfig <- read_tsv('/data/project/Encoded/220208_M03249_0241_000000000-K4YRL/sampleConfig.tsv')
+sampleConfig <- read_tsv('/data/project/Encoded/220222_M03249_0243_000000000-JHTY6/sampleData.tsv')
 #sampleConfig$index1.seq <- as.character(reverseComplement(DNAStringSet(sampleConfig$index1.seq)))
 
-I1 <- '/data/sequencingData/220208_M03249_0241_000000000-K4YRL/Undetermined_S0_I1_001.fastq.gz'
-R1 <- '/data/sequencingData/220208_M03249_0241_000000000-K4YRL/Undetermined_S0_R1_001.fastq.gz'
+I1 <- '/data/sequencingData/220222_M03249_0243_000000000-JHTY6/Undetermined_S0_L001_I1_001.fastq.gz'
+R1 <- '/data/sequencingData/220222_M03249_0243_000000000-JHTY6/Undetermined_S0_L001_R1_001.fastq.gz'
 
 I1 <- readFastq(I1)
 R1 <- readFastq(R1)

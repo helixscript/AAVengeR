@@ -9,6 +9,7 @@ configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
 
+
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$alignReads_outputDir))
@@ -30,7 +31,7 @@ f <- list.files(opt$inputFastaDir, full.names = FALSE)
 cluster <- makeCluster(opt$alignReads_CPUs)
 clusterExport(cluster, c('opt', 'samples'))
 
-# Trim the reverse complement of the last 10 NT of the static linker sequence from the end of anchor reads.
+# Read in anchor reads.
 anchorReads <- Reduce('append', parLapply(cluster, f[grepl('anchorReads', f)], function(r){
   Biostrings::readDNAStringSet(file.path(opt$inputFastaDir, r))  
 }))
@@ -119,7 +120,18 @@ b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputD
      }))
 
 b <- left_join(b, select(readSampleMap, id, seq), by = c('qName' = 'id'))
-anchorReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') %>% tidyr::drop_na() %>% select(-qName, -seq) %>% dplyr::rename(qName = id) %>% distinct()
+
+# Fail
+#
+#
+#
+## anchorReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') %>% tidyr::drop_na() %>% select(-qName, -seq) %>% dplyr::rename(qName = id) %>% distinct()
+
+anchorReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') 
+anchorReadAlignments <- anchorReadAlignments[! is.na(anchorReadAlignments$qName),]
+anchorReadAlignments <- select(anchorReadAlignments, -qName, -seq) %>% dplyr::rename(qName = id) %>% distinct()
+
+
 
 
 # Select anchor reads where the ends align to the genome.
@@ -260,8 +272,16 @@ b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputD
 }))
 
 
+# JKE
 b <- left_join(b, select(readSampleMap, id, seq), by = c('qName' = 'id'))
-adriftReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') %>% tidyr::drop_na() %>% select(-qName, -seq) %>% rename(qName = id) %>% distinct()
+
+#adriftReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') %>% 
+#tidyr::drop_na() %>% select(-qName, -seq) %>% rename(qName = id) %>% distinct()
+
+adriftReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') 
+adriftReadAlignments <- adriftReadAlignments[! is.na(adriftReadAlignments$qName),]
+adriftReadAlignments <- select(adriftReadAlignments, -qName, -seq) %>% dplyr::rename(qName = id) %>% distinct()
+
 
 
 # Select adrift reads where the ends align to the genome.

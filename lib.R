@@ -489,7 +489,7 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
   
   cluster <- makeCluster(CPUs)
   clusterExport(cluster, c('genes', 'exons'), envir = environment())
- 
+  
   r <- bind_rows(parLapply(cluster, split(d, d$n), function(x){
   #r <- bind_rows(lapply(split(d, d$n), function(x){
     library(dplyr)
@@ -502,6 +502,9 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
     x$inGene <- FALSE
     x$inExon <- FALSE
     x$beforeNearestGene <- NA
+    
+    message(x$n[1])
+    
     
     r <- GenomicRanges::makeGRangesFromDataFrame(x, 
                                                  seqnames.field = 'chromosome',
@@ -540,12 +543,12 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
         for(i in unique(queryHits(o))){
           x2[i,]$nearestGene <- paste0(unique(genes[subjectHits(o[queryHits(o) == i]),]$name2), collapse = ', ')
           x2[i,]$nearestGeneStrand <- paste0(unique(as.character(strand(genes[subjectHits(o[queryHits(o) == i])]))), collapse = ',')
-          x2[i,]$nearestGeneDist <- unique(mcols(o[i])$distance)  # Always single?
+          x2[i,]$nearestGeneDist <- unique(mcols(o[queryHits(o) == i])$distance) # Always single?
           x2[i,]$beforeNearestGene <- ifelse(x2[i,]$position < min(start(genes[subjectHits(o[queryHits(o) == i])])), TRUE, FALSE)
         }
+        
       }
-
-      #if(x$n[1] == 2) browser()
+      
       if(any(x2$nearestGeneDist == 0)) x2[which(x2$nearestGeneDist == 0),]$beforeNearestGene <- NA
     }
     
@@ -564,6 +567,22 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
   r$exon <- NULL
   r
 }
+
+readSamplePlot <- function(reads, n){
+  ds <- sample(unique(reads), n)
+  dp <- lapply(strsplit(sort(ds), ''), function(x){ tibble(base = x, n = 1:length(x)) })
+  dp <- bind_rows(mapply(function(x, n){ x$read <- n; x}, dp, 1:length(dp), SIMPLIFY = FALSE))
+  dp$base <- factor(dp$base, levels = c('A', 'T', 'C', 'G', 'N'))
+  
+  ggplot(dp, aes(n, read, fill = base)) + theme_bw() + geom_tile() +
+    scale_fill_manual(values =  c('red', 'green', 'blue', 'gold', 'gray50')) +
+    scale_x_continuous(limits = c(0, width(reads[1])), expand = c(0, 0)) +
+    scale_y_continuous(label=comma, limits = c(0, n), expand = c(0, 0)) +
+    labs(x = 'Position', y = 'Reads') +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+          panel.background = element_blank(), axis.line = element_line(colour = "black"))
+}
+
 
 
 
