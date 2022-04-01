@@ -9,7 +9,6 @@ configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
 
-
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$alignReads_outputDir))
@@ -121,17 +120,9 @@ b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputD
 
 b <- left_join(b, select(readSampleMap, id, seq), by = c('qName' = 'id'))
 
-# Fail
-#
-#
-#
-## anchorReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') %>% tidyr::drop_na() %>% select(-qName, -seq) %>% dplyr::rename(qName = id) %>% distinct()
-
 anchorReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') 
 anchorReadAlignments <- anchorReadAlignments[! is.na(anchorReadAlignments$qName),]
 anchorReadAlignments <- select(anchorReadAlignments, -qName, -seq) %>% dplyr::rename(qName = id) %>% distinct()
-
-
 
 
 # Select anchor reads where the ends align to the genome.
@@ -144,7 +135,7 @@ anchorReadAlignments <- anchorReadAlignments[i,]
 
 
 
-# We need to reconstruct the leader sequencs by determining what we removed before aligning and adding on additional
+# We need to reconstruct the leader sequences by determining what we removed before aligning and adding on additional
 # NTs for those alignments which do not start at qStart = 1. Not All reads were trimmed going in because some mappings may of failed.
 
 anchorReadAlignments <- left_join(anchorReadAlignments, tibble(id = names(anchorReads_preLeaderTrim), readSeq = as.character(anchorReads_preLeaderTrim)), by = c('qName' = 'id'))

@@ -402,8 +402,8 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
   
   # HERE
   writeXStringSet(subseq(reads, opt$prepReads_HMMsearchReadStartPos, opt$prepReads_HMMsearchReadEndPos), outputFile)
-  comm <- paste0(opt$command.hmmsearch, ' --F1 ', opt$prepReads_HMM_F1, ' --F2 ', opt$prepReads_HMM_F2, ' --F3 ', opt$prepReads_HMM_F3,
-                 ' --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
+  # comm <- paste0(opt$command.hmmsearch, ' --F1 ', opt$prepReads_HMM_F1, ' --F2 ', opt$prepReads_HMM_F2, ' --F3 ', opt$prepReads_HMM_F3,
+  comm <- paste0(opt$command.hmmsearch, ' --max --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
   system(comm)
 
   r <- readLines(paste0(outputFile, '.domTbl'))
@@ -480,9 +480,11 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
   library(dplyr)
   library(parallel)
   
+  ### browser()
+  
   o <- base::strsplit(posids, '[\\+\\-]')
-  d <- tibble(chromosome = unlist(lapply(o, '[[', 1)),
-              position = unlist(lapply(o, '[[', 2)),
+  d <- tibble(chromosome = unlist(lapply(o, '[', 1)),
+              position = unlist(lapply(o, '[', 2)),
               strand = stringr::str_extract(posids, '[\\+\\-]'))
   d$n <- ntile(1:nrow(d), CPUs)
   d$position <- as.integer(d$position)
@@ -490,6 +492,7 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
   cluster <- makeCluster(CPUs)
   clusterExport(cluster, c('genes', 'exons'), envir = environment())
   
+ 
   r <- bind_rows(parLapply(cluster, split(d, d$n), function(x){
   #r <- bind_rows(lapply(split(d, d$n), function(x){
     library(dplyr)
@@ -504,6 +507,7 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
     x$beforeNearestGene <- NA
     
     message(x$n[1])
+    ### if(x$n[1] == 1) browser()
     
     
     r <- GenomicRanges::makeGRangesFromDataFrame(x, 

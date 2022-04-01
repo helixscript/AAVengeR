@@ -115,7 +115,9 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
   # Loop through samples in sample data file to demultiplex and apply read specific filters.
   invisible(lapply(1:nrow(samples), function(r){
     r <- samples[r,]
-
+    #message(r$uniqueSample)
+    #browser()
+    
     v0 <- rep(TRUE, length(anchorReads))
     if('anchorRead.startSeq' %in% names(r)){
       v0 <- vcountPattern(r$anchorRead.startSeq, subseq(anchorReads, 1, nchar(r$anchorRead.startSeq)), max.mismatch = opt$demultiplex_anchorRead.startSeq.maxMisMatch) == 1

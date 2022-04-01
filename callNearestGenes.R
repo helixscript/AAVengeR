@@ -1,7 +1,7 @@
 library(dplyr)
 library(lubridate)
 
-# configFile <- 'previous.yml'
+# configFile <- '/data/project/Spark/K33K7.config'
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
@@ -11,6 +11,10 @@ source(file.path(opt$softwareDir, 'lib.R'))
 dir.create(file.path(opt$outputDir, opt$callNearestGenes_outputDir))
 
 sites <- readRDS(file.path(opt$outputDir, opt$callNearestGenes_inputFile))
+
+# Undo dual detection notation.
+sites$posid <- sub('\\*', '\\+', sites$posid)
+
 
 if(! 'posid' %in% names(sites)) stop('Error -- posid not found in sites data.')
 
@@ -59,7 +63,11 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome.id), function(x)
            }
   
           message(x$refGenome.id[1])
-          n <- nearestGene(unique(sub('\\.\\d+$', '', x$posid)), genes, exons, CPUs = opt$callNearestGenes_CPUs)
+          
+          posids <- x$posid
+          posids <- unique(sub('\\.\\d+$', '', posids))
+          
+          n <- nearestGene(posids, genes, exons, CPUs = opt$callNearestGenes_CPUs)
  
           n$posid2 <- paste0(n$chromosome, n$strand, n$position)
           n <- n[!duplicated(n$posid2),]
@@ -67,6 +75,8 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome.id), function(x)
           
           left_join(x, select(n, nearestGene, nearestGeneStrand, nearestGeneDist, inGene, inExon, beforeNearestGene, posid2), by = 'posid2') %>% select(-n, -posid2)
        })))
+
+sites$posid <- paste0(sites$chromosome, sites$strand, sites$position)
 
 saveRDS(sites, file.path(opt$outputDir, opt$callNearestGenes_outputDir, opt$callNearestGenes_outputFile))
 

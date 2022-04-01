@@ -182,7 +182,7 @@ frags <- parLapply(cluster, f2, function(x){
 
            r <- representativeSeq(x$leaderSeq.anchorReads)
 
-           # Exclude reads where the leaderSeq is not similiar to the representative sequence.
+           # Exclude reads where the leaderSeq is not similar to the representative sequence.
            i <- stringdist::stringdist(r[[2]], x$leaderSeq.anchorReads) / nchar(r[[2]]) <= opt$buildStdFragments_maxLeaderSeqDiffScore
            if(all(! i)) return(data.table::data.table())
 

@@ -68,6 +68,7 @@ d$adapter <- substr(d$adriftRead.linker.seq, nchar(d$adriftRead.linker.seq) - op
 d$adapter <- as.character(reverseComplement(DNAStringSet(d$adapter)))
 
 message('Trim adapter sequences.')
+
 invisible(parLapply(cluster, split(d, d$file), function(x){
 #invisible(lapply(split(d, d$file), function(x){  
   source(file.path(opt$softwareDir, 'lib.R'))
@@ -108,6 +109,7 @@ invisible(parLapply(cluster, split(d, d$file), function(x){
 files <- list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'trimmed'), pattern = 'anchorReads', full.names = TRUE)
 
 message('Create unique FASTA data.')
+
 invisible(parLapply(cluster, files, function(x){
 #invisible(lapply(files, function(x){  
   library(Biostrings)
@@ -131,7 +133,7 @@ invisible(parLapply(cluster, files, function(x){
     o2 <- subset(d, ! seq %in% o$seq)
   
     # Here we create a data frame that stores the ids of duplicate reads that we will be using (id)
-    # and the equivelnt reads that we will not be using (id2)
+    # and the equivalent reads that we will not be using (id2)
     r <- bind_rows(lapply(split(o1, o1$seq), function(x){
            x <- x[order(x$id),]
            tibble(id = x$id[1], n = n_distinct(x$id) - 1, id2 = x$id[2:nrow(x)])
@@ -285,10 +287,15 @@ if('vectorFastaFile' %in% names(samples)){
                         bind_rows(lapply(split(b, b$qname), function(a){
                           g <- makeGRangesFromDataFrame(a, ignore.strand = TRUE, seqnames.field = 'sseqid', 
                                                         start.field = 'qstart', end.field = 'qend')
-                          g <- g[width(g) >= 10] # Only consider alignments >= 10 NT
+                          #g <- g[width(g) >= 10] # Only consider alignments >= 10 NT
+                          g <- g[width(g) >= 20]
+                          
                           if(length(g) == 0) return(tibble())
                           g <- GenomicRanges::reduce(g, min.gapwidth = 4, ignore.strand = TRUE) # Allow merging if ranges separated by <= 3 NTs.
-                          g <- g[start(g) <= 3]
+                          
+                          #g <- g[start(g) <= 3]
+                          g <- g[start(g) <= 8]
+                          
                           if(length(g) == 0) return(tibble())
                           g <- g[width(g) == max(width(g))][1]
                           return(tibble(id = a$qname[1], leaderMapping.qStart = 1, leaderMapping.qEnd = end(g), 
