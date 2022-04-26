@@ -181,7 +181,7 @@ representativeSeq <- function(s, percentReads = 95){
 
   s <- as.character(Biostrings::readDNAStringSet(outputFile))
   
-  #file.remove(outputFile)
+  invisible(file.remove(c(inputFile, outputFile)))
 
   # Create an all vs. all edit distnace matrix.
   m <- as.matrix(stringdist::stringdistmatrix(s, nthread = opt$buildStdFragments_representativeSeqCalc_CPUs))
@@ -473,6 +473,32 @@ blastReads <- function(reads){
     return(tibble())
   }
 }
+
+
+
+blatReads <- function(reads, minIdentity=90, stepSize = 11, tileSize = 11){
+  library(Biostrings)
+  library(dplyr)
+  
+  f <- tmpFile()
+  writeXStringSet(reads,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
+  
+  system(paste0(opt$command_blat, ' ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'), ' ', 
+                file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' ',
+                file.path(opt$outputDir, 'tmp', paste0(f, '.psl')), ' -minIdentity=', minIdentity, 
+                ' -stepSize=', stepSize, ' -tileSize=', tileSize, ' -out=psl -noHead -minScore=0'),
+         ignore.stdout = TRUE, ignore.stderr = TRUE)
+  
+  waitForFile(file.path(opt$outputDir, 'tmp', paste0(f, '.psl')))
+  
+  if(file.info(file.path(opt$outputDir, 'tmp', paste0(f, '.psl')))$size > 0){
+    return(parseBLAToutput(file.path(opt$outputDir, 'tmp', paste0(f, '.psl'))))
+  } else {
+    return(tibble())
+  }
+}
+
+
   
 
 
@@ -507,7 +533,7 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
     x$beforeNearestGene <- NA
     
     message(x$n[1])
-    ### if(x$n[1] == 1) browser()
+    #if(x$n[1] == 12) browser()
     
     
     r <- GenomicRanges::makeGRangesFromDataFrame(x, 
@@ -567,8 +593,8 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
   
   if(any(r$nearestGeneDist == 0)) r[which(r$nearestGeneDist == 0),]$inGene <- TRUE
   if(any(! is.na(r$exon))) r[which(! is.na(r$exon)),]$inExon <- TRUE
-  r$n <- NULL
-  r$exon <- NULL
+  if('n' %in% names(r)) r$n <- NULL
+  if('exon' %in% names(r)) r$exon <- NULL
   r
 }
 

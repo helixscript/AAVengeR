@@ -132,7 +132,7 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
 a <- sites[grepl('HIV_u3', sites$flags, ignore.case = TRUE),]
 b <- sites[! grepl('HIV_u3', sites$flags, ignore.case = TRUE),]
 
-a$strand <- ifelse(a$strand == '+', '-', '+')
+if(nrow(a) > 0) a$strand <- ifelse(a$strand == '+', '-', '+')
 sites <- bind_rows(a, b)
 sites$posid <- paste0(sites$chromosome, sites$strand, sites$position)
 sites$n <- NULL

@@ -281,23 +281,27 @@ if(! 'leaderSeqHMM' %in% names(samples)){
                         library(GenomicRanges)
                         library(dplyr)
 
-                        # It would be easier to define the alignment region as the min. qStart and max. qEnd
-                        # from the blast result. This would allow us to capture NTs not found in the vector file
-                        # between NTs which do align but this has the potential to remove too many NTs from 
-                        # the start of reads. We can still capture these rearangements since they will not align
-                        # to the genome though the extra NTs have a greater potential to shift genomic alignments.
-                        # Better to potentially shift alignments than remove genomic NTs.
-         
                         bind_rows(lapply(split(b, b$qname), function(a){
-                          g <- makeGRangesFromDataFrame(a, ignore.strand = TRUE, seqnames.field = 'sseqid',  start.field = 'qstart', end.field = 'qend')
-                          if(length(g) == 0) return(tibble())
-                          g <- GenomicRanges::reduce(g, min.gapwidth = 4, ignore.strand = TRUE) # Allow merging if ranges separated by <= 3 NTs.
-                          g <- g[start(g) <= opt$prepReads_buildReadMaps_minMapStartPostion]
-                          if(length(g) == 0) return(tibble())
-                          g <- g[width(g) == max(width(g))][1]
-                          return(tibble(id = a$qname[1], leaderMapping.qStart = 1, leaderMapping.qEnd = end(g),
-                                        leaderMapping.sStart = NA, leaderMapping.sEnd = NA))
                           
+                          
+                          g <- makeGRangesFromDataFrame(a, ignore.strand = TRUE, seqnames.field = 'sseqid', 
+                                                        start.field = 'qstart', end.field = 'qend')
+                          
+                          g <- g[width(g) >= opt$prepReads_buildReadMaps_minLocalAlignmentLength]
+                          
+                          if(length(g) == 0) return(tibble())
+                          
+                          g <- GenomicRanges::reduce(g, min.gapwidth = 4, ignore.strand = TRUE) # Allow merging if ranges separated by <= 3 NTs.
+                          
+                          g <- g[start(g) <= opt$prepReads_buildReadMaps_minMapStartPostion]
+                          
+                          if(length(g) == 0) return(tibble())
+                          
+                          # Select the longest map.
+                          g <- g[width(g) == max(width(g))][1]
+                          
+                          return(tibble(id = a$qname[1], leaderMapping.qStart = 1, leaderMapping.qEnd = end(g), 
+                                        leaderMapping.sStart = NA, leaderMapping.sEnd = NA))
                        }))
                     }))
        
@@ -305,10 +309,7 @@ if(! 'leaderSeqHMM' %in% names(samples)){
        mappings
     }))
     
-    if(nrow(mappings) > 0 & nrow(vectorHits) > 0){
-      mappings <- subset(mappings, ! id %in% vectorHits$qname)
-    }
-    
+    mappings <- subset(mappings, ! id %in% vectorHits$qname)
     saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'alignments.rds'))
 } else {
     

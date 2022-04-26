@@ -52,8 +52,14 @@ a <- a[width(a) >= (m$leaderMapping.qEnd + 1)]
 m <- m[match(names(a), m$id),]
   
 if(! all(names(a) == m$id)) stop('Error - could not align anchor reads to leader sequence mapping data.')
-  
-anchorReads <- Reduce('append', list(subseq(a, (m$leaderMapping.qEnd + 1)), b))
+
+if(opt$alignReads_includeAnchorReadsWithoutMappings){
+  anchorReads <- Reduce('append', list(subseq(a, (m$leaderMapping.qEnd + 1)), b))
+}else{
+  write(c(paste(now(), sprintf("%.2f%%", (length(b) / length(anchorReads))*100), 'reads without mappings removed.'), file = file.path(opt$outputDir, 'log'), append = TRUE))
+  anchorReads <- subseq(a, (m$leaderMapping.qEnd + 1))
+}
+
 
 # Select anchor reads which are still as long as the required minimum length 
 # after removing over read sequences and removing recognizable leader sequences.
@@ -263,16 +269,10 @@ b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputD
 }))
 
 
-# JKE
 b <- left_join(b, select(readSampleMap, id, seq), by = c('qName' = 'id'))
-
-#adriftReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') %>% 
-#tidyr::drop_na() %>% select(-qName, -seq) %>% rename(qName = id) %>% distinct()
-
 adriftReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') 
 adriftReadAlignments <- adriftReadAlignments[! is.na(adriftReadAlignments$qName),]
 adriftReadAlignments <- select(adriftReadAlignments, -qName, -seq) %>% dplyr::rename(qName = id) %>% distinct()
-
 
 
 # Select adrift reads where the ends align to the genome.

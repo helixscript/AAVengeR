@@ -20,6 +20,7 @@ if(! file.exists(opt$sampleConfigFile)){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
+write(c(paste(now(), 'Loading sample data')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 samples <- loadSamples()
 
 if(! file.exists(opt$demultiplex_adriftReadsFile)){
@@ -40,7 +41,7 @@ if(! file.exists(opt$demultiplex_index1ReadsFile)){
 # Reverse compliment index1 sequences if requested.
 if(opt$demultiplex_RC_I1_barcodes) samples$index1.seq <- as.character(reverseComplement(DNAStringSet(samples$index1.seq)))
 
-
+write(c(paste(now(), 'Reading in index 1 sequencing data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 index1Reads <- shortRead2DNAstringSet(readFastq(opt$demultiplex_index1ReadsFile))
 
 cluster <- makeCluster(opt$demultiplex_CPUs)
@@ -52,7 +53,7 @@ if(opt$demultiplex_correctGolayIndexReads){
   index1Reads.org <- index1Reads
   index1Reads <- Reduce('append', parLapply(cluster, split(index1Reads, ntile(1:length(index1Reads), opt$demultiplex_CPUs)), golayCorrection))
   percentChanged <- (sum(! as.character(index1Reads.org) == as.character(index1Reads)) / length(index1Reads))*100
-  write(paste0(now(), ' Starting Golay complete. ', percentChanged, '% of reads updated via Golay correction'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(paste(now(), 'Golay correction complete. ', sprintf("%.2f", percentChanged), '% of reads updated via Golay correction'), file = file.path(opt$outputDir, 'log'), append = TRUE)
   rm(index1Reads.org)
 }
 
@@ -82,12 +83,13 @@ gc()
 
 
 # Split the trimmed reads into chunks for parallel processing.
+write(paste(now(), 'Dividing sequencing data into chunks.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 chunkNum <- 1
 d <- tibble(i = ntile(1:length(index1Reads), opt$demultiplex_CPUs), n = 1:length(index1Reads))
 invisible(lapply(split(d, d$i), function(x){
   index1Reads <- index1Reads[min(x$n):max(x$n)]
-  anchorReads  <- anchorReads[min(x$n):max(x$n)]
-  adriftReads  <- adriftReads[min(x$n):max(x$n)]
+  anchorReads <- anchorReads[min(x$n):max(x$n)]
+  adriftReads <- adriftReads[min(x$n):max(x$n)]
   save(index1Reads, anchorReads, adriftReads, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks', chunkNum))
   chunkNum <<- chunkNum + 1
 }))
@@ -170,10 +172,12 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
 
 stopCluster(cluster)
 
+write(paste(now(), 'Demultiplexing complete.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), recursive = TRUE))
     
 
 # Colate chunked reads and write out sample read files.
+write(paste(now(), 'Colating data files.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 invisible(lapply(unique(samples$uniqueSample), function(x){
   f1 <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.anchorReads'), full.names = TRUE)
   f2 <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.adriftReads'), full.names = TRUE)
@@ -189,6 +193,7 @@ invisible(lapply(unique(samples$uniqueSample), function(x){
 
 # Collate random linker ids if collected.
 if(opt$demultiplex_captureRandomLinkerSeq){
+  write(paste(now(), 'Capturing random IDs from linker sequences.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
   invisible(lapply(unique(samples$uniqueSample), function(x){
     
     # f <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.anchorReads'), full.names = TRUE)

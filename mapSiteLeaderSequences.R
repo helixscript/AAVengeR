@@ -1,5 +1,6 @@
 library(ShortRead)
 library(dplyr)
+library(stringr)
 library(parallel)
 options(stringsAsFactors = FALSE)
 
@@ -7,11 +8,16 @@ configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
 
+# Min. space between blast hits allowed. Larger gaps will be filled with [x].
+opt$mapSiteLeaderSequences_minAllowableGap <- 5
+
 source(file.path(opt$softwareDir, 'lib.R'))
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 sites <- readRDS(file.path(opt$outputDir, opt$mapSiteLeaderSequences_inputFile))
+sites$repLeaderSeqLength <- NULL
+sites$repLeaderSeqMap <- NULL
 
 dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir))
 dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'))
@@ -19,10 +25,6 @@ dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs')
 samples <- loadSamples()
 
 sites$s <- paste(sites$subject, sites$sample)
-
-#
-# Need to parallelize the BLAT step -- break leader sequences into chunks then BLAST.
-#
 
 m <- bind_rows(lapply(split(samples, samples$vectorFastaFile), function(x){
   
@@ -63,7 +65,6 @@ m <- bind_rows(lapply(split(samples, samples$vectorFastaFile), function(x){
     dplyr::filter(b, pident >= opt$mapSiteLeaderSequences_minAlignmentPercentID, alignmentLength >= opt$mapSiteLeaderSequences_minAlignmentLength)
   }))
   
-  message('BLAST done')
   r <- blast2rearangements(b, minAlignmentLength = opt$mapSiteLeaderSequences_minAlignmentLength, 
                            minPercentID = opt$mapSiteLeaderSequences_minAlignmentPercentID, CPUs = opt$mapSiteLeaderSequences_CPUs)
   
@@ -75,7 +76,29 @@ invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = T
 sites <- select(sites, -s) %>% left_join(select(m, leaderSeq, repLeaderSeqMap), by = c('repLeaderSeq' = 'leaderSeq'))
 sites$repLeaderSeqLength <- nchar(sites$repLeaderSeq)
 
-sites <- select(sites, subject, sample, posid, estAbund, reads, repLeaderSeqLength, repLeaderSeqMap, repLeaderSeq)
+# Fill in missing pieces.
+sites$repLeaderSeqMap <- unlist(lapply(split(sites, 1:nrow(sites)), function(x){
+  if(is.na(x$repLeaderSeqMap)) return(NA)
+  o <- unlist(strsplit(as.character(x$repLeaderSeqMap), ';'))
+  lastRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[length(o)], '..(\\d+)')))
+  
+  if((x$repLeaderSeqLength - lastRangeEnd) > opt$mapSiteLeaderSequences_minAllowableGap){
+    x$repLeaderSeqMap <- paste0(x$repLeaderSeqMap, ';', lastRangeEnd+1, '..', x$repLeaderSeqLength, '[x]')
+  }
+  
+  o <- unlist(strsplit(as.character(x$repLeaderSeqMap), ';'))
+  if(length(o) > 1){
+    invisible(lapply(1:(length(o)-1), function(x){
+      lastRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[[x]], '..(\\d+)')))
+      nextFirstRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[[x+1]], '(\\d+)..')))
+    
+      if((nextFirstRangeEnd - lastRangeEnd) > opt$mapSiteLeaderSequences_minAllowableGap){
+        o[[x]] <<- paste0(o[[x]], ';', lastRangeEnd+1, '..', nextFirstRangeEnd-1, '[x];')
+      }
+    }))
+  }
+  
+  gsub(';;', ';', paste0(o, collapse = ';'))
+}))
 
 saveRDS(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, opt$mapSiteLeaderSequences_outputFile))
-
