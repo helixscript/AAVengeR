@@ -5,8 +5,7 @@ library(data.table)
 library(GenomicRanges)
 library(Biostrings)
 
-configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+configFile <- '/data/project/Encoded/220222_M03249_0243_000000000-JHTY6/config.yml'
 opt <- yaml::read_yaml(configFile)
 
 source(file.path(opt$softwareDir, 'lib.R'))
@@ -14,10 +13,35 @@ source(file.path(opt$softwareDir, 'lib.R'))
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
 
 # Read in read level fragments records.
+
+opt$buildStdFragments_inputFiles <- 'buildFragments.org/fragments.rds'
+
 frags <- bind_rows(lapply(unlist(strsplit(opt$buildStdFragments_inputFiles, ',')), function(x){
            message('reading in ', x)
            readRDS(file.path(opt$outputDir, x))
          }))
+
+r <- readLines('chr17+27974433_readIDS')
+
+frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
+
+z <- subset(frags, posid == 'chr17+27974433') %>% tidyr::unnest(readIDlist)
+
+f <- tidyr::unnest(frags, readIDlist)
+o <- subset(f,  readIDlist %in% z$readIDlist)
+sort(table(o$posid), decreasing = TRUE)[1:50]
+
+# The reads supporting chr17+27974433 also support hundred of other posids.
+
+
+
+
+
+frags <- tidyr::unnest(frags, readIDlist)
+frags <- subset(frags, readIDlist %in% r)
+
+frags <- tidyr::nest(frags, readIDlist = c(readIDlist))
+
 
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
@@ -64,10 +88,6 @@ frags$end <- NULL
 frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', frags$replicate, ':', frags$strand, ':', frags$fragStart, ':', frags$fragEnd)
 frags$posid <-paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 
-
-
-
-
 # Expand fragments to read level.
 z <- tidyr::unnest(frags, readIDlist)
 
@@ -91,16 +111,16 @@ if(nrow(o) > 0){
   if(any(multiHitFrags$posid %in% frags$posid)){
     multiHitFrags$returnToFrags <- FALSE
     
-    # Create a table of valid posids for each subject.
     frags_sites <- dplyr::select(frags, trial, subject, posid) %>% dplyr::distinct()
     clusterExport(cluster, 'frags_sites')
     
     # Split multi hit frags by read id.
     multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$readIDlist), function(x){
     #multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$readIDlist), function(x){
-                                # x will contain two or more frag ids supported by a SINGLE read.
+                                # x will contain two or more frag ids.
                                 # Create a list of non-ambiguous sites from the subject this read came from.
                                 posidList <- subset(frags_sites, trial == x$trial[1] & subject == x$subject[1])$posid
+                                
                                 
                                 # Return sites to the non-ambigious read list if they map to a single site from the 
                                 # non-ambiguous site list.

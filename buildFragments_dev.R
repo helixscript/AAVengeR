@@ -5,7 +5,9 @@ library(data.table)
 library(GenomicRanges)
 library(Biostrings)
 
-configFile <- commandArgs(trailingOnly=TRUE)
+#configFile <- commandArgs(trailingOnly=TRUE)
+configFile <- '/data/project/Encoded/220222_M03249_0243_000000000-JHTY6/config.yml'
+
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
 
@@ -13,6 +15,12 @@ source(file.path(opt$softwareDir, 'lib.R'))
 
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adriftReadsAlignmentFile))
+
+r <- readLines('chr17+27974433_readIDS')
+nrow(anchorReadAlignments)
+anchorReadAlignments <- subset(anchorReadAlignments, qName %in% r)
+adriftReadAlignments <- subset(adriftReadAlignments, qName %in% r)
+nrow(anchorReadAlignments)
 
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
 
@@ -36,15 +44,42 @@ adriftReadAlignments <- subset(adriftReadAlignments, ! qName %in% x)
 names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads')
 names(adriftReadAlignments) <- paste0(names(adriftReadAlignments), '.adriftReads')
 
+
+# Filter read pairs such that one must mate must not be too 'jumpy'.
+# Setting buildFragments_min_num_alignments_for_multi to one would require 
+# one mate to map uniquely while the other mate could have multiple alignments. 
+
+# a <- as.data.frame(table(anchorReadAlignments$qName.anchorReads))
+# names(a) <- c('readID', 'anchorReadAlnFreq')
+# b <- as.data.frame(table(adriftReadAlignments$qName.adriftReads))
+# names(b) <- c('readID', 'adriftReadAlnFreq')
+# tab <- left_join(a, b, by = 'readID')
+# 
+# opt$buildFragments_min_num_alignments_for_multi <- 1
+# tab$anchorReadAlnFreq <- ifelse(tab$anchorReadAlnFreq > opt$buildFragments_min_num_alignments_for_multi, 1, 0)
+# tab$adriftReadAlnFreq <- ifelse(tab$adriftReadAlnFreq > opt$buildFragments_min_num_alignments_for_multi, 1, 0)
+# tab$s <- rowSums(tab[ , c(2,3)], na.rm=TRUE)
+# readsToRemove <- tab[tab$s > 1,]$readID
+#
+# Reads removed.
+# sprintf("%.2f%%", (n_distinct(readsToRemove) / n_distinct(tab$readID))*100) 
+# 
+# anchorReadAlignments <- subset(anchorReadAlignments, ! qName.anchorReads %in% readsToRemove)
+# adriftReadAlignments <- subset(adriftReadAlignments, ! qName.adriftReads %in% readsToRemove)
+
+
 ids <- unique(anchorReadAlignments$qName.anchorReads)
 id_groups <- split(ids, dplyr::ntile(1:length(ids), ceiling(length(ids)/opt$buildFragments_idGroup_size)))
 
-cluster <- makeCluster(opt$buildFragments_CPUs)
-clusterExport(cluster, c('opt', 'anchorReadAlignments', 'adriftReadAlignments'))
 
 # Build initial fragments.
-frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
+n <- 1
+frags <- bind_rows(lapply(id_groups, function(id_group){
   library(dplyr)
+  
+  message(n, ' / ', length(id_groups))
+  n <<- n + 1
+  
   a <- subset(anchorReadAlignments, qName.anchorReads %in% id_group)
   b <- subset(adriftReadAlignments, qName.adriftReads %in% id_group)
   
@@ -52,6 +87,7 @@ frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
   
   # Join adrift reads alignments to anchor read alignments to create potential read pairs.
   frags <- left_join(a, b, by = c('qName.anchorReads' = 'qName.adriftReads')) %>% tidyr::drop_na()
+
   
   # Remove combinations not found on the same chromosome. 
   i <- which(frags$tName.anchorReads != frags$tName.adriftReads)
@@ -79,6 +115,7 @@ frags <- bind_rows(parLapply(cluster, id_groups, function(id_group){
                 select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads)
 }))
 
+saveRDS(frags, '/data/frags.rds')
 
 write(c(paste(now(), 'F1')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
@@ -140,8 +177,6 @@ if(opt$demultiplex_captureRandomLinkerSeq){
 
 write(c(paste(now(), 'F2')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-# Stop and rebuild cluster objects to release alignment objects from memory.
-stopCluster(cluster)
 gc()
 
 frags <- unpackUniqueSampleID(frags)
@@ -167,6 +202,7 @@ f2 <- split(f1, f1$fragID)
 
 write(c(paste(now(), 'F3')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
+                         
 frags <- parLapply(cluster, f2, function(x){
 #frags <- (lapply(f2, function(x){
            library(dplyr)

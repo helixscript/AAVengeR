@@ -64,70 +64,62 @@ frags$end <- NULL
 frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', frags$replicate, ':', frags$strand, ':', frags$fragStart, ':', frags$fragEnd)
 frags$posid <-paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 
-
-
-
-
-# Expand fragments to read level.
-z <- tidyr::unnest(frags, readIDlist)
-
-# Identify reads which map to more than position id and define these as multihit reads.
-o <- group_by(z, readIDlist) %>%
-  summarise(n = n_distinct(posid)) %>%
-  ungroup() %>%
-  dplyr::filter(n > 1)
-
 multiHitFrags <- tibble()
 
-if(nrow(o) > 0){
-  multiHitFrags <- subset(z, readIDlist %in% o$readIDlist)  # Reads which map to more than one intSite positions.
-  frags <- subset(z, ! readIDlist %in% o$readIDlist)        # Reads which map to a single intSite positions.
+if(opt$buildStdFragments_salvageMultiHits){
+  # Expand fragments to read level.
+  z <- tidyr::unnest(frags, readIDlist)
+
+  # Identify reads which map to more than position id and define these as multihit reads.
+  o <- group_by(z, readIDlist) %>%
+       summarise(n = n_distinct(posid)) %>%
+       ungroup() %>%
+       dplyr::filter(n > 1)
+
+  if(nrow(o) > 0){
+    multiHitFrags <- subset(z, readIDlist %in% o$readIDlist)  # Reads which map to more than one intSite positions.
+    frags <- subset(z, ! readIDlist %in% o$readIDlist)        # Reads which map to a single intSite positions.
   
-  # There may be multihit reads where one of their position ids is the same as those in the frags
-  # where the reads aligned uniquely. If only one of the possible alignment positions in multiHitFrags 
-  # is in frags (unique alignments), then move those reads to frags.
+    # There may be multihit reads where one of their position ids is the same as those in the frags
+    # where the reads aligned uniquely. If only one of the possible alignment positions in multiHitFrags 
+    # is in frags (unique alignments), then move those reads to frags.
   
-  
-  if(any(multiHitFrags$posid %in% frags$posid)){
-    multiHitFrags$returnToFrags <- FALSE
+    if(any(multiHitFrags$posid %in% frags$posid)){
+      multiHitFrags$returnToFrags <- FALSE
     
-    # Create a table of valid posids for each subject.
-    frags_sites <- dplyr::select(frags, trial, subject, posid) %>% dplyr::distinct()
-    clusterExport(cluster, 'frags_sites')
+      # Create a table of valid posids for each subject.
+      frags_sites <- dplyr::select(frags, trial, subject, posid) %>% dplyr::distinct()
+      clusterExport(cluster, 'frags_sites')
     
-    # Split multi hit frags by read id.
-    multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$readIDlist), function(x){
-    #multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$readIDlist), function(x){
-                                # x will contain two or more frag ids supported by a SINGLE read.
-                                # Create a list of non-ambiguous sites from the subject this read came from.
-                                posidList <- subset(frags_sites, trial == x$trial[1] & subject == x$subject[1])$posid
+      # Split multi hit frags by read id.
+      multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$readIDlist), function(x){
+      #multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$readIDlist), function(x){
+                                  # x will contain two or more frag ids supported by a SINGLE read.
+                                  # Create a list of non-ambiguous sites from the subject this read came from.
+                                  posidList <- subset(frags_sites, trial == x$trial[1] & subject == x$subject[1])$posid
                                 
-                                # Return sites to the non-ambigious read list if they map to a single site from the 
-                                # non-ambiguous site list.
-                                if(sum(unique(x$posid) %in% posidList) == 1){
-                                  x[x$posid %in% posidList,]$returnToFrags <- TRUE
-                                }
-                                x
-                              }))
+                                  # Return sites to the non-ambigious read list if they map to a single site from the 
+                                  # non-ambiguous site list.
+                                  if(sum(unique(x$posid) %in% posidList) == 1){
+                                    x[x$posid %in% posidList,]$returnToFrags <- TRUE
+                                  }
+                                  x
+                                }))
     
-    if(any(multiHitFrags$returnToFrags == TRUE)){
-      m <- subset(multiHitFrags, returnToFrags == TRUE)
-      write(paste0(sprintf("%.2f%%", (nrow(m) / nrow(multiHitFrags))*100), ' of multihit reads recovered because one potential site was in the unabiguous site list.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
-      multiHitFrags <- subset(multiHitFrags, ! readIDlist %in% m$readIDlist)
-      m$returnToFrags <- NULL
-      multiHitFrags$returnToFrags <- NULL
-      frags <- bind_rows(frags, m)
+      if(any(multiHitFrags$returnToFrags == TRUE)){
+        m <- subset(multiHitFrags, returnToFrags == TRUE)
+        write(paste0(sprintf("%.2f%%", (nrow(m) / nrow(multiHitFrags))*100), ' of multihit reads recovered because one potential site was in the unabiguous site list.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+        multiHitFrags <- subset(multiHitFrags, ! readIDlist %in% m$readIDlist)
+        m$returnToFrags <- NULL
+        multiHitFrags$returnToFrags <- NULL
+        frags <- bind_rows(frags, m)
+      }
     }
+    
+    # Regroup reads.
+    frags <- group_by(frags, uniqueSample, chromosome, strand, fragStart, fragEnd) %>% mutate(readIDlist = list(readIDlist)) %>% dplyr::slice(1) %>% ungroup()
   }
 }
-
-frags <- tidyr::nest(frags, data = c(readIDlist))
-frags$data <- NULL
-
-# if(nrow(multiHitFrags) > 0){
-#   multiHitFrags <- tidyr::nest(multiHitFrags, data = c(readIDlist))
-#   multiHitFrags$data <- NULL
-# }
 
 
 # Clear out the tmp/ directory.
@@ -138,13 +130,14 @@ invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = T
 stopCluster(cluster)
 gc()
 
-
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
 
 f <- as.data.table(frags)
 s <- split(f, f$fragID)
  
+frags.save1 <- frags
+
 frags <- bind_rows(parLapply(cluster, s, function(a){ 
 #frags <- bind_rows(lapply(s, function(a){   
   library(dplyr)

@@ -8,8 +8,6 @@ configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
 
-
-
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 source(file.path(opt$softwareDir, 'lib.R'))
@@ -251,7 +249,7 @@ if(! 'leaderSeqHMM' %in% names(samples)){
         readLengths <- tibble(file = lpe(file), qname = names(reads), qlength = width(reads))
         b <- dplyr::left_join(b, readLengths, by = 'qname') 
         b$alignmentLength <- b$qend - b$qstart + 1
-        dplyr::filter(b, pident >= opt$prepReads_minAlignmentPercentID, alignmentLength >= opt$prepReads_minAlignmentLength, gapopen <= 1)
+        b <- dplyr::filter(b, pident >= opt$prepReads_minAlignmentPercentID, alignmentLength >= opt$prepReads_minAlignmentLength, gapopen <= 1)
       
         saveRDS(b, sub('fasta$', 'rds', file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments', lpe(file))))
       }))
@@ -278,6 +276,7 @@ if(! 'leaderSeqHMM' %in% names(samples)){
        clusterExport(cluster, 'opt')
        
        mappings <- bind_rows(parLapply(cluster, split(z, z$n), function(b){
+       #mappings <- bind_rows(lapply(split(z, z$n), function(b){   
                         library(GenomicRanges)
                         library(dplyr)
 

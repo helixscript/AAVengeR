@@ -5,8 +5,14 @@ library(lubridate)
 options(stringsAsFactors = FALSE)
 
 configFile <- commandArgs(trailingOnly=TRUE)
+
+# configFile <- '/data/project/Encoded/220222_M03249_0243_000000000-JHTY6/config3.yml'
+
+
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
+
+# opt$outputDir <- '/data/AAVengeR_runs/Encoded_dev'
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
@@ -46,7 +52,7 @@ if('leaderSeqHMM' %in% names(samples)){
 
 
 cluster <- makeCluster(opt$prepReads_CPUs)
-clusterExport(cluster, c('opt', 'samples', 'tmpFile', 'waitForFile'))
+clusterExport(cluster, c('opt', 'samples', 'tmpFile', 'waitForFile', 'blatReads', 'parseBLAToutput'))
 
 # Create a tibble of anchor read files from the demultiplexing output directory.
 d <- tibble(file = list.files(file.path(opt$outputDir, opt$prepReads_inputDir), full.names = TRUE, pattern = 'anchor'))
@@ -155,13 +161,12 @@ write(c(paste(now(), 'Capturing duplicated reads')), file = file.path(opt$output
 o <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'dupTables'), full.names = TRUE), readRDS))
 saveRDS(o, file.path(opt$outputDir, opt$prepReads_outputDir, 'duplicateReads.rds'))
     
-
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 mappings <- tibble()
 vectorHits <- tibble()
 
-clusterExport(cluster, c('tmpFile', 'waitForFile', 'opt', 'lpe'))
+clusterExport(cluster, c('tmpFile', 'waitForFile', 'opt', 'lpe', 'blatReads', 'parseBLAToutput'))
   
 # Align the ends of anchor reads to the vector to identify vector reads which should be removed.
 
@@ -257,7 +262,7 @@ if(! 'leaderSeqHMM' %in% names(samples)){
         readLengths <- tibble(file = lpe(file), qname = names(reads), qlength = width(reads))
         
         b <- dplyr::left_join(b, readLengths, by = c('qName' = 'qname')) %>% 
-             dplyr::filter(queryPercentID >= opt$prepReads_minAlignmentPercentID, tAlignmentWidth >= opt$prepReads_minAlignmentLength, 
+             dplyr::filter(tAlignmentWidth >= opt$prepReads_minAlignmentLength, 
                            tNumInsert  <= 1, qNumInsert <= 1, tBaseInsert <= 1, qBaseInsert <= 1)
     
         saveRDS(b, sub('fasta$', 'rds', file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments', lpe(file))))

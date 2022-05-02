@@ -11,10 +11,6 @@ dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 
 frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile))
 
-# frags$w <- frags$fragEnd - frags$fragStart + 1
-# frags <- subset(frags, w >= 180)
-
-
 if('buildSites_excludeSites' %in% names(opt)){
   p <- unlist(lapply(strsplit(unlist(strsplit(opt$buildSites_excludeSites, '\\|')), ','), function(x){
     if(length(x) != 3) return()
@@ -29,22 +25,16 @@ samples <- loadSamples()
 frags$fragWidth <- frags$fragEnd - frags$fragStart + 1
 frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 
-if(opt$buildSites_level == 'replicate'){
-  frags$s <- paste(frags$trial, frags$subject, frags$sample, frags$replicate, frags$repLeaderSeqGroup, frags$posid)
-} else if (opt$buildSites_level == 'sample'){
-  frags$s <- paste(frags$trial, frags$subject, frags$sample, frags$repLeaderSeqGroup, frags$posid)
-} else if (opt$buildSites_level == 'subject'){
-  frags$s <- paste(frags$trial, frags$subject, frags$repLeaderSeqGroup, frags$posid)
-} else {
-  stop('Error: buildSites_level not defined with replicate, sample, or subject')
-}
-  
-sites <- bind_rows(lapply(split(frags, frags$s), function(x){
+
+sites <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$sample, frags$repLeaderSeqGroup, frags$posid)), function(x){
   
   if(opt$buildStdFragments_categorize_anchorRead_remnants) x$posid <- paste0(x$posid, '.', x$repLeaderSeqGroup)
   
   if(nrow(x) > 1){
     i <- rep(TRUE, nrow(x))
+    
+    #browser()
+    #if(nrow(subset(x, chromosome == 'chr22' & fragEnd >= (1840213-10) & fragEnd <= (1840213+10))) >= 5) browser()
     
     # Check that leader sequences are all similar now that we are combining fragments from different replicates.
     r <- representativeSeq(x$repLeaderSeq)
@@ -70,7 +60,7 @@ sites <- bind_rows(lapply(split(frags, frags$s), function(x){
     
     return(dplyr::mutate(x, estAbund = n_distinct(fragWidth), position = ifelse(strand[1] == '+', fragStart[1], fragEnd[1]), 
                   reads = sum(reads), repLeaderSeq = r[[2]], fragmentsRemoved = sum(!i)) %>%
-           dplyr::select(trial, subject, sample, replicate, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags) %>%
+           dplyr::select(trial, subject, sample, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags) %>%
            dplyr::slice(1))
     }else{
       if('flags' %in% names(samples)){
@@ -80,18 +70,9 @@ sites <- bind_rows(lapply(split(frags, frags$s), function(x){
       }
       
       return(dplyr::mutate(x, estAbund = n_distinct(fragWidth), position = ifelse(strand[1] == '+', fragStart[1], fragEnd[1]), fragmentsRemoved = 0) %>%
-             dplyr::select(trial, subject, sample, replicate, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags))
+             dplyr::select(trial, subject, sample, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags))
   }
 }))
-
-if (opt$buildSites_level == 'sample'){
-  sites <- dplyr::select(sites, -replicate)
-} 
-
-if (opt$buildSites_level == 'subject'){
-  sites <- dplyr::select(sites, -replicate, -sample)
-} 
-
 
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
 

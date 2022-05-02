@@ -38,7 +38,8 @@ m <- bind_rows(lapply(split(samples, samples$vectorFastaFile), function(x){
   browser()
   
   # Subset sites to match this identification sequence string.
-  s <- subset(sites, s %in% unique(paste(x$subject, x$sample)))
+  #s <- subset(sites, s %in% unique(paste(x$subject, x$sample)))
+  s <- sites
   
   reads <- DNAStringSet(unique(s$repLeaderSeq))
   names(reads) <- paste0('s', 1:length(reads))
