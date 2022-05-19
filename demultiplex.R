@@ -38,6 +38,12 @@ if(! file.exists(opt$demultiplex_index1ReadsFile)){
   q(save = 'no', status = 1, runLast = FALSE) 
 } 
 
+
+if(opt$demultiplex_RC_I1_barcodes_auto){
+  write(c(paste(now(), 'Determining if I1 barcodes should be switched to RC.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  opt$demultiplex_RC_I1_barcodes <- determine_RC_I1()
+}
+
 # Reverse compliment index1 sequences if requested.
 if(opt$demultiplex_RC_I1_barcodes) samples$index1.seq <- as.character(reverseComplement(DNAStringSet(samples$index1.seq)))
 
@@ -100,7 +106,7 @@ rm(d, chunkNum, index1Reads, anchorReads, adriftReads)
 gc()
 
 
-write(paste(now(), 'Starting demultiplexing.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(paste(now(), 'Demultiplexing sequence chunks.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
 #invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
@@ -172,11 +178,9 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
 
 stopCluster(cluster)
 
-write(paste(now(), 'Demultiplexing complete.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), recursive = TRUE))
     
-
-# Colate chunked reads and write out sample read files.
+# Collate chunked reads and write out sample read files.
 write(paste(now(), 'Colating data files.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 invisible(lapply(unique(samples$uniqueSample), function(x){
   f1 <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.anchorReads'), full.names = TRUE)

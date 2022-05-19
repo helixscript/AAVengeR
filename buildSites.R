@@ -11,10 +11,6 @@ dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 
 frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile))
 
-# frags$w <- frags$fragEnd - frags$fragStart + 1
-# frags <- subset(frags, w >= 180)
-
-
 if('buildSites_excludeSites' %in% names(opt)){
   p <- unlist(lapply(strsplit(unlist(strsplit(opt$buildSites_excludeSites, '\\|')), ','), function(x){
     if(length(x) != 3) return()
@@ -85,13 +81,20 @@ sites <- bind_rows(lapply(split(frags, frags$s), function(x){
 }))
 
 if (opt$buildSites_level == 'sample'){
-  sites <- dplyr::select(sites, -replicate)
+  sites$replicate <- NA
 } 
 
 if (opt$buildSites_level == 'subject'){
-  sites <- dplyr::select(sites, -replicate, -sample)
+  sites$replicate <- NA
+  sites$sample <- NA
 } 
 
+if('buildSites_multiHitSites_inputFile' %in% names(opt)){
+  if(file.exists(file.path(opt$outputDir, opt$buildSites_multiHitSites_inputFile))){
+    m <- readRDS(file.path(opt$outputDir, opt$buildSites_multiHitSites_inputFile))
+    sites <- bind_rows(m, sites)
+  }
+}
 
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
 

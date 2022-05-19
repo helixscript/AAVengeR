@@ -13,16 +13,22 @@ source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
 
-# Read in read level fragments records.
+write(c(paste(now(), 'Reading in fragment file(s).')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
+opt$buildStdFragments_inputFiles <- gsub('\\s*,\\s*', ',', opt$buildStdFragments_inputFiles)
+
 frags <- bind_rows(lapply(unlist(strsplit(opt$buildStdFragments_inputFiles, ',')), function(x){
-           message('reading in ', x)
+           write(c(paste(now(), '  reading in ', x)), file = file.path(opt$outputDir, 'log'), append = TRUE)
            readRDS(file.path(opt$outputDir, x))
          }))
+
+frags$uniqueSample <- paste0(frags$trial, '~', frags$subject, '~', frags$sample, '~', frags$replicate)
 
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
 
 if(opt$buildStdFragments_categorize_anchorRead_remnants){
+  write(c(paste(now(), 'Categorizing leader sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   n <- 1
   frags$repLeaderSeqGroup <- 0
 
@@ -40,6 +46,7 @@ if(opt$buildStdFragments_categorize_anchorRead_remnants){
 
 
 # Standardize fragments.
+write(c(paste(now(), 'Standardizing fragment boundaries.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 frags_std <- standardizedFragments(frags, opt, cluster)
 
 if(opt$buildStdFragments_standardizeSites & opt$buildStdFragments_standardizeBreaks){
@@ -49,12 +56,13 @@ if(opt$buildStdFragments_standardizeSites & opt$buildStdFragments_standardizeBre
 } else if(opt$buildStdFragments_standardizeSites == FALSE & opt$buildStdFragments_standardizeBreaks == TRUE){
   frags_std <- subset(frags_std, intSiteRefined == FALSE & breakPointRefined == TRUE) %>% dplyr::select(-intSiteRefined, -breakPointRefined, -width)
 } else {
-  # Something went wrong, eg. parameter missing or not set to a boolean.
+  # Something went wrong, eg. parameter missing or not set to a Boolean.
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
 
 # Join the standardized tallied fragments back onto the read level fragments in order to look for multi-hits.
+write(c(paste(now(), 'Applying standardized boundaries.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 frags <- left_join(frags, dplyr::select(frags_std, fragID, start, end), by = 'fragID')
 
 frags$fragStart <- frags$start
@@ -64,70 +72,72 @@ frags$end <- NULL
 frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', frags$replicate, ':', frags$strand, ':', frags$fragStart, ':', frags$fragEnd)
 frags$posid <-paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 
-
-
-
-
-# Expand fragments to read level.
-z <- tidyr::unnest(frags, readIDlist)
-
-# Identify reads which map to more than position id and define these as multihit reads.
-o <- group_by(z, readIDlist) %>%
-  summarise(n = n_distinct(posid)) %>%
-  ungroup() %>%
-  dplyr::filter(n > 1)
-
 multiHitFrags <- tibble()
 
-if(nrow(o) > 0){
-  multiHitFrags <- subset(z, readIDlist %in% o$readIDlist)  # Reads which map to more than one intSite positions.
-  frags <- subset(z, ! readIDlist %in% o$readIDlist)        # Reads which map to a single intSite positions.
+if(opt$buildStdFragments_salvageMultiHits){
+  write(c(paste(now(), 'Salavaging multi-hit fragments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
-  # There may be multihit reads where one of their position ids is the same as those in the frags
-  # where the reads aligned uniquely. If only one of the possible alignment positions in multiHitFrags 
-  # is in frags (unique alignments), then move those reads to frags.
+  # Expand fragments to read level.
+  z <- tidyr::unnest(frags, readIDlist)
+
+  # Identify reads which map to more than position id and define these as multi-hit reads.
+  o <- group_by(z, readIDlist) %>%
+       summarise(n = n_distinct(posid)) %>%
+       ungroup() %>%
+       dplyr::filter(n > 1)
+
+  if(nrow(o) > 0){
+    multiHitFrags <- subset(z, readIDlist %in% o$readIDlist)  # Reads which map to more than one intSite positions.
+    frags <- subset(z, ! readIDlist %in% o$readIDlist)        # Reads which map to a single intSite positions.
   
+    # There may be multi-hit reads where one of their position ids is the same as those in the frags
+    # where the reads aligned uniquely. If only one of the possible alignment positions in multiHitFrags 
+    # is in frags (unique alignments), then move those reads to frags.
   
-  if(any(multiHitFrags$posid %in% frags$posid)){
-    multiHitFrags$returnToFrags <- FALSE
+    if(any(multiHitFrags$posid %in% frags$posid)){
+      multiHitFrags$returnToFrags <- FALSE
     
-    # Create a table of valid posids for each subject.
-    frags_sites <- dplyr::select(frags, trial, subject, posid) %>% dplyr::distinct()
-    clusterExport(cluster, 'frags_sites')
+      # Create a table of valid posids for each subject.
+      frags_sites <- dplyr::select(frags, trial, subject, posid) %>% dplyr::distinct()
+      clusterExport(cluster, 'frags_sites')
     
-    # Split multi hit frags by read id.
-    multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$readIDlist), function(x){
-    #multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$readIDlist), function(x){
-                                # x will contain two or more frag ids supported by a SINGLE read.
-                                # Create a list of non-ambiguous sites from the subject this read came from.
-                                posidList <- subset(frags_sites, trial == x$trial[1] & subject == x$subject[1])$posid
+      # Split multi-hit frags by read id and test if reads can be salvaged.
+      multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$readIDlist), function(x){
+                                  # x will contain two or more frag ids supported by a SINGLE read.
+                                  # Create a list of non-ambiguous sites from the subject this read came from.
+                                  posidList <- subset(frags_sites, trial == x$trial[1] & subject == x$subject[1])$posid
                                 
-                                # Return sites to the non-ambigious read list if they map to a single site from the 
-                                # non-ambiguous site list.
-                                if(sum(unique(x$posid) %in% posidList) == 1){
-                                  x[x$posid %in% posidList,]$returnToFrags <- TRUE
-                                }
-                                x
-                              }))
+                                  # Return sites to the non-ambiguous read list if they map to a single site from the 
+                                  # non-ambiguous site list.
+                                  if(sum(unique(x$posid) %in% posidList) == 1){
+                                    x[x$posid %in% posidList,]$returnToFrags <- TRUE
+                                  }
+                                  x
+                                }))
     
-    if(any(multiHitFrags$returnToFrags == TRUE)){
-      m <- subset(multiHitFrags, returnToFrags == TRUE)
-      write(paste0(sprintf("%.2f%%", (nrow(m) / nrow(multiHitFrags))*100), ' of multihit reads recovered because one potential site was in the unabiguous site list.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
-      multiHitFrags <- subset(multiHitFrags, ! readIDlist %in% m$readIDlist)
-      m$returnToFrags <- NULL
-      multiHitFrags$returnToFrags <- NULL
-      frags <- bind_rows(frags, m)
+      if(any(multiHitFrags$returnToFrags == TRUE)){
+        
+        # Isolate frag reads that should be returned.
+        m <- subset(multiHitFrags, returnToFrags == TRUE)
+        write(paste0(sprintf("%.2f%%", (nrow(m) / nrow(multiHitFrags))*100), ' of multihit reads recovered because one potential site was in the unabiguous site list.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
+        # Remove salvaged reads from multi-hit reads.
+        multiHitFrags <- subset(multiHitFrags, ! readIDlist %in% m$readIDlist)
+        
+        m$returnToFrags <- NULL
+        multiHitFrags$returnToFrags <- NULL
+        
+        # Return salvaged reads to frags.
+        frags <- bind_rows(frags, m)
+      }
     }
+    
+    # Regroup reads.
+    frags <- group_by(frags, uniqueSample, chromosome, strand, fragStart, fragEnd) %>% 
+             mutate(reads = n_distinct(readIDlist), readIDlist = list(readIDlist)) %>% 
+             dplyr::slice(1) %>% ungroup()
   }
 }
-
-frags <- tidyr::nest(frags, data = c(readIDlist))
-frags$data <- NULL
-
-# if(nrow(multiHitFrags) > 0){
-#   multiHitFrags <- tidyr::nest(multiHitFrags, data = c(readIDlist))
-#   multiHitFrags$data <- NULL
-# }
 
 
 # Clear out the tmp/ directory.
@@ -138,21 +148,21 @@ invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = T
 stopCluster(cluster)
 gc()
 
-
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
 
 f <- as.data.table(frags)
 s <- split(f, f$fragID)
  
+write(c(paste(now(), 'Regrouping standardized fragments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 frags <- bind_rows(parLapply(cluster, s, function(a){ 
-#frags <- bind_rows(lapply(s, function(a){   
   library(dplyr)
   source(file.path(opt$softwareDir, 'lib.R'))
   
   r <- representativeSeq(a$repLeaderSeq)
   
-  # Exclude reads where the leaderSeq is not similiar to the representative sequence. 
+  # Exclude reads where the leaderSeq is not similar to the representative sequence. 
   i <- stringdist::stringdist(r[[2]], a$repLeaderSeq) / nchar(r[[2]]) <= opt$buildStdFragments_maxLeaderSeqDiffScore
   if(all(! i)) return(tibble::tibble())
   
@@ -161,17 +171,20 @@ frags <- bind_rows(parLapply(cluster, s, function(a){
   a$repLeaderSeq <- r[[2]]
   a$reads <- sum(a$reads)
   
-  a[1, c(6:10, 2:5, 13:14, 12, 15)]
+  reads <- unique(unlist(a$readIDlist))
+  
+  a <- a[1, c(6:9, 2:5, 13, 12, 15, 10)]
+  a$readIDlist <- list(reads)
+  a
 }))
 
 
-
 if(nrow(multiHitFrags) > 0){
-  multiHitReads <- group_by(multiHitFrags, trial, subject, sample, readIDlist) %>%
-    summarise(posids = I(list(posid))) %>%
-    ungroup() %>%
-    tidyr::unnest(posids) %>%
-    dplyr::distinct()
+  write(c(paste(now(), 'Preparing mult-hit data files.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  
+  multiHitReads <- group_by(multiHitFrags, uniqueSample, readIDlist) %>%
+    summarise(posids = list(posid)) %>%
+    ungroup() 
   
   multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$fragID), function(a){
   #multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$fragID), function(a){
@@ -181,16 +194,20 @@ if(nrow(multiHitFrags) > 0){
     
     r <- representativeSeq(a$repLeaderSeq)
     
-    # Exclude reads where the leaderSeq is not similiar to the representative sequence. 
+    # Exclude reads where the leaderSeq is not similar to the representative sequence. 
     i <- stringdist::stringdist(r[[2]], a$repLeaderSeq) / nchar(r[[2]]) <= opt$buildStdFragments_maxLeaderSeqDiffScore
     if(all(! i)) return(tibble())
     
     a <- a[i,]
     
     a$repLeaderSeq <- r[[2]]
-    a$reads <- sum(a$reads)
     
-    a[1, c(6:10, 2:5, 13:14, 12, 15)]
+    reads <- n_distinct(a$readIDlist)
+    readIDlist <- unique(a$readIDlist)
+    
+    a <- a[1, c(6:9, 2:5, 13, 12, 15, 10)]
+    a$readIDlist <- list(readIDlist)
+    a
   }))
   
   saveRDS(multiHitReads, file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitReads.rds'))

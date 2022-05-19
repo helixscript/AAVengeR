@@ -12,6 +12,7 @@ invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = T
 
 source(file.path(opt$softwareDir, 'lib.R'))
 
+write(c(paste(lubridate::now(), 'Creating required directories.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir))
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'trimmed'))
@@ -70,7 +71,7 @@ invisible(parLapply(cluster, split(d, d$file), function(x){
   source(file.path(opt$softwareDir, 'lib.R'))
   library(Biostrings)
   
-  system(paste0(opt$command_cutadapt, ' -f fasta  -e 0.15 -a ', x$adapter, ' --overlap 2 ',
+  system(paste0(opt$command_cutadapt, ' -e 0.15 -a ', x$adapter, ' --overlap 2 ',
                 x$file, ' > ', file.path(opt$outputDir, opt$prepReads_outputDir, lpe(x$file))), ignore.stderr = TRUE)
   
   # Read in trimmed R1 sequences.
@@ -111,12 +112,14 @@ invisible(parLapply(cluster, files, function(x){
   library(Biostrings)
   library(dplyr)
   source(file.path(opt$softwareDir, 'lib.R'))
+  message(x)
   
   a <- readDNAStringSet(x)
   b <- readDNAStringSet(sub('anchorReads', 'adriftReads', x))
   
   if(length(a) != length(b)){
     message('Error -- ', x)
+    
     return()
   }
   
@@ -141,7 +144,7 @@ invisible(parLapply(cluster, files, function(x){
     b <- b[! names(b) %in% r$id2]
   }
   
-  if(! names(a) == names(b)){
+  if(! all(names(a) == names(b))){
     write(c(paste(now(), 'Error -Read names did not match after creating unique FASTA files.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
     q(save = 'no', status = 1, runLast = FALSE) 
   }
@@ -150,12 +153,10 @@ invisible(parLapply(cluster, files, function(x){
   writeXStringSet(b, file.path(opt$outputDir, opt$prepReads_outputDir, 'unique', sub('anchorReads', 'adriftReads', lpe(x))))
 }))
 
-
 write(c(paste(now(), 'Capturing duplicated reads')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 o <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'dupTables'), full.names = TRUE), readRDS))
 saveRDS(o, file.path(opt$outputDir, opt$prepReads_outputDir, 'duplicateReads.rds'))
     
-
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 mappings <- tibble()
@@ -342,6 +343,8 @@ if(! 'leaderSeqHMM' %in% names(samples)){
    q(save = 'no', status = 1, runLast = FALSE) 
  }
  
+ stopCluster(cluster)  
+  
  saveRDS(mappings, file.path(opt$outputDir, opt$prepReads_outputDir, 'alignments.rds'))
 }
 
@@ -394,10 +397,19 @@ if(file.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritio
     if(file.exists(file)) o[o$sample == x,]$preppedReads <- length(Biostrings::readDNAStringSet(file))
   }
   
+  # Too long
   t <- length(ShortRead::readFastq(opt$demultiplex_anchorReadsFile))
   o <- tibble::add_column(o, .after = 'sample', 'totalReads' = t)
   o$preppedReadsPercentTotal <- (o$preppedReads / o$totalReads)*100
   readr::write_tsv(o, file.path(opt$outputDir, opt$prepReads_outputDir, 'readAttritionTbl.tsv'))
+}
+
+if(! opt$prepReads_keepIntermediateFiles){
+  unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'), recursive = TRUE)
+  unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'trimmed'), recursive = TRUE)
+  unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'unique'), recursive = TRUE)
+  unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'dupTables'), recursive = TRUE)
+  unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), recursive = TRUE)
 }
 
 q(save = 'no', status = 0, runLast = FALSE) 

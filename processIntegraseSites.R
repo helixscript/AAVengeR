@@ -7,24 +7,28 @@ opt <- yaml::read_yaml(configFile)
 
 source(file.path(opt$softwareDir, 'lib.R'))
 
-dir.create(file.path(opt$outputDir, opt$processHIVsites_outputDir))
+dir.create(file.path(opt$outputDir, opt$processIntegraseSites_outputDir))
 
+# Mult
 # Multiple site files supported, eg. load U3 and U5 experiments.
-sites <- bind_rows(lapply(unlist(strsplit(opt$processHIVsites_inputFiles, ',')), function(x){
+sites <- bind_rows(lapply(unlist(strsplit(opt$processIntegraseSites_inputFiles, ',')), function(x){
            readRDS(file.path(opt$outputDir, x))
          }))
+
+multiHitSites <- subset(sites, chromosome == 'Mult')
+sites <- subset(sites, chromosome != 'Mult')
 
 if(! 'flags' %in% names(sites)){
   write(c(paste(now(), 'Error -- the flags column is not in the sites data object.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE) 
 }
   
-if(! all(grepl('HIV_u5|HIV_u3', sites$flags))){
-  write(c(paste(now(), 'Error -- all sites do not have either a HIV_u5 or HIV_u3 flag.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+if(! all(grepl('IN_u5|IN_u3', sites$flags))){
+  write(c(paste(now(), 'Error -- all sites do not have either a IN_u5 or IN_u3 flag.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-if(file.exists(file.path(opt$outputDir, opt$processHIVsites_outputDir, 'dual_detections.tsv'))) file.remove(file.path(opt$outputDir, opt$processHIVsites_outputDir, 'dual_detections.tsv'))
+if(file.exists(file.path(opt$outputDir, opt$processIntegraseSites_outputDir, 'dual_detections.tsv'))) file.remove(file.path(opt$outputDir, opt$processIntegraseSites_outputDir, 'dual_detections.tsv'))
 
 # Adjustments
 # + strand alignment: +2
@@ -42,9 +46,6 @@ b$position <- b$position - 2
 sites <- bind_rows(a, b)
 sites$posid <- paste0(sites$chromosome, sites$strand, sites$position)
 
-
-#chr14+69415488
-
 sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
   merged_sites <- vector()
   new_sites <- vector()
@@ -53,7 +54,7 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
     y <- x[y,]
     
     x <- subset(x, chromosome == y$chromosome)
-    o <- subset(x, position >= (y$position - opt$processHIVsites_dualDetectDistance) & position <= (y$position + opt$processHIVsites_dualDetectDistance))
+    o <- subset(x, position >= (y$position - opt$processIntegraseSites_dualDetectDistance) & position <= (y$position + opt$processIntegraseSites_dualDetectDistance))
     
     o <- subset(o, ! posid %in% merged_sites)
     if(nrow(o) == 0) return(tibble())
@@ -62,7 +63,7 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
     
     if(length(unique(o$strand)) == 1) return(y)  # Want a mix of both + and - strand alignments.
 
-    if(!(any(grepl('HIV_u5', o$flags)) & any(grepl('HIV_u3', o$flags)))) return(return(y)) # Want a mix of u5 and u3 flags.
+    if(!(any(grepl('IN_u5', o$flags)) & any(grepl('IN_u3', o$flags)))) return(return(y)) # Want a mix of u5 and u3 flags.
 
     if(nrow(o) == 2){
           merged_sites <<- append(merged_sites, c(o[1,]$posid, o[2,]$posid))
@@ -74,12 +75,12 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
           new_sites <<- append(new_sites, y$posid)
           y$flags <- 'U3,U5 merged'
           
-          if(opt$processHIVsites_dualDetectAubundanceMethod == 'max'){
+          if(opt$processIntegraseSites_dualDetectAubundanceMethod == 'max'){
             y$estAbund <- max(o$estAbund)
-          } else if(opt$processHIVsites_dualDetectAubundanceMethod == 'average'){
+          } else if(opt$processIntegraseSites_dualDetectAubundanceMethod == 'average'){
             y$estAbund <- floor(mean(o$estAbund))
           } else {
-            write(c(paste(now(), 'Error - unknown value for processHIVsites_dualDetectAubundanceMethod')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+            write(c(paste(now(), 'Error - unknown value for processIntegraseSites_dualDetectAubundanceMethod')), file = file.path(opt$outputDir, 'log'), append = TRUE)
             q(save = 'no', status = 1, runLast = FALSE) 
           }
           
@@ -88,7 +89,7 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
       
           o <- o[order(abs(mean(o$position) - o$position)),]  # order sites by distance from the center of the distance interval.
           tag <- stringr::str_extract(o$flags, 'HIV_u\\d')    # extract the HIV tags.
-          o$s <- paste(o$strand, tag)                         # create new tag: strand + tag, eg.  + HIV_u5
+          o$s <- paste(o$strand, tag)                         # create new tag: strand + tag, eg.  + IN_u5
           i <- which(! o$s[2:nrow(o)] == o$s[1])[1]+1         # determine the position of the next closest site with opposite strand and tag.
           o1 <- o[c(1, i),]
           
@@ -103,12 +104,12 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
           
           y$flags <- 'U3,U5 merged'
           
-          if(opt$processHIVsites_dualDetectAubundanceMethod == 'max'){
+          if(opt$processIntegraseSites_dualDetectAubundanceMethod == 'max'){
             y$estAbund <- max(o1[1,]$estAbund, o1[2,]$estAbund)
-          } else if(opt$processHIVsites_dualDetectAubundanceMethod == 'average'){
+          } else if(opt$processIntegraseSites_dualDetectAubundanceMethod == 'average'){
             y$estAbund <- floor(mean(o1[1,]$estAbund, o1[2,]$estAbund))
           } else {
-            write(c(paste(now(), 'Error - unknown value for processHIVsites_dualDetectAubundanceMethod.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+            write(c(paste(now(), 'Error - unknown value for processIntegraseSites_dualDetectAubundanceMethod.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
             q(save = 'no', status = 1, runLast = FALSE)
           }
           
@@ -121,22 +122,27 @@ sites <- bind_rows(lapply(split(sites, sites$subject), function(x){
     a <- split( merged_sites, new_sites)
     b <- bind_rows(mapply(function(s, n){ data.frame(site1 = s[1], site2 = s[2], merged_site = n)}, a, names(a), SIMPLIFY = FALSE))
     b$subject <- x$subject[1]
-    readr::write_tsv(b, file.path(opt$outputDir, opt$processHIVsites_outputDir, 'dual_detections.tsv'), append = TRUE)
+    readr::write_tsv(b, file.path(opt$outputDir, opt$processIntegraseSites_outputDir, 'dual_detections.tsv'), append = TRUE)
   }
   
   sites2
 }))
 
 
-# Flip the strand for u3 detections to reflect orientaion rather than alignment strand.
-a <- sites[grepl('HIV_u3', sites$flags, ignore.case = TRUE),]
-b <- sites[! grepl('HIV_u3', sites$flags, ignore.case = TRUE),]
+# Flip the strand for u3 detections to reflect orientation rather than alignment strand.
+a <- sites[grepl('IN_u3', sites$flags, ignore.case = TRUE),]
+b <- sites[! grepl('IN_u3', sites$flags, ignore.case = TRUE),]
 
 if(nrow(a) > 0) a$strand <- ifelse(a$strand == '+', '-', '+')
 sites <- bind_rows(a, b)
+
+sites$strand <- sub('\\*', '\\+', sites$strand) # Replace merged sites strand * with + since it breaks down stream analyses.
+
 sites$posid <- paste0(sites$chromosome, sites$strand, sites$position)
 sites$n <- NULL
 
-saveRDS(sites, file = file.path(opt$outputDir, opt$processHIVsites_outputDir, opt$processHIVsites_outputFile))
+sites <- bind_rows(multiHitSites, sites)
+
+saveRDS(sites, file = file.path(opt$outputDir, opt$processIntegraseSites_outputDir, opt$processIntegraseSites_outputFile))
 
 q(save = 'no', status = 0, runLast = FALSE) 

@@ -11,6 +11,7 @@ opt <- yaml::read_yaml(configFile)
 
 source(file.path(opt$softwareDir, 'lib.R'))
 
+write(c(paste(lubridate::now(), 'Creating required directories.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 dir.create(file.path(opt$outputDir, opt$alignReads_outputDir))
 dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'trimmedAdriftReads'))
 dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'))
@@ -31,6 +32,7 @@ cluster <- makeCluster(opt$alignReads_CPUs)
 clusterExport(cluster, c('opt', 'samples'))
 
 # Read in anchor reads.
+write(c(paste(lubridate::now(), 'Reading anchor reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 anchorReads <- Reduce('append', parLapply(cluster, f[grepl('anchorReads', f)], function(r){
   Biostrings::readDNAStringSet(file.path(opt$inputFastaDir, r))  
 }))
@@ -41,7 +43,8 @@ anchorReads <- Reduce('append', parLapply(cluster, f[grepl('anchorReads', f)], f
 
 anchorReads_preLeaderTrim <- anchorReads
 
-message('Trimming leader sequences')
+write(c(paste(lubridate::now(), 'Removing leader sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 m <- readRDS(file.path(opt$outputDir, opt$alignReads_mapLeaderSequencesOutputFile))
   
 a <- anchorReads[names(anchorReads) %in% m$id]
@@ -70,6 +73,8 @@ if(length(anchorReads) == 0) stop('Error - no anchor reads remain after trimming
   
   
 # Create a mapping of read ids to samples and reference genome.
+write(c(paste(lubridate::now(), 'Creating anchor read map.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 readSampleMap <- bind_rows(lapply(f[grepl('anchorReads', f)], function(r){
                    reads <- readDNAStringSet(file.path(opt$inputFastaDir, r))
                    reads <- anchorReads[names(anchorReads) %in% names(reads)]
@@ -83,6 +88,8 @@ readSampleMap <- bind_rows(lapply(f[grepl('anchorReads', f)], function(r){
 
 # Create Anchor read BLAT chunks such that each chunk contains equal number of reads and 
 # equal numbers of short and long sequences. 
+
+write(c(paste(lubridate::now(), 'Creating mixed anchor read chunks.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 o <- unlist(lapply(split(readSampleMap, readSampleMap$refGenome.id), function(x){
        x <- x[! duplicated(x$seq),]
@@ -100,6 +107,8 @@ o <- unlist(lapply(split(readSampleMap, readSampleMap$refGenome.id), function(x)
 
 
 # For each BLAT chunk, create FASTA files and run BLAT.
+write(c(paste(lubridate::now(), 'Blating anchor reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 invisible(parLapply(cluster, o, function(x){
        f <-  file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1', 
                        paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = '')))
@@ -124,6 +133,8 @@ b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputD
        dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
      }))
 
+write(c(paste(lubridate::now(), 'Processing anchor read alignments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 b <- left_join(b, select(readSampleMap, id, seq), by = c('qName' = 'id'))
 
 anchorReadAlignments <- left_join(select(readSampleMap, id, seq), b, by = 'seq') 
@@ -134,15 +145,20 @@ anchorReadAlignments <- select(anchorReadAlignments, -qName, -seq) %>% dplyr::re
 # Select anchor reads where the ends align to the genome.
 anchorReadAlignments$endDiff <- anchorReadAlignments$qSize - anchorReadAlignments$qEnd
 
-
 i <- (anchorReadAlignments$qSize - anchorReadAlignments$qEnd) <= opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned
+
+if(sum(i) == 0){
+  write(c(paste(lubridate::now(), 'Error - no anchor read alignments remain after alignReads_genomeAlignment_anchorReadEnd_maxUnaligned filter.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE)
+}
+
 anchorReadAlignments <- anchorReadAlignments[i,]
-
-
 
 
 # We need to reconstruct the leader sequences by determining what we removed before aligning and adding on additional
 # NTs for those alignments which do not start at qStart = 1. Not All reads were trimmed going in because some mappings may of failed.
+
+write(c(paste(lubridate::now(), 'Reconstructing anchor read leader sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 anchorReadAlignments <- left_join(anchorReadAlignments, tibble(id = names(anchorReads_preLeaderTrim), readSeq = as.character(anchorReads_preLeaderTrim)), by = c('qName' = 'id'))
 
@@ -159,8 +175,12 @@ anchorReadAlignments$leaderMapping.qEnd <- NULL
 
 anchorReadAlignments$readSeq <-NULL
 
+write(c(paste(lubridate::now(), 'Anchor read processing complete.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
+
+write(c(paste(lubridate::now(), 'Reading in adrift reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 # Read in adrift reads and limit reads to found in the adrift reads alignment
 adriftReads <- shortRead2DNAstringSet(Reduce('append', lapply(f[grepl('adriftReads', f)], function(r){
@@ -177,6 +197,9 @@ anchorReadAlignments <- anchorReadAlignments[nchar(anchorReadAlignments$leaderSe
 
 # Retrieve the 10NTs before anchor read alignments begin which will be used for adrift read over-reading trimming. 
 # Need to map by both read id and query start because a read can align with multiple start positions
+
+write(c(paste(lubridate::now(), 'Building adrift read adapter table.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 adriftReadsAdapters <- tibble(id = anchorReadAlignments$qName, 
                               adapter = as.character(reverseComplement(DNAStringSet(substr(anchorReadAlignments$leaderSeq, nchar(anchorReadAlignments$leaderSeq)-9, nchar(anchorReadAlignments$leaderSeq))))))
 
@@ -196,6 +219,8 @@ adriftReadsAdapters <- bind_rows(subset(adriftReadsAdapters, ! id %in% dupReadId
 # Trim adrift read over-reading.
 clusterExport(cluster, c('opt', 'samples', 'adriftReads', 'parseCutadaptLog', 'tmpFile'))
 
+write(c(paste(lubridate::now(), 'Trimming anchor read over-read NTs.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 adriftReads <- Reduce('append', parLapply(cluster, split(adriftReadsAdapters, adriftReadsAdapters$adapter), function(x){
 #adriftReads <- Reduce('append', lapply(split(adriftReadsAdapters, adriftReadsAdapters$adapter), function(x){
   f <- tmpFile()
@@ -203,7 +228,7 @@ adriftReads <- Reduce('append', parLapply(cluster, split(adriftReadsAdapters, ad
   
   ShortRead::writeFasta(adriftReads[names(adriftReads) %in% x$id], file = file.path(opt$outputDir, opt$alignReads_outputDir, 'trimmedAdriftReads', f))
   
-  system(paste0(opt$command_cutadapt, ' -f fasta  -e 0.15 ', adapter, ' --overlap 2 ',
+  system(paste0(opt$command_cutadapt, ' -e 0.15 ', adapter, ' --overlap 2 ',
                ### '--info-file=', file.path(opt$outputDir, opt$alignReads_outputDir, 'trimmedAdriftReadsLogs', paste0(x$adapter[1], '.log')), ' ',
                 file.path(opt$outputDir, opt$alignReads_outputDir, 'trimmedAdriftReads', f), ' > ', file.path(opt$outputDir, opt$alignReads_outputDir, 'trimmedAdriftReads', paste0(f, '.trimmed'))), ignore.stderr = TRUE)
 
@@ -217,6 +242,9 @@ adriftReads <- adriftReads[width(adriftReads) >= opt$alignReads_minAdriftReadLen
 
 
 # Create a mapping of read ids to samples and reference genome.
+
+write(c(paste(lubridate::now(), 'Building adrift read map.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 readSampleMap <- bind_rows(lapply(f[grepl('adriftReads', f)], function(r){
   reads <- readDNAStringSet(file.path(opt$inputFastaDir, r))
   reads <- adriftReads[names(adriftReads) %in% names(reads)]
@@ -226,6 +254,8 @@ readSampleMap <- bind_rows(lapply(f[grepl('adriftReads', f)], function(r){
          seq = as.character(reads)) 
 })) %>% left_join(select(samples, uniqueSample, refGenome.id), by = c('sample' = 'uniqueSample')) 
 
+
+write(c(paste(lubridate::now(), 'Creating mixed adrift read chunks.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 o <- unlist(lapply(split(readSampleMap, readSampleMap$refGenome.id), function(x){
   x <- x[! duplicated(x$seq),]
@@ -244,7 +274,9 @@ o <- unlist(lapply(split(readSampleMap, readSampleMap$refGenome.id), function(x)
 
 
 # For each BLAT chunk, create FASTA files and run BLAT.
-# Orignally developed with -tileSize=11 -stepSize=9
+
+write(c(paste(lubridate::now(), 'Blating adrift reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 invisible(parLapply(cluster, o, function(x){
   f <-  file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2', 
                   paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = '')))
@@ -259,6 +291,8 @@ invisible(parLapply(cluster, o, function(x){
 
 
 stopCluster(cluster)
+
+write(c(paste(lubridate::now(), 'Processing adrift read alignments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 # Parse and colate BLAT results.
 b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'), pattern = '*.psl', full.names = TRUE), function(x){
@@ -277,24 +311,45 @@ adriftReadAlignments <- select(adriftReadAlignments, -qName, -seq) %>% dplyr::re
 
 # Select adrift reads where the ends align to the genome.
 i <- (adriftReadAlignments$qSize - adriftReadAlignments$qEnd) <= opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned
+
+if(sum(i) == 0){
+  write(c(paste(lubridate::now(), 'Error - no adrift read alignments remain after alignReads_genomeAlignment_adriftReadEnd_maxUnaligned filter.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE)
+}
+
 adriftReadAlignments <- adriftReadAlignments[i,]
 
 
 # Select adrift reads with alignments that start at the beginning of reads.
 i <- adriftReadAlignments$qStart <= opt$alignReads_genomeAlignment_adriftReadMaxStart
+
+if(sum(i) == 0){
+  write(c(paste(lubridate::now(), 'Error - no adrift read alignments remain after alignReads_genomeAlignment_adriftReadMaxStart filter.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE)
+}
+
 adriftReadAlignments <- adriftReadAlignments[i,]
 
-
 i <- base::intersect(anchorReadAlignments$qName, adriftReadAlignments$qName)
+
+if(length(i) == 0){
+  write(c(paste(lubridate::now(), 'Error - no shared read ids found between anchor and adrift read alignments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE)
+}
+
 anchorReadAlignments <- anchorReadAlignments[anchorReadAlignments$qName %in% i,]
 adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$qName %in% i,]
-
 
 anchorReadAlignments <- left_join(anchorReadAlignments, select(readSampleMap, sample, id), by = c('qName' = 'id'))
 adriftReadAlignments <- left_join(adriftReadAlignments, select(readSampleMap, sample, id), by = c('qName' = 'id'))
 
-
 saveRDS(anchorReadAlignments, file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_anchorReadAlignmentsOutputFile))  
 saveRDS(adriftReadAlignments, file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_adriftReadAlignmentsOutputFile)) 
+
+if(! opt$alignReads_keepIntermediateFiles){
+  unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), recursive = TRUE)
+  unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'), recursive = TRUE)
+  unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'trimmedAdriftReads'), recursive = TRUE)
+}
 
 q(save = 'no', status = 0, runLast = FALSE) 
