@@ -12,14 +12,11 @@ dir.create(file.path(opt$outputDir, opt$callNearestOncoGenes_outputDir))
 
 sites <- readRDS(file.path(opt$outputDir, opt$callNearestOncoGenes_inputFile))
 
-# Undo dual detection notation - switch them to '+'
-sites$posid <- sub('\\*', '\\+', sites$posid)
-
-if(! 'posid' %in% names(sites)) stop('Error -- posid not found in sites data.')
-
-samples <- loadSamples()
+multiHitSites <- subset(sites, chromosome == 'Mult')
+sites <- subset(sites, chromosome != 'Mult')
 
 # Need to add trial ids to sites.
+samples <- loadSamples()
 samples$n <- paste0(samples$trial, '~', samples$subject, '~', samples$sample)
 sites$n <- paste0(samples$trial, '~', sites$subject, '~', sites$sample)
 
@@ -107,6 +104,8 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome.id), function(x)
 
 
 sites$refGenome.id <- NULL
+
+if(nrow(multiHitSites) > 0) sites <- bind_rows(multiHitSites, sites)
 
 saveRDS(sites, file.path(opt$outputDir, opt$callNearestOncoGenes_outputDir, opt$callNearestOncoGenes_outputFile))
 

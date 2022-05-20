@@ -15,14 +15,45 @@ dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
 
 write(c(paste(now(), 'Reading in fragment file(s).')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-opt$buildStdFragments_inputFiles <- gsub('\\s*,\\s*', ',', opt$buildStdFragments_inputFiles)
+samples <- loadSamples()
 
-frags <- bind_rows(lapply(unlist(strsplit(opt$buildStdFragments_inputFiles, ',')), function(x){
-           write(c(paste(now(), '  reading in ', x)), file = file.path(opt$outputDir, 'log'), append = TRUE)
-           readRDS(file.path(opt$outputDir, x))
-         }))
+if('databaseGroup' %in% names(opt)){
+  library(RMariaDB)
+  library(DBI)
+  con <- dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+  
+  write(c(paste(now(), '  Reading in fragment data from database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  
+  # Retrieve all fragments for unique trial / subject pairs.
+  # This may retrieve fragments for samples outside of the current sample list but 
+  # this is intended since we need to standardize sites across all samples.
+  o <- distinct(dplyr::select(samples, trial, subject))
+  frags <- bind_rows(lapply(split(o, 1:nrow(o)), function(x){
+    r <- dbGetQuery(con, paste0("select * from fragments where subject='", x$subject, "' and trial='", x$trial, "'"))
+    r2 <- tibble()
+    if(nrow(r) > 0){
+      r2 <- bind_rows(lapply(split(r, 1:nrow(r)), function(x2){
+         d <- unserialize(x2$data[[1]])
+         d$refGenome <- x2$refGenome
+         d
+      }))
+    }
+    r2
+  }))
+  
+  dbDisconnect(con)
+} else {
+  opt$buildStdFragments_inputFiles <- gsub('\\s*,\\s*', ',', opt$buildStdFragments_inputFiles)
+
+  frags <- bind_rows(lapply(unlist(strsplit(opt$buildStdFragments_inputFiles, ',')), function(x){
+             write(c(paste(now(), '  reading in local data file ', x)), file = file.path(opt$outputDir, 'log'), append = TRUE)
+             readRDS(file.path(opt$outputDir, x))
+           }))
+}
 
 frags$uniqueSample <- paste0(frags$trial, '~', frags$subject, '~', frags$sample, '~', frags$replicate)
+frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', frags$replicate, ':', frags$chromosome, ':', frags$strand, ':', frags$fragStart, ':', frags$fragEnd)
+
 
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
@@ -69,7 +100,7 @@ frags$fragStart <- frags$start
 frags$fragEnd <- frags$end
 frags$start <- NULL
 frags$end <- NULL
-frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', frags$replicate, ':', frags$strand, ':', frags$fragStart, ':', frags$fragEnd)
+frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', frags$replicate, ':', frags$chromosome, ':', frags$strand, ':', frags$fragStart, ':', frags$fragEnd)
 frags$posid <-paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 
 multiHitFrags <- tibble()
@@ -157,6 +188,7 @@ s <- split(f, f$fragID)
 write(c(paste(now(), 'Regrouping standardized fragments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 frags <- bind_rows(parLapply(cluster, s, function(a){ 
+#frags <- bind_rows(lapply(s, function(a){   
   library(dplyr)
   source(file.path(opt$softwareDir, 'lib.R'))
   
@@ -172,8 +204,7 @@ frags <- bind_rows(parLapply(cluster, s, function(a){
   a$reads <- sum(a$reads)
   
   reads <- unique(unlist(a$readIDlist))
-  
-  a <- a[1, c(6:9, 2:5, 13, 12, 15, 10)]
+  a <- a[1,]
   a$readIDlist <- list(reads)
   a
 }))
@@ -205,7 +236,7 @@ if(nrow(multiHitFrags) > 0){
     reads <- n_distinct(a$readIDlist)
     readIDlist <- unique(a$readIDlist)
     
-    a <- a[1, c(6:9, 2:5, 13, 12, 15, 10)]
+    a <- a[1,]
     a$readIDlist <- list(readIDlist)
     a
   }))

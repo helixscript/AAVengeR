@@ -14,8 +14,6 @@ sites <- readRDS(file.path(opt$outputDir, opt$callNearestGenes_inputFile))
 multiHitSites <- subset(sites, chromosome == 'Mult')
 sites <- subset(sites, chromosome != 'Mult')
 
-
-
 # Need to add trial ids to sites.
 samples <- loadSamples()
 samples$n <- paste0(samples$trial, '~', samples$subject, '~', samples$sample)

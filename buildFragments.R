@@ -240,9 +240,38 @@ frags <- bind_rows(lapply(frags, function(x){
 
 stopCluster(cluster)
 
-frags <- dplyr::select(frags, trial, subject, sample, replicate, strand, 
-                       fragStart, fragEnd, reads, repLeaderSeq, flags, readIDlist, fragID)
+frags <- dplyr::select(frags, trial, subject, sample, replicate, chromosome, strand, 
+                       fragStart, fragEnd, reads, repLeaderSeq, flags, readIDlist)
 
-saveRDS(distinct(frags), file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
+frags$compDate <- as.character(lubridate::today())
+frags$dataLabel <- opt$dataLabel
+frags$uniqueSample <- paste0(frags$trial, '~', frags$subject,  '~', frags$sample,  '~', frags$replicate)
+frags <- left_join(frags, dplyr::select(samples, uniqueSample, refGenome.id), by = 'uniqueSample')
+
+saveRDS(distinct(frags), file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile), compress = 'xz')
+
+if('databaseGroup' %in% names(opt)){
+  library(RMariaDB)
+  library(DBI)
+  con <- dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+  
+  invisible(lapply(split(frags, paste(frags$uniqueSample, frags$refGenome.id)), function(x){
+
+    dbExecute(con, paste0("delete from fragments where trial='", x$trial[1], "' and subject='", x$subject[1], 
+           "' and sample='", x$sample[1], "' and replicate='", x$replicate[1], "' and refGenome='", x$refGenome.id[1], "'"))
+    
+    r <- dbExecute(con,
+              "insert into fragments values (?, ?, ?, ?, ?, ?, ?, ?)",
+              params = list(x$trial[1], x$subject[1], x$sample[1], x$replicate[1], x$refGenome.id[1],
+                            x$dataLabel[1], x$compDate[1], list(serialize(dplyr::select(x, -uniqueSample, -refGenome.id, -dataLabel, -compDate), NULL))))
+    
+    if(r == 0){
+        write(c(paste(now(), 'Errror -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+        q(save = 'no', status = 1, runLast = FALSE) 
+      }
+  }))
+  
+  dbDisconnect(con)
+}
 
 q(save = 'no', status = 0, runLast = FALSE) 

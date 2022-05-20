@@ -1,3 +1,12 @@
 GRANT ALL ON *.* TO 'admin'@'localhost' IDENTIFIED BY 'iAmAdmin+1' WITH GRANT OPTION
 
+CREATE TABLE fragments (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), 
+replicate TINYINT UNSIGNED, refGenome VARCHAR(25), dataLabel VARCHAR(100), compDate DATE, data LONGBLOB);
 
+
+[AAVengeR]
+user=admin
+password=iAmAdmin+1
+host=localhost
+port=3306
+database=AAVengeR
