@@ -96,6 +96,11 @@ if('buildSites_multiHitSites_inputFile' %in% names(opt)){
   }
 }
 
+samples <- loadSamples()
+samples$n <- paste0(samples$trial, '~', samples$subject, '~', samples$sample)
+sites$n <- paste0(sites$trial, '~', sites$subject, '~', sites$sample)
+sites <- left_join(sites, distinct(select(samples, n, refGenome.id)), by = 'n') %>% dplyr::select(-n)
+
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
 
 q(save = 'no', status = 0, runLast = FALSE) 

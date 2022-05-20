@@ -14,12 +14,6 @@ sites <- readRDS(file.path(opt$outputDir, opt$callNearestGenes_inputFile))
 multiHitSites <- subset(sites, chromosome == 'Mult')
 sites <- subset(sites, chromosome != 'Mult')
 
-# Need to add trial ids to sites.
-samples <- loadSamples()
-samples$n <- paste0(samples$trial, '~', samples$subject, '~', samples$sample)
-sites$n <- paste0(samples$trial, '~', sites$subject, '~', sites$sample)
-sites <- left_join(sites, select(samples, n, refGenome.id), by = 'n')
-
 sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome.id), function(x){
   
            genes <- file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x$refGenome.id[1], '.TUs.rds'))
@@ -78,12 +72,10 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome.id), function(x)
           n <- n[!duplicated(n$posid2),]
           x$posid2 <- sub('\\.\\d+', '', x$posid)
           
-          left_join(x, select(n, nearestGene, nearestGeneStrand, nearestGeneDist, inGene, inExon, beforeNearestGene, posid2), by = 'posid2') %>% select(-n, -posid2)
+          left_join(x, select(n, nearestGene, nearestGeneStrand, nearestGeneDist, inGene, inExon, beforeNearestGene, posid2), by = 'posid2') %>% select(-posid2)
        })))
 
 sites$posid <- paste0(sites$chromosome, sites$strand, sites$position)
-
-sites$refGenome.id <- NULL
 
 if(nrow(multiHitSites) > 0) sites <- bind_rows(multiHitSites, sites)
 

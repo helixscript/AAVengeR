@@ -9,11 +9,7 @@ source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$processIntegraseSites_outputDir))
 
-# Mult
-# Multiple site files supported, eg. load U3 and U5 experiments.
-sites <- bind_rows(lapply(unlist(strsplit(opt$processIntegraseSites_inputFiles, ',')), function(x){
-           readRDS(file.path(opt$outputDir, x))
-         }))
+sites <- readRDS(file.path(opt$outputDir, opt$processIntegraseSites_inputFiles))
 
 multiHitSites <- subset(sites, chromosome == 'Mult')
 sites <- subset(sites, chromosome != 'Mult')

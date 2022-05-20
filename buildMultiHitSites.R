@@ -30,16 +30,17 @@ if(nrow(multiHitFrags) > 0 & nrow(multiHitReads) > 0){
 
   multiHitSites <- bind_rows(lapply(split(multiHitSites, paste(multiHitSites$subject, multiHitSites$sample)), function(x){
 
-  # Define posid network nodes.
-  nodes <- data.frame(name = x$posid, estAbund = x$estAbund, reads = x$reads)
+    # Define posid network nodes.
+    nodes <- data.frame(name = x$posid, estAbund = x$estAbund, reads = x$reads)
   
-  # Retrieve reads IDs for posid nodes. 
-  r <- subset(multiHitReads, subject == x$subject[1] & sample == x$sample[1] & posids %in% nodes$name)
+    # Retrieve reads IDs for posid nodes. 
+    r <- subset(multiHitReads, subject == x$subject[1] & sample == x$sample[1] & posids %in% nodes$name)
+  
     # For each read id, create different permutations of posids connected by the read id.
     edges <- bind_rows(lapply(split(r, r$readIDlist), function(y){
-      o <- RcppAlgos::comboGeneral(unique(y$posids), 2)
-      data.frame(from = o[,1], to = o[,2])
-    }))
+               o <- RcppAlgos::comboGeneral(unique(y$posids), 2)
+               data.frame(from = o[,1], to = o[,2])
+             }))
     
     # Build simple graph with no loops or multiple edges.
     g <- igraph::simplify(graph_from_data_frame(edges, directed=FALSE, vertices=nodes))
