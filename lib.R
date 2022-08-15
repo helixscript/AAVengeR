@@ -74,6 +74,37 @@ unpackUniqueSampleID <- function(d){
 }
 
 
+
+
+# Function to remove minor sequence variation from short sequences.
+conformMinorSeqDiffs <- function(x, editDist = 1, abundSeqMinCount = 10){
+  tab <- table(unname(x))
+  if(length(tab[tab >= abundSeqMinCount]) == 0) return(x)
+  
+  abundant_codes <- names(tab[tab >= abundSeqMinCount])
+  nonAbundant_codes <- names(tab[tab < abundSeqMinCount])
+  
+  # All codes are the abundant code.
+  if(length(nonAbundant_codes) == 0) return(x)
+  
+  conversion_table <- tibble(a = nonAbundant_codes,
+                             b = unlist(lapply(nonAbundant_codes, function(x){
+                               z <- stringdist::stringdist(x, abundant_codes, nthread = 10)
+                               i <- which(z <= editDist)
+                               if(length(i) == 1) x <- abundant_codes[i]
+                               if(length(i) > 1) x <- paste0(rep('N', nchar(x)), collapse = '')
+                               x  
+                             }))) %>% filter(a != b)
+  
+  unlist(lapply(x, function(y){
+    if(y %in% conversion_table$a) y <- conversion_table[match(y, conversion_table$a),]$b
+    y
+  }))
+}
+
+
+
+
 parse_cdhitest_output <- function (file) {
   clusters <- readChar(file, file.info(file)$size)
   clusters <- unlist(base::strsplit(clusters, ">Cluster"))

@@ -1,15 +1,23 @@
 library(dplyr)
 library(lubridate)
+library(Biostrings)
+library(sonicLength)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
-
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 
+# Read in Standardized fragments.
 frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile))
+
+randomIDs <- tibble()
+if(opt$demultiplex_captureRandomLinkerSeq){
+  randomIDs <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir), pattern = 'randomIDs', full.names = TRUE), readDNAStringSet))
+  randomIDs <- tibble(id = names(randomIDs), seq = as.character(randomIDs))
+}
 
 if('buildSites_excludeSites' %in% names(opt)){
   p <- unlist(lapply(strsplit(unlist(strsplit(opt$buildSites_excludeSites, '\\|')), ','), function(x){
@@ -34,10 +42,70 @@ if(opt$buildSites_level == 'replicate'){
 } else {
   stop('Error: buildSites_level not defined with replicate, sample, or subject')
 }
+
+frags$uniqueSample <- paste0(frags$trial, '~', frags$subject, '~', frags$sample, '~', frags$replicate)
+
+sonicLengths <- tibble()
+
+if(opt$buildSites_sonicLengthAbund){
+  sonicLengths <- bind_rows(lapply(split(frags, frags$s), function(x){
+    
+   #message('a ', x$uniqueSample[1], ' - ', nrow(x))
+   #if(x$uniqueSample[1] == 'Encoded~p2003_L~GTSP5112~4') browser()
+    
+    # Sonic length fails on 1 fragment.
+    if(nrow(x) == 1){
+      z <- list()
+      z$theta <- 1
+    } else {
+      z <- estAbund(x$posid, x$fragWidth) 
+    }
+    
+    message('b ', x$uniqueSample[1])
+    
+    tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], 
+          replicate = x$replicate[1], uniqueSample = x$uniqueSample[1],
+          repLeaderSeqGroup = x$repLeaderSeqGroup[1],
+          posid = x$posid[1], estAbund = floor(z$theta))
+    }))
   
+  if(opt$buildSites_level == 'replicate'){
+    sonicLengths$s <- paste(sonicLengths$trial, sonicLengths$subject, sonicLengths$sample, sonicLengths$replicate, sonicLengths$repLeaderSeqGroup, sonicLengths$posid)
+  } else if (opt$buildSites_level == 'sample'){
+    sonicLengths$s <- paste(sonicLengths$trial, sonicLengths$subject, sonicLengths$sample, sonicLengths$repLeaderSeqGroup, sonicLengths$posid)
+  } else if (opt$buildSites_level == 'subject'){
+    sonicLengths$s <- paste(sonicLengths$trial, sonicLengths$subject, sonicLengths$repLeaderSeqGroup, sonicLengths$posid)
+  } else {
+    stop('Error: buildSites_level not defined with replicate, sample, or subject')
+  }
+}
+
 sites <- bind_rows(lapply(split(frags, frags$s), function(x){
   
+  #message(x$posid[1])
+  #if(x$posid[1] == 'chr2+46422396') browser()
+  
   if(opt$buildStdFragments_categorize_anchorRead_remnants) x$posid <- paste0(x$posid, '.', x$repLeaderSeqGroup)
+  
+  if(opt$buildSites_sonicLengthAbund){
+    estAbund <- sonicLengths[sonicLengths$s == x$s[1],]$estAbund
+  }else{
+    estAbund <- sum(unlist(lapply(split(x, x$uniqueSample), function(x) n_distinct(x$fragWidth))))
+  }
+  
+  molCodes <- NA
+  if(opt$demultiplex_captureRandomLinkerSeq){
+    molCodes <- sum(unlist(lapply(split(x, x$uniqueSample), function(x){
+      molCodes <- randomIDs[match(unlist(x$readIDlist), randomIDs$id),]$seq
+      n_distinct(conformMinorSeqDiffs(molCodes, editDist = opt$buildSites_molCodes_minEditDist, abundSeqMinCount = opt$buildSites_molCodes_abundSeqMinCount))
+    })))
+  }
+  
+  if('flags' %in% names(samples)){
+    x$flags <- paste0(unique(subset(samples, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1])$flags), collapse = ',')
+  } else {
+    x$flags <- NA
+  }
   
   if(nrow(x) > 1){
     i <- rep(TRUE, nrow(x))
@@ -47,9 +115,10 @@ sites <- bind_rows(lapply(split(frags, frags$s), function(x){
     
     if(r[[1]] > opt$buildStdFragments_maxLeaderSeqDiffScore){
       # There is a conflict, one or more fragments have a markedly different leader sequences then the other fragments.
-      # Attempt to salvage this site by retaining the majority of fragments with similiar leader sequences.
+      # Attempt to salvage this site by retaining the majority of fragments with similar leader sequences.
       
       i <- as.vector(stringdist::stringdistmatrix(x$repLeaderSeq, r[[2]]) / nchar(x$repLeaderSeq) <= opt$buildStdFragments_maxLeaderSeqDiffScore)
+      
       if(sum(i)/nrow(x) >= opt$buildSites_assemblyConflictResolution){
         x <- x[i,]
         r <- representativeSeq(x$repLeaderSeq)
@@ -58,48 +127,42 @@ sites <- bind_rows(lapply(split(frags, frags$s), function(x){
       }
     }
     
-    if('flags' %in% names(samples)){
-      x$flags <- paste0(unique(subset(samples, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1])$flags), collapse = ',')
-    } else {
-      x$flags <- NA
+    # EstAbund and molCodes need to be recalculated since fragments were removed.
+    if(opt$buildSites_sonicLengthAbund){
+      estAbund <- sonicLengths[sonicLengths$s == x$s[1],]$estAbund
+    }else{
+      estAbund <- sum(unlist(lapply(split(x, x$uniqueSample), function(x) n_distinct(x$fragWidth))))
     }
     
-    return(dplyr::mutate(x, estAbund = n_distinct(fragWidth), position = ifelse(strand[1] == '+', fragStart[1], fragEnd[1]), 
-                  reads = sum(reads), repLeaderSeq = r[[2]], fragmentsRemoved = sum(!i)) %>%
-           dplyr::select(trial, subject, sample, replicate, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags) %>%
-           dplyr::slice(1))
-    }else{
-      if('flags' %in% names(samples)){
-        x$flags <- paste0(unique(subset(samples, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1])$flags), collapse = ',')
-      } else {
-        x$flags <- NA
-      }
-      
-      return(dplyr::mutate(x, estAbund = n_distinct(fragWidth), position = ifelse(strand[1] == '+', fragStart[1], fragEnd[1]), fragmentsRemoved = 0) %>%
-             dplyr::select(trial, subject, sample, replicate, chromosome, strand, position, posid, estAbund, reads, fragmentsRemoved, repLeaderSeq, flags))
+    molCodes <- NA
+    if(opt$demultiplex_captureRandomLinkerSeq){
+      molCodes <- sum(unlist(lapply(split(x, x$uniqueSample), function(x){
+        molCodes <- randomIDs[match(unlist(x$readIDlist), randomIDs$id),]$seq
+        n_distinct(conformMinorSeqDiffs(molCodes, editDist = opt$buildSites_molCodes_minEditDist, abundSeqMinCount = opt$buildSites_molCodes_abundSeqMinCount))
+      })))
+    }
+    
+    return(dplyr::mutate(x, estAbund = estAbund, linkerMolCodes = molCodes, position = ifelse(strand[1] == '+', fragStart[1], fragEnd[1]), 
+                         reads = sum(reads), repLeaderSeq = r[[2]], fragmentsRemoved = sum(!i)) %>%
+             dplyr::select(trial, subject, sample, replicate, chromosome, strand, position, posid, estAbund, linkerMolCodes, reads, fragmentsRemoved, repLeaderSeq, flags) %>%
+             dplyr::slice(1))
+  }else{
+    return(dplyr::mutate(x, estAbund = estAbund, linkerMolCodes = molCodes, position = ifelse(strand[1] == '+', fragStart[1], fragEnd[1]), fragmentsRemoved = 0) %>%
+             dplyr::select(trial, subject, sample, replicate, chromosome, strand, position, posid, estAbund, linkerMolCodes, reads, fragmentsRemoved, repLeaderSeq, flags))
   }
 }))
 
+if(! opt$demultiplex_captureRandomLinkerSeq){
+  sites <- dplyr::select(sites, -linkerMolCodes)
+}
+
 if (opt$buildSites_level == 'sample'){
-  sites$replicate <- NA
+  sites <- dplyr::select(sites, -replicate)
 } 
 
 if (opt$buildSites_level == 'subject'){
-  sites$replicate <- NA
-  sites$sample <- NA
+  sites <- dplyr::select(sites, -replicate, -sample)
 } 
-
-if('buildSites_multiHitSites_inputFile' %in% names(opt)){
-  if(file.exists(file.path(opt$outputDir, opt$buildSites_multiHitSites_inputFile))){
-    m <- readRDS(file.path(opt$outputDir, opt$buildSites_multiHitSites_inputFile))
-    sites <- bind_rows(m, sites)
-  }
-}
-
-samples <- loadSamples()
-samples$n <- paste0(samples$trial, '~', samples$subject, '~', samples$sample)
-sites$n <- paste0(sites$trial, '~', sites$subject, '~', sites$sample)
-sites <- left_join(sites, distinct(select(samples, n, refGenome.id)), by = 'n') %>% dplyr::select(-n)
 
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
 

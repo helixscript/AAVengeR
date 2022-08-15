@@ -2,10 +2,10 @@ library(dplyr)
 library(stringr)
 library(RMySQL)
 
-sampleSheet <- '~/zeta/220405_MN01490_0071_A000H3VTVJ/SampleSheet.csv'
-outputFile  <- '~/zeta/sampleData.tsv'
-refGenome.id <- 'hg38'
-trialID <- 'cd4Zeta'
+sampleSheet <- '/home/ubuntu/projects/Encoded/20220720/KC3G6/SampleSheet.csv'
+outputFile  <- '/home/ubuntu/projects/Encoded/20220720/sampleData.tsv'
+refGenome.id <- 'macFas6_alu_before_MALAT1_site'
+trialID <- 'Encoded'
 
 f <- readLines(sampleSheet)
 s <- read.csv(textConnection(f[(which(grepl('\\[metaData\\]', f))+1):length(f)]), header = TRUE)
@@ -26,18 +26,18 @@ r <- tibble(trial = trialID,
             sample = samples,
             replicate = str_extract(s$alias, '(\\d+)$'),
             index1.seq = s$bcSeq,
+            adriftRead.linkerBarcode.start = 1,
+            adriftRead.linkerBarcode.end = str_locate(s$linkerSequence, 'NNNNNNNNNNNN')[,1]-1,
+            adriftRead.linkerRandomID.start =  str_locate(s$linkerSequence, 'NNNNNNNNNNNN')[,1],
+            adriftRead.linkerRandomID.end = str_locate(s$linkerSequence, 'NNNNNNNNNNNN')[,2],
             refGenome.id = refGenome.id,
             adriftRead.linker.seq = s$linkerSequence,
-            vectorFastaFile = s$vectorSeq,
-            leaderSeqHMM = 'cd4Zeta.hmm',
-            flags = 'HIV_u5')
+            vectorFastaFile = 'Encoded.ALUs_masked.fasta',
+            flags = 'AAV')
             
 write.table(r, file = outputFile, sep='\t', col.names = TRUE, row.names = FALSE, quote = FALSE)
 
 
-#adriftRead.linkerBarcode.start = 1,
-#adriftRead.linkerBarcode.end = str_locate(s$linkerSequence, 'NNNNNNNNNNNN')[,1]-1,
-#adriftRead.linkerRandomID.start =  str_locate(s$linkerSequence, 'NNNNNNNNNNNN')[,1],
-#adriftRead.linkerRandomID.end = str_locate(s$linkerSequence, 'NNNNNNNNNNNN')[,2],
+
 
 

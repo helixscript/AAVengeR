@@ -112,15 +112,13 @@ invisible(parLapply(cluster, files, function(x){
   library(Biostrings)
   library(dplyr)
   source(file.path(opt$softwareDir, 'lib.R'))
-  message(x)
   
   a <- readDNAStringSet(x)
   b <- readDNAStringSet(sub('anchorReads', 'adriftReads', x))
   
   if(length(a) != length(b)){
-    message('Error -- ', x)
-    
-    return()
+    write(c(paste(now(), 'Error - creatung unique fasta; anchor and adrift reads are different lengths')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE)
   }
   
   d <- tibble(id = names(a), seq = paste0(as.character(a), as.character(b)))

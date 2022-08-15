@@ -34,7 +34,7 @@ write(c(date(), floor(as.numeric(now()))), file.path(opt$outputDir, 'log'), appe
 # Execute each module defined in opt$modules.
 invisible(lapply(opt$modules, function(m){
   write(c(paste(now(), 'Starting', m)), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  r <- system(paste(opt$Rscript, file.path(opt$softwareDir, m), configFile))
+  r <- system(paste(opt$Rscript, file.path(opt$softwareDir, paste0(m, '.R')), configFile))
   if(r != 0){
     write(c(paste(now(), 'module', m, 'failed, please see log for details.')), file = file.path(opt$outputDir, 'log'), append = TRUE) 
     q(save = 'no', status = 1, runLast = FALSE)

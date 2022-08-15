@@ -162,12 +162,12 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
           log.report$demultiplexedReads <- 0
       } else {
         if(opt$demultiplex_captureRandomLinkerSeq){
-          #browser()
-          writeFasta(subseq(adriftReads, r$adriftRead.linkerRandomID.start, r$adriftRead.linkerRandomID.end), file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.randomAdriftReadIDs')))
+          writeFasta(subseq(adriftReads, r$adriftRead.linkerRandomID.start, r$adriftRead.linkerRandomID.end), 
+                     file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.randomAdriftReadIDs.gz')), compress = TRUE)
         }
         
-        writeFasta(anchorReads, file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.anchorReads')))
-        writeFasta(adriftReads, file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.adriftReads')))
+        writeFasta(anchorReads, file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.anchorReads.gz')), compress = TRUE)
+        writeFasta(adriftReads, file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.adriftReads.gz')), compress = TRUE)
         log.report$demultiplexedReads <- length(index1Reads)
       }
     }
@@ -180,6 +180,8 @@ stopCluster(cluster)
 
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), recursive = TRUE))
     
+# Here.
+
 # Collate chunked reads and write out sample read files.
 write(paste(now(), 'Colating data files.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 invisible(lapply(unique(samples$uniqueSample), function(x){
@@ -190,8 +192,8 @@ invisible(lapply(unique(samples$uniqueSample), function(x){
   anchorReads <- Reduce('append', lapply(f1, readFasta))
   adriftReads <- Reduce('append', lapply(f2, readFasta))
   
-  writeFasta(anchorReads, file.path(opt$outputDir, opt$demultiplex_outputDir, paste0(x, '.anchorReads.fasta')))
-  writeFasta(adriftReads, file.path(opt$outputDir, opt$demultiplex_outputDir, paste0(x, '.adriftReads.fasta')))
+  writeFasta(anchorReads, file.path(opt$outputDir, opt$demultiplex_outputDir, paste0(x, '.anchorReads.fasta.gz')), compress = TRUE)
+  writeFasta(adriftReads, file.path(opt$outputDir, opt$demultiplex_outputDir, paste0(x, '.adriftReads.fasta.gz')), compress = TRUE)
 }))
 
 
@@ -200,10 +202,10 @@ if(opt$demultiplex_captureRandomLinkerSeq){
   write(paste(now(), 'Capturing random IDs from linker sequences.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
   invisible(lapply(unique(samples$uniqueSample), function(x){
     
-    # f <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.anchorReads'), full.names = TRUE)
     f <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.randomAdriftReadIDs'), full.names = TRUE)
     if(length(f) == 0) return()
-    writeFasta(Reduce('append', lapply(f, readFasta)), file.path(opt$outputDir, opt$demultiplex_outputDir, paste0(x, '.randomIDs.fasta')))
+    writeFasta(Reduce('append', lapply(f, readFasta)), 
+               file.path(opt$outputDir, opt$demultiplex_outputDir, paste0(x, '.randomIDs.fasta.gz')), compress = TRUE)
   }))
 }
 
