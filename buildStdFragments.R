@@ -77,6 +77,7 @@ if(opt$buildStdFragments_categorize_anchorRead_remnants){
 
 
 # Standardize fragments.
+# MN01490:66:000H3T5LT:1:22103:4969:7952
 write(c(paste(now(), 'Standardizing fragment boundaries.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 frags_std <- standardizedFragments(frags, opt, cluster)
 
@@ -105,6 +106,8 @@ frags$posid <-paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+',
 
 multiHitFrags <- tibble()
 
+# save.image('~/buildStdFrags.RData')
+
 if(opt$buildStdFragments_salvageMultiHits){
   write(c(paste(now(), 'Salavaging multi-hit fragments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
@@ -113,17 +116,21 @@ if(opt$buildStdFragments_salvageMultiHits){
 
   # Identify reads which map to more than position id and define these as multi-hit reads.
   o <- group_by(z, readIDlist) %>%
-       summarise(n = n_distinct(posid)) %>%
+       summarise(n = n_distinct(fragID)) %>%
        ungroup() %>%
        dplyr::filter(n > 1)
 
   if(nrow(o) > 0){
     multiHitFrags <- subset(z, readIDlist %in% o$readIDlist)  # Reads which map to more than one intSite positions.
     frags <- subset(z, ! readIDlist %in% o$readIDlist)        # Reads which map to a single intSite positions.
+    
+    browser()
   
     # There may be multi-hit reads where one of their position ids is the same as those in the frags
     # where the reads aligned uniquely. If only one of the possible alignment positions in multiHitFrags 
     # is in frags (unique alignments), then move those reads to frags.
+    #
+    # What if a read maps to more than fragment associatd with the same posid???
   
     if(any(multiHitFrags$posid %in% frags$posid)){
       multiHitFrags$returnToFrags <- FALSE
@@ -133,7 +140,9 @@ if(opt$buildStdFragments_salvageMultiHits){
       clusterExport(cluster, 'frags_sites')
     
       # Split multi-hit frags by read id and test if reads can be salvaged.
-      multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$readIDlist), function(x){
+      # multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$readIDlist), function(x){
+      multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$readIDlist), function(x){
+        
                                   # x will contain two or more frag ids supported by a SINGLE read.
                                   # Create a list of non-ambiguous sites from the subject this read came from.
                                   posidList <- subset(frags_sites, trial == x$trial[1] & subject == x$subject[1])$posid
@@ -142,6 +151,8 @@ if(opt$buildStdFragments_salvageMultiHits){
                                   # non-ambiguous site list.
                                   if(sum(unique(x$posid) %in% posidList) == 1){
                                     x[x$posid %in% posidList,]$returnToFrags <- TRUE
+                                    
+                                    if(length(unique(x[x$posid %in% posidList,]$fragID)) > 1) x[x$posid %in% posidList,]$returnToFrags <- FALSE 
                                   }
                                   x
                                 }))
@@ -163,13 +174,33 @@ if(opt$buildStdFragments_salvageMultiHits){
       }
     }
     
+    # Write out multiHitFrags here...
+    
     # Regroup reads.
     frags <- group_by(frags, uniqueSample, chromosome, strand, fragStart, fragEnd) %>% 
              mutate(reads = n_distinct(readIDlist), readIDlist = list(readIDlist)) %>% 
              dplyr::slice(1) %>% ungroup()
   }
+} else {
+  
+  # Expand fragments to the read level.
+  z <- tidyr::unnest(frags, readIDlist)
+  
+  # Find reads that map to a single standardized fragment.
+  o <- group_by(z, readIDlist) %>%
+       summarise(n = n_distinct(fragID)) %>%
+       ungroup() %>%
+       dplyr::filter(n == 1)
+  
+  if(nrow(o) == 0){
+    stop('Error -- no reads remain after removing reads that map to multiple std fragments.')
+  }
+  
+  frags <- group_by(subset(z, readIDlist %in% o$readIDlist), uniqueSample, chromosome, strand, fragStart, fragEnd) %>% 
+           mutate(reads = n_distinct(readIDlist), readIDlist = list(readIDlist)) %>% 
+           dplyr::slice(1) %>% ungroup()
 }
-
+  
 
 # Clear out the tmp/ directory.
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))

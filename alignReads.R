@@ -26,15 +26,12 @@ if(! all(file.exists(file.path(opt$softwareDir, 'data', 'blatDBs', paste0(unique
 }
 
 
-
 # Create a mapping of read ids to sample ids.
 readID_to_sampleID <- bind_rows(lapply(list.files(opt$inputFastaDir, full.names = FALSE, pattern = 'anchor'), function(f){
                         r <- Biostrings::readDNAStringSet(file.path(opt$inputFastaDir, f))  
                         tibble(sample = unlist(strsplit(f, '\\.'))[1], readID = names(r))
                       }))
 
-
-# JKE 
 # Create a CPU cluster.
 cluster <- makeCluster(opt$alignReads_CPUs)
 clusterExport(cluster, c('opt', 'samples'))
@@ -277,6 +274,7 @@ adriftReadAlignments <- rbindlist(lapply(split(b2, b2$seq), function(x){
   r
 }))
 
+
 # Select adrift reads where the ends align to the genome.
 i <- (adriftReadAlignments$qSize - adriftReadAlignments$qEnd) <= opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned
 
@@ -314,23 +312,18 @@ adriftReadAlignments <- dplyr::select(adriftReadAlignments, -seq)
 anchorReadAlignments <- left_join(anchorReadAlignments, readID_to_sampleID, by = c('qName' = 'readID'))
 adriftReadAlignments <- left_join(adriftReadAlignments, readID_to_sampleID, by = c('qName' = 'readID'))
 
+anchorReadAlignments <- left_join(anchorReadAlignments, select(m, id, leaderMapping.qEnd), by = c('qName' = 'id'))
 
-# Recreate leader sequences by joining the sequences removed prior to alignment to the NTs not aligning at 
-# the start of R2 reads.
-leaderSeqPos <- left_join(select(anchorReadAlignments, qName, qStart), select(m, id, leaderMapping.qEnd), by = c('qName' = 'id'))
-leaderSeqPos$end <- leaderSeqPos$leaderMapping.qEnd + leaderSeqPos$qStart
+s <- anchorReads[names(anchorReads) %in% anchorReadAlignments$qName]
+x <- tibble(qName = names(s), seq = as.character(s))
+rm(s, anchorReads)
+gc()
 
-s1 <- anchorReads[names(anchorReads) %in% leaderSeqPos$qName]
-s2 <- s1[match(leaderSeqPos$qName, names(s1))]
-table(names(s2) == leaderSeqPos$qName)
-s3 <- tibble(qName = leaderSeqPos$qName, leaderSeq = as.character(subseq(s2, 1, leaderSeqPos$end)))
+anchorReadAlignments <- left_join(anchorReadAlignments, x, by = 'qName')
+anchorReadAlignments$leaderSeq <- substr(anchorReadAlignments$seq, 1, anchorReadAlignments$leaderMapping.qEnd)
 
-anchorReadAlignments <- left_join(anchorReadAlignments, s3, by = 'qName')
-
-
-
-saveRDS(anchorReadAlignments, file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_anchorReadAlignmentsOutputFile))  
-saveRDS(adriftReadAlignments, file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_adriftReadAlignmentsOutputFile)) 
+saveRDS(dplyr::distinct(dplyr::select(anchorReadAlignments, -seq)), file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_anchorReadAlignmentsOutputFile))  
+saveRDS(dplyr::distinct(adriftReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_adriftReadAlignmentsOutputFile)) 
 
 if(! opt$alignReads_keepIntermediateFiles){
   unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), recursive = TRUE)

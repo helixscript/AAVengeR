@@ -14,6 +14,18 @@ sites <- readRDS(file.path(opt$outputDir, opt$callNearestGenes_inputFile))
 multiHitSites <- subset(sites, chromosome == 'Mult')
 sites <- subset(sites, chromosome != 'Mult')
 
+samples <- loadSamples()
+
+# Assuming replicates collapsed.
+sites$uniqueSample <- paste0(sites$trial, '~', sites$subject, '~', sites$sample)
+samples$uniqueSample <- paste0(samples$trial, '~', samples$subject, '~', samples$sample)
+sites$refGenome.id <- NULL
+
+# Add refGenome to sites.
+sites <- distinct(left_join(sites, select(samples, uniqueSample, refGenome.id), by = 'uniqueSample'))
+
+
+
 sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome.id), function(x){
   
            genes <- file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x$refGenome.id[1], '.TUs.rds'))

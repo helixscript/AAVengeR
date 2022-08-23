@@ -63,14 +63,10 @@ write(c(paste(now(), sprintf("%.2f%%", (n_distinct(readsToRemove) / n_distinct(t
 ids <- unique(anchorReadAlignments$qName.anchorReads)
 id_groups <- split(ids, dplyr::ntile(1:length(ids), ceiling(length(ids)/opt$buildFragments_idGroup_size)))
 
-n <- 1
 write(c(paste(now(), 'Building initial fragments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 frags <- bind_rows(lapply(id_groups, function(id_group){
   library(dplyr)
-  
-  # write(c(paste(now(), n, ' / ', length(id_groups), ' read id groups processed.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  # n <<- n + 1
   
   a <- subset(anchorReadAlignments, qName.anchorReads %in% id_group)
   b <- subset(adriftReadAlignments, qName.adriftReads %in% id_group)
@@ -93,7 +89,7 @@ frags <- bind_rows(lapply(id_groups, function(id_group){
   
   # Determine the start and end of fragments based on their alignment strands
   # and perform some sanity tests then filter on fragment size. 
-  mutate(frags, 
+  r <- mutate(frags, 
          fragStart  = ifelse(strand.anchorReads == '+', tStart.anchorReads + 1, tStart.adriftReads + 1),
          fragEnd    = ifelse(strand.anchorReads == '+', tEnd.adriftReads + 1,   tEnd.anchorReads + 1),
          strand     = ifelse(strand.anchorReads == '+', '+', '-'),
@@ -105,7 +101,15 @@ frags <- bind_rows(lapply(id_groups, function(id_group){
                 fragWidth >= opt$buildFragments_minFragLength) %>%
                 mutate(uniqueSample = sample.anchorReads, readID = qName.anchorReads) %>%
                 select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads)
+   r
 }))
+
+# The join between anchor and adrift reads can assign a single read to multiple fragments.
+
+# save.image('~/buildFragments1.RData')
+
+# Row duplication is occuring somewhere
+frags <- dplyr::distinct(frags)
 
 
 # Random ids.
@@ -136,11 +140,15 @@ if(opt$demultiplex_captureRandomLinkerSeq){
     frags <- subset(frags, ! randomLinkerSeq %in% z)
   }
   
-  z <- subset(o, reads >= opt$buildFragments_randomLinkerID_minReadCountToSegreagate)$randomLinkerSeq
   
-  if(length(z) > 0){
-    a <- subset(frags, ! randomLinkerSeq %in% z)  # Undisputed reads
-    b <- subset(frags, randomLinkerSeq %in% z)    # Reads which need to be examined.
+  # Define random ids with two or more samples and enough reads to try to salvage,
+  # ie. retain reads where most are assigned to a single sample.
+  
+  z2 <- subset(o, reads >= opt$buildFragments_randomLinkerID_minReadCountToSegreagate)$randomLinkerSeq
+  
+  if(length(z2) > 0){
+    a <- subset(frags, ! randomLinkerSeq %in% z2)  # Undisputed reads
+    b <- subset(frags, randomLinkerSeq %in% z2)    # Reads which need to be examined.
     
     c <- bind_rows(lapply(split(b, b$randomLinkerSeq), function(x){
            tab <- data.frame(table(x$s))
