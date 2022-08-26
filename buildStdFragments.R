@@ -4,6 +4,7 @@ library(parallel)
 library(data.table)
 library(GenomicRanges)
 library(Biostrings)
+library(igraph)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
@@ -123,8 +124,6 @@ if(opt$buildStdFragments_salvageMultiHits){
   if(nrow(o) > 0){
     multiHitFrags <- subset(z, readIDlist %in% o$readIDlist)  # Reads which map to more than one intSite positions.
     frags <- subset(z, ! readIDlist %in% o$readIDlist)        # Reads which map to a single intSite positions.
-    
-    browser()
   
     # There may be multi-hit reads where one of their position ids is the same as those in the frags
     # where the reads aligned uniquely. If only one of the possible alignment positions in multiHitFrags 
@@ -140,8 +139,8 @@ if(opt$buildStdFragments_salvageMultiHits){
       clusterExport(cluster, 'frags_sites')
     
       # Split multi-hit frags by read id and test if reads can be salvaged.
-      # multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$readIDlist), function(x){
-      multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$readIDlist), function(x){
+      multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$readIDlist), function(x){
+      #multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$readIDlist), function(x){
         
                                   # x will contain two or more frag ids supported by a SINGLE read.
                                   # Create a list of non-ambiguous sites from the subject this read came from.
@@ -174,7 +173,6 @@ if(opt$buildStdFragments_salvageMultiHits){
       }
     }
     
-    # Write out multiHitFrags here...
     
     # Regroup reads.
     frags <- group_by(frags, uniqueSample, chromosome, strand, fragStart, fragEnd) %>% 
@@ -196,10 +194,83 @@ if(opt$buildStdFragments_salvageMultiHits){
     stop('Error -- no reads remain after removing reads that map to multiple std fragments.')
   }
   
+  # Create a list of multiHit frags.
+  multiHitFrags <- subset(z, ! readIDlist %in% o$readIDlist)
+  
   frags <- group_by(subset(z, readIDlist %in% o$readIDlist), uniqueSample, chromosome, strand, fragStart, fragEnd) %>% 
            mutate(reads = n_distinct(readIDlist), readIDlist = list(readIDlist)) %>% 
            dplyr::slice(1) %>% ungroup()
 }
+
+
+
+if(nrow(multiHitFrags) > 0){
+  
+  multiHitFrags$fragWidth = multiHitFrags$fragEnd - multiHitFrags$fragStart + 1
+
+  # For each read, create a from -> to data frame and capture the width of the read. 
+  multiHitNet_replicates <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$readIDlist), function(x){
+         if(n_distinct(x$posid) == 1) return(tibble()) # Cases of break point only variation.
+         node_pairs <- RcppAlgos::comboGeneral(unique(x$posid), 2)
+         tibble(trial = x[1,]$trial, subject = x[1,]$subject, sample = x[1,]$sample, 
+                replicate = x[1,]$replicate, from = node_pairs[,1], to = node_pairs[,2], width = x[1,]$fragWidth)
+       }))
+  
+  # Some from -> to pairs may arise from multiple reads. 
+  # For each pair, count the number of reads and capture the unique widths as a comma delimited string.
+  multiHitNet_replicates <-  group_by(multiHitNet_replicates, trial, subject, sample, replicate, from, to) %>% 
+               summarise(reads = n(), widths = paste0(unique(width), collapse = ',')) %>%
+               ungroup()
+  
+  # Move the replicate level data to the sample level by summing reads and capturing unique widths.             
+  multiHitNet_samples <- group_by(multiHitNet_replicates, trial, subject, sample, from, to) %>%
+                            summarise(reads = sum(reads), 
+                                      widths = paste0(unique(unlist(strsplit(widths, ','))), collapse = ',')) %>%
+                            ungroup()
+  
+  # Build networks for each sample.
+  mhc <- bind_rows(lapply(split(multiHitNet_samples, paste(multiHitNet_samples$trial, multiHitNet_samples$subject, multiHitNet_samples$sample)), function(x){
+    
+    # Create a local copy of read-level multiHitFrags data frame specific to this sample.
+    multiHitFrags <- subset(multiHitFrags, trial = x$trial[1], subject = x$trial[1], sample = x$sample[1])
+    
+    # (!) One read associated with one position id can align to have multiple break points.
+    
+    # Create a data frame of node details. maxAbund is the maximum abundance a node can have assuming
+    # all reads edges are attributed to the node.
+    nodes <- bind_rows(lapply(unique(c(x$from, x$to)), function(x){
+       o <- subset(multiHitFrags, posid == x)
+       tibble(name = x, reads = n_distinct(o$readIDlist)) # , maxAbund = n_distinct(o$fragWidth))
+     }))
+    
+    
+    # Build a graph with the posid nodes and read edges.
+    g <- igraph::simplify(graph_from_data_frame(dplyr::select(x, from, to), directed=FALSE, vertices=nodes))
+     
+    # Separate out individual graphs.
+    o <- tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], clusters = lapply(igraph::decompose(g), function(x) igraph::V(x)$name))
+    
+    o$clusterID <- paste0('MHC.', 1:nrow(o))
+    
+    mhc1 <- bind_rows(lapply(split(o, o$clusterID), function(y){
+        
+             a <- subset(nodes, name %in% unlist(y$clusters))
+             y$reads <- sum(a$reads)
+             
+             # Maximum abundance of any node in the cluster assuming all reads truly map to the node.
+             #y$maxNodeAbund <- max(a$maxAbund) 
+             
+             # Number of unique fragment lengths of reads involved in this cluster.
+             #y$totalClusterAbund <- n_distinct(subset(multiHitFrags, posid %in% unlist(y$clusters))$fragWidth)
+             
+             y
+          }))
+    
+    mhc1
+    
+  }))
+}
+
   
 
 # Clear out the tmp/ directory.
@@ -239,42 +310,6 @@ frags <- bind_rows(parLapply(cluster, s, function(a){
   a$readIDlist <- list(reads)
   a
 }))
-
-
-if(nrow(multiHitFrags) > 0){
-  write(c(paste(now(), 'Preparing mult-hit data files.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  
-  multiHitReads <- group_by(multiHitFrags, uniqueSample, readIDlist) %>%
-    summarise(posids = list(posid)) %>%
-    ungroup() 
-  
-  multiHitFrags <- bind_rows(parLapply(cluster, split(multiHitFrags, multiHitFrags$fragID), function(a){
-  #multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$fragID), function(a){
-    library(dplyr)
-    library(data.table)
-    source(file.path(opt$softwareDir, 'lib.R'))
-    
-    r <- representativeSeq(a$repLeaderSeq)
-    
-    # Exclude reads where the leaderSeq is not similar to the representative sequence. 
-    i <- stringdist::stringdist(r[[2]], a$repLeaderSeq) / nchar(r[[2]]) <= opt$buildStdFragments_maxLeaderSeqDiffScore
-    if(all(! i)) return(tibble())
-    
-    a <- a[i,]
-    
-    a$repLeaderSeq <- r[[2]]
-    
-    reads <- n_distinct(a$readIDlist)
-    readIDlist <- unique(a$readIDlist)
-    
-    a <- a[1,]
-    a$readIDlist <- list(readIDlist)
-    a
-  }))
-  
-  saveRDS(multiHitReads, file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitReads.rds'))
-  saveRDS(multiHitFrags, file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitFrags.rds'))
-}
 
 
 # Clear out the tmp/ directory.

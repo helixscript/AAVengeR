@@ -67,8 +67,13 @@ calcAbunds <- function(x){
 
 
 # Build replicate level sites.
+o <- split(frags, paste(frags$trial, frags$subject, frags$sample, frags$replicate, frags$repLeaderSeqGroup, frags$posid))
+  
+counter <- 1
+total <- length(o)
 
-sites <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$sample, frags$replicate, frags$repLeaderSeqGroup, frags$posid)), function(x){
+sites <- bind_rows(lapply(o, function(x){
+  message(counter, ' / ', total); counter <<- counter + 1
 
   if(opt$buildStdFragments_categorize_anchorRead_remnants) x$posid <- paste0(x$posid, '.', x$repLeaderSeqGroup)
   
@@ -155,22 +160,24 @@ tbl2 <- bind_rows(lapply(1:nrow(tbl1), function(x){
     i <- rep(TRUE, nrow(f))
     r <- representativeSeq(f$repLeaderSeq)
     
+    #if(x$posid[1] == 'chrIX+53125') browser()
+    
     # Exclude fragments that have distinctly different leader sequences compared to the consensus sequence.
     
     if(r[[1]] > opt$buildStdFragments_maxLeaderSeqDiffScore){
-      i <- as.vector(stringdist::stringdistmatrix(x$repLeaderSeq, r[[2]]) / nchar(x$repLeaderSeq) <= opt$buildStdFragments_maxLeaderSeqDiffScore)
+      i <- as.vector(stringdist::stringdistmatrix(f$repLeaderSeq, r[[2]]) / nchar(f$repLeaderSeq) <= opt$buildStdFragments_maxLeaderSeqDiffScore)
       
       # Is there a majority of fragments that are similar to the consensus sequences?
       # If there is we salvage those fragments otherwise we discard this site.
-      if(sum(i)/nrow(x) >= opt$buildSites_assemblyConflictResolution){
-        x <- x[i,]
-        r <- representativeSeq(x$repLeaderSeq)
+      if(sum(i)/nrow(f) >= opt$buildSites_assemblyConflictResolution){
+        f <- f[i,]
+        r <- representativeSeq(f$repLeaderSeq)
       } else {
         return(tibble())
       }
       
       # Recalculate abundances since fragments were removed.
-      o <- calcAbunds(x); estAbund <- o[[1]]; molCodes <- o[[2]]
+      o <- calcAbunds(f); estAbund <- o[[1]]; molCodes <- o[[2]]
     }
     
     k <- tibble(estAbund = estAbund, linkerMolCodes = molCodes, reads = sum(f$reads), fragmentsRemoved = sum(!i), repLeaderSeq = r[[2]])

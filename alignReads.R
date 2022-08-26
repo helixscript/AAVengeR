@@ -183,16 +183,16 @@ b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputD
 
 # Expand the unique sequence blat result to include duplicate reads from readSampleMap.
 # This step-wise expansion is slow -- designed not to overwhelm other approaches such as joins.
-b2 <- data.table(left_join(b, select(readSampleMap, id, seq), by = c('qName' = 'id')))
+b2 <- left_join(b, select(readSampleMap, id, seq, refGenome.id), by = c('qName' = 'id'))
 
-anchorReadAlignments <- rbindlist(lapply(split(b2, b2$seq), function(x){
-  o <- readSampleMap[readSampleMap$seq == x$seq[1] & ! readSampleMap$id %in% x$qName,]
-  if(nrow(o) == 0) return(x)
-  
-  r <- x[rep(1:nrow(x), length(o$id)+1),]
-  r$qName <- c(x$qName, sort(rep(o$id, nrow(x))))
-  r
-}))
+anchorReadAlignments <- dplyr::distinct(bind_rows(lapply(split(b2, b2$refGenome.id), function(x){
+  o <- dplyr::filter(readSampleMap, refGenome.id == x$refGenome.id[1])
+  z  <- full_join(x, o, by = 'seq')
+  z$qName <- z$id
+  z$refGenome.id <- z$refGenome.id.x
+  tidyr::drop_na(dplyr::select(z, -sample, -id, -refGenome.id.y, -refGenome.id.x))
+})))
+     
 
 
 # Select anchor reads where the ends align to the genome.
@@ -263,16 +263,18 @@ b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputD
     dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
 }))
 
-b2 <- data.table(left_join(b, select(readSampleMap, id, seq), by = c('qName' = 'id')))
 
-adriftReadAlignments <- rbindlist(lapply(split(b2, b2$seq), function(x){
-  o <- readSampleMap[readSampleMap$seq == x$seq[1] & ! readSampleMap$id %in% x$qName,]
-  if(nrow(o) == 0) return(x)
+# Expand the unique sequence blat result to include duplicate reads from readSampleMap.
+# This step-wise expansion is slow -- designed not to overwhelm other approaches such as joins.
+b2 <- left_join(b, select(readSampleMap, id, seq, refGenome.id), by = c('qName' = 'id'))
 
-  r <- x[rep(1:nrow(x), length(o$id)+1),]
-  r$qName <- c(x$qName, sort(rep(o$id, nrow(x))))
-  r
-}))
+adriftReadAlignments <- dplyr::distinct(bind_rows(lapply(split(b2, b2$refGenome.id), function(x){
+  o <- dplyr::filter(readSampleMap, refGenome.id == x$refGenome.id[1])
+  z  <- full_join(x, o, by = 'seq')
+  z$qName <- z$id
+  z$refGenome.id <- z$refGenome.id.x
+  tidyr::drop_na(dplyr::select(z, -sample, -id, -refGenome.id.y, -refGenome.id.x))
+})))
 
 
 # Select adrift reads where the ends align to the genome.
