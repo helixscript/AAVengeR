@@ -67,12 +67,9 @@ sites <- bind_rows(lapply(unique(sites$refGenome.id), function(x){
 saveRDS(select(sites, -chromosome, -strand, -position, -refGenome.id, -uniqueSample), file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, opt$annotateRepeats_outputFile))
 
 
-s <- unlist(strsplit(opt$annotateRepeats_inputFile, '/'))
-s[length(s)] <- 
 
 if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))){
   o <- readRDS(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))
-  
   
   o$refGenome.id <- NULL
   samples$s <- paste(samples$trial, samples$subject, samples$sample)
@@ -130,7 +127,5 @@ if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiH
   
   saveRDS(o, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.rds'))
 }
-  
 
 q(save = 'no', status = 0, runLast = FALSE) 
-
