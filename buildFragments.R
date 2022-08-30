@@ -73,6 +73,15 @@ frags <- bind_rows(lapply(id_groups, function(id_group){
   
   if(nrow(a) == 0 | nrow(b) == 0) return(data.frame())
   
+  
+  #---
+  # z <- subset(a, tName.anchorReads == 'chr14' & tStart.anchorReads >= 81175596-5 & tStart.anchorReads <= 81175596+5)
+  # if(nrow(z) > 10) browser()
+  # 
+  # a <- subset(a, qName.anchorReads %in% z$qName.anchorReads)
+  # b <- subset(b, qName.adriftReads %in% z$qName.anchorReads)
+  #---
+  
   # Join adrift reads alignments to anchor read alignments to create potential read pairs.
   frags <- left_join(a, b, by = c('qName.anchorReads' = 'qName.adriftReads')) %>% tidyr::drop_na()
 
@@ -104,9 +113,9 @@ frags <- bind_rows(lapply(id_groups, function(id_group){
    r
 }))
 
-# The join between anchor and adrift reads can assign a single read to multiple fragments.
+# subset(frags, chromosome == 'chr14' & fragStart >= 81175596-5 & fragStart <= 81175596+5)
 
-# save.image('~/buildFragments1.RData')
+# The join between anchor and adrift reads can assign a single read to multiple fragments.
 
 # Row duplication is occuring somewhere
 frags <- dplyr::distinct(frags)

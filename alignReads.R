@@ -62,6 +62,8 @@ m <- readRDS(file.path(opt$outputDir, opt$alignReads_mapLeaderSequencesOutputFil
 # Select anchor reads with ids found in the leader sequence table.
 a <- anchorReads[names(anchorReads) %in% m$id]
 
+# Present...
+
 # Arrange leader sequence table to match anchor read ids.
 m <- m[match(names(a), m$id),]
 if(! all(names(a) == m$id)) stop('Error - could not align anchor reads to leader sequence mapping data.')
@@ -168,6 +170,13 @@ invisible(parLapply(cluster, o, function(x){
                       ' -out=psl -noHead'))
 }))
 
+
+# #---
+# b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), pattern = '*.psl', full.names = TRUE), function(x){
+#        parseBLAToutput(x)
+# }))
+# 
+# #---
 
 # Parse and colate BLAT results.
 # Here we filter on alignmentPercentID rather than % query alignment because we may not of removed all the not-genomic NTs from the anchor read.

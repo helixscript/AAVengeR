@@ -2,10 +2,10 @@ library(dplyr)
 library(stringr)
 library(RMySQL)
 
-sampleSheet <- '/home/ubuntu/projects/Encoded/20220817/data/SampleSheet.csv'
-outputFile  <- '/home/ubuntu/projects/Encoded/20220817/sampleData.tsv'
-refGenome.id <- 'macFas6_alu_before_MALAT1_site'
-trialID <- 'Encoded'
+sampleSheet <- '/home/ubuntu/projects/ViiV_HIV/data/220510_MN01490_0079_A000H3W5LH/SampleSheet.csv'
+outputFile  <- '/home/ubuntu/projects/ViiV_HIV/data/220510_MN01490_0079_A000H3W5LH/sampleData.tsv'
+refGenome.id <- 'hg38'
+trialID <- 'ViiV'
 
 f <- readLines(sampleSheet)
 s <- read.csv(textConnection(f[(which(grepl('\\[metaData\\]', f))+1):length(f)]), header = TRUE)
@@ -28,8 +28,9 @@ r <- tibble(trial = trialID,
             index1.seq = s$bcSeq,
             refGenome.id = refGenome.id,
             adriftRead.linker.seq = s$linkerSequence,
-            vectorFastaFile = 'Encoded.ALUs_masked.fasta',
-            flags = 'AAV')
+            leaderSeqHMM = 'vector_HIV_89.6.hmm', 
+            vectorFastaFile = 'vector_HIV_89.6.fa',
+            flags = 'IN_u5')
             
 write.table(r, file = outputFile, sep='\t', col.names = TRUE, row.names = FALSE, quote = FALSE)
 
