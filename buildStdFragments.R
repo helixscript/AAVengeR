@@ -106,8 +106,6 @@ frags$posid <-paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+',
 
 multiHitFrags <- tibble()
 
-# save.image('~/buildStdFrags.RData')
-
 # Expand fragments to read level.
 z <- tidyr::unnest(frags, readIDlist)
 
@@ -115,10 +113,6 @@ z <- tidyr::unnest(frags, readIDlist)
 # These are instances where the break read likely landed in a repeat. 
 # Since the position is known, we approximate the break to the shortest read to prevent these
 # reads from being called multiHits. Corrected fragment reads are looged for downstream analyses. 
-
-# M03249:277:000000000-JVNN7:1:1104:23147:19262
-# M03249:277:000000000-JVNN7:1:1110:5280:17401
-# M03249:277:000000000-JVNN7:1:2102:22367:23508
 
 cat(NULL, file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'adjustedVariableBreakFragReads'), append = FALSE)
 z <- bind_rows(lapply(split(z, z$readIDlist), function(x){

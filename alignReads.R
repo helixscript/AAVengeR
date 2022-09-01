@@ -171,13 +171,6 @@ invisible(parLapply(cluster, o, function(x){
 }))
 
 
-# #---
-# b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), pattern = '*.psl', full.names = TRUE), function(x){
-#        parseBLAToutput(x)
-# }))
-# 
-# #---
-
 # Parse and colate BLAT results.
 # Here we filter on alignmentPercentID rather than % query alignment because we may not of removed all the not-genomic NTs from the anchor read.
 b <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), pattern = '*.psl', full.names = TRUE), function(x){
