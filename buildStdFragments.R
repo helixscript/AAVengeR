@@ -134,7 +134,7 @@ write(o, file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'adjus
 
 write(c(paste(now(), 'Salavaging multi-hit fragments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
-save.image('~/f1.RData')
+
   
 # Identify reads which map to more than position id and define these as multi-hit reads.
 o <- group_by(z, readIDlist) %>%

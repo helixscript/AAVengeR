@@ -10,3 +10,5 @@ password=iAmAdmin+1
 host=localhost
 port=3306
 database=AAVengeR
+
+buildFragments_min_num_alignments_for_multiHit  -- consider 500
