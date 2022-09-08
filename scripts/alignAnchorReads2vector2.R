@@ -5,13 +5,13 @@ library(GenomicRanges)
 library(parallel)
 source('/home/ubuntu/software/AAVengeR/lib.R')
 
-vectorLength <- 3872
+vectorLength <- 3898
 
-opt <- yaml::read_yaml('/data/project/Encoded/220222_M03249_0243_000000000-JHTY6/config1.yml')
-db <- '/data/project/Encoded/vector_ITR_to_ITR.2bit'
+opt <- yaml::read_yaml('/home/ubuntu/projects/Encoded/20220222/config.yml')
+db <- '/home/ubuntu/software/AAVengeR/data/blatDBs/Encoded_ITR_to_ITR.2bit'
 blat <- '/home/ubuntu/software/blat'
 
-d <- tibble(file = list.files(file.path(opt$outputDir, opt$demultiplex_outputDir), pattern = 'anchor', full.names = TRUE))
+d <- tibble(file = list.files('/home/ubuntu/projects/Encoded/20220817/output/prepReads_preFix/final', pattern = 'anchor', full.names = TRUE))
 d$sample <- unlist(lapply(strsplit(d$file, '~'), '[[', 2))
 
 r <- bind_rows(lapply(split(d, d$sample), function(x){
@@ -36,7 +36,7 @@ r <- bind_rows(lapply(split(d, d$sample), function(x){
    b$sampleReads <- sampleReads
    
    r <- dplyr::filter(b, alignmentPercentID >= 97, tNumInsert  <= 1, qNumInsert <= 1, 
-                      tBaseInsert <= 2, qBaseInsert <= 2, qStart >= 10) %>%
+                      tBaseInsert <= 2, qBaseInsert <= 2, qStart >= 10, queryWidth >= 30) %>%
         dplyr::select(sample, sampleReads, qName, strand, qSize, qStart, qEnd, tName, tSize, 
                       tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage) %>%
         group_by(qName) %>%
@@ -45,6 +45,9 @@ r <- bind_rows(lapply(split(d, d$sample), function(x){
         ungroup()
    r
 }))
+
+save.image('~/alignToVector.RData')
+
 
 d <- distinct(tibble(seqnames = 'chr1', subject = r$sample, replicate = 1, reads = 1, 
                      qStart = r$qStart, strand = r$strand, fragStart = r$tStart, fragEnd = r$tEnd))

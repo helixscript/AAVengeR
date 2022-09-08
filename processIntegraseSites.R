@@ -28,7 +28,7 @@ if(file.exists(file.path(opt$outputDir, opt$processIntegraseSites_outputDir, 'du
 
 # Adjustments
 # + strand alignment: +2
-# - stramd alignment: -2
+# - strand alignment: -2
 # flip strands for u3 experiments. Aligning to the negative strand in u3 means a positive insertion orientation.
 
 sites.org <- sites

@@ -195,7 +195,7 @@ invisible(lapply(split(d, d$vectorFastaFile), function(x){
               b <- dplyr::filter(b, pident >= opt$prepReads_minAlignmentPercentID, alignmentLength >= floor(opt$prepReads_vectorAlignmentTestLength * 0.90), gapopen <= 1)
             }
             
-            saveRDS(b, sub('fasta$', 'ends.rds', file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments', lpe(file))))
+            saveRDS(b, sub('fasta\\.gz$', 'ends.rds', file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments', lpe(file))))
         }))
 }))
 
@@ -244,13 +244,18 @@ if(! 'leaderSeqHMM' %in% names(samples)){
         if(length(reads) == 0) return()
       
         b <- bind_rows(parLapply(cluster, mixAndChunkSeqs(reads, opt$prepReads_vectorAlignmentChunkSize), blastReads))
+        
+        #if(grepl('GTSP', file)) browser()
       
-        readLengths <- tibble(file = lpe(file), qname = names(reads), qlength = width(reads))
-        b <- dplyr::left_join(b, readLengths, by = 'qname') 
-        b$alignmentLength <- b$qend - b$qstart + 1
-        b <- dplyr::filter(b, pident >= opt$prepReads_minAlignmentPercentID, alignmentLength >= opt$prepReads_minAlignmentLength, gapopen <= 1)
-      
-        saveRDS(b, sub('fasta$', 'rds', file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments', lpe(file))))
+        if(nrow(b) > 0){
+          readLengths <- tibble(file = lpe(file), qname = names(reads), qlength = width(reads))
+          b <- dplyr::left_join(b, readLengths, by = 'qname') 
+          b$alignmentLength <- b$qend - b$qstart + 1
+          b <- dplyr::filter(b, pident >= opt$prepReads_minAlignmentPercentID, alignmentLength >= opt$prepReads_minAlignmentLength, gapopen <= 1)
+        } else {
+          b <- tibble()
+        }    
+          saveRDS(b, sub('fasta\\.gz$', 'rds', file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments', lpe(file))))
       }))
     }))
 

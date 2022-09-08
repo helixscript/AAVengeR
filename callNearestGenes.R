@@ -11,8 +11,8 @@ dir.create(file.path(opt$outputDir, opt$callNearestGenes_outputDir))
 
 sites <- readRDS(file.path(opt$outputDir, opt$callNearestGenes_inputFile))
 
-multiHitSites <- subset(sites, chromosome == 'Mult')
-sites <- subset(sites, chromosome != 'Mult')
+# multiHitSites <- subset(sites, chromosome == 'Mult')
+# sites <- subset(sites, chromosome != 'Mult')
 
 samples <- loadSamples()
 
@@ -23,8 +23,6 @@ sites$refGenome.id <- NULL
 
 # Add refGenome to sites.
 sites <- distinct(left_join(sites, select(samples, uniqueSample, refGenome.id), by = 'uniqueSample'))
-
-
 
 sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome.id), function(x){
   
@@ -87,11 +85,8 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome.id), function(x)
           left_join(x, select(n, nearestGene, nearestGeneStrand, nearestGeneDist, inGene, inExon, beforeNearestGene, posid2), by = 'posid2') %>% select(-posid2)
        })))
 
-sites$posid <- paste0(sites$chromosome, sites$strand, sites$position)
-
-if(nrow(multiHitSites) > 0) sites <- bind_rows(multiHitSites, sites)
-
-saveRDS(sites, file.path(opt$outputDir, opt$callNearestGenes_outputDir, opt$callNearestGenes_outputFile))
+saveRDS(select(sites, -uniqueSample, refGenome.id), file.path(opt$outputDir, opt$callNearestGenes_outputDir, opt$callNearestGenes_outputFile))
+openxlsx::write.xlsx(select(sites, -uniqueSample, refGenome.id), file.path(opt$outputDir, opt$callNearestGenes_outputDir, 'sites.xlsx'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
 

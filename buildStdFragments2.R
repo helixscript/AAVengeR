@@ -311,7 +311,7 @@ f <- bind_rows(lapply(o, function(x){
   x$reads <- n_distinct(readList) + sum(x$n)
   x <- x[1,]
   
-  minFragReads <- 2
+  minFragReads <- 1
   if(x$reads < minFragReads) return(tibble())
   
   x$readIDs <- as.list(list(readList))
@@ -351,15 +351,3 @@ saveRDS(f, file.path(opt$outputDir, opt$buildStdFragments_outputDir, opt$buildSt
 saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
-
-
-
-# # Find instances where random ids are duplicated and select the fragment with the most reads.
-# x3 <- bind_rows(lapply(split(x2, x2$randomLinkerSeq.adriftReads), function(y){
-#   if(y$strand[1] == '+' & n_distinct(y$fragEnd) > 1){
-#     y <- arrange(y, desc(reads))[1,]
-#   } else if (y$strand[1] == '-' & n_distinct(y$fragStart) > 1){
-#     y <- arrange(y, desc(reads))[1,]
-#   }
-#   y
-# }))
