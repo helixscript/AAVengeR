@@ -12,17 +12,109 @@ opt <- yaml::read_yaml(configFile)
 
 source(file.path(opt$softwareDir, 'lib.R'))
 
-write(c(paste(now(), 'Reading in alignment results.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
+dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
+
+if(! opt$buildFragments_readMates_allowed_to_be_multiHit %in% c('none', 'one', 'both')){
+  write(c(paste(now(), 'Errror -- buildFragments_readMates_allowed_to_be_multiHit must be set on none, one, or both.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+# Read in adrift alignment reads.
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adriftReadsAlignmentFile))
+
+cluster <- makeCluster(opt$buildFragments_CPUs)
+clusterExport(cluster, c('opt'))
+
+# Random ids.
+if(opt$demultiplex_captureRandomLinkerSeq){
+  
+  # Collect the random IDs isolated during demultiplexing.
+  files <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir), pattern = 'randomIDs', full.names = TRUE)
+  randomIDs <- Reduce('append', lapply(files,  readDNAStringSet))
+  r <- tibble(readID = names(randomIDs), randomLinkerSeq = as.character(randomIDs))
+  
+  # Limit random ids to those found in the adrift read alignments.
+  r <- subset(r, readID %in% adriftReadAlignments$qName)
+  
+  # Add sample ids to read alignments.
+  message('Adding sample names to adrift alignments')
+  r <- left_join(r, dplyr::select(adriftReadAlignments, qName, sample), by = c('readID' = 'qName'))
+  
+  # Remove replicate identifiers from sample names to evaluate on the sample level.
+  r$sample <- sub('~\\d+$', '', r$sample)
+  
+  # Correct random ids to the most abundant within samples.
+  # Uncorrectable codes are returned as NNNN and removed.
+  message('Correcting minor differences in random ids.')
+  # r <- bind_rows(lapply(split(r, r$sample), function(x){
+  r <- bind_rows(parLapply(cluster, split(r, r$sample), function(x){
+         source(file.path(opt$softwareDir, 'lib.R'))
+         library(dplyr)
+         x$randomLinkerSeq <- conformMinorSeqDiffs(x$randomLinkerSeq)
+         x[! grepl('N', x$randomLinkerSeq),]
+       }))
+  
+  message('Determining which random ids span multiple samples.')
+  o <- group_by(r, randomLinkerSeq) %>%
+       summarise(nSamples = n_distinct(sample)) %>%
+       ungroup() %>%
+       filter(nSamples > 1)
+  
+  r$remove <- FALSE
+  
+  if(nrow(o) > 0){
+   message('Cleaning up instances where random ids are seen across samples.')
+   invisible(lapply(split(o, 1:nrow(o)), function(a){
+     b <- subset(r, randomLinkerSeq == a$randomLinkerSeq)
+     
+     if(nrow(b) >= opt$buildFragments_randomLinkerID_minReadCountToSegreagate){
+       # Yes, there are enough reads to attempt to segregate.
+       t <- sort(table(b$sample), decreasing = TRUE)
+       
+       if((t[1]/sum(t))*100 >= opt$buildFragments_randomLinkerID_minSingleSampleMajorityPercent){
+         # Yes, there is a predominant sample for this code.
+         r[r$randomLinkerSeq == a$randomLinkerSeq & ! r$sample == names(t[1]),]$remove <<- TRUE
+       } else {
+         # No, no predominant sample, remove all codes.
+         r[r$randomLinkerSeq == a$randomLinkerSeq,]$remove <<- TRUE
+       }
+     } else {
+       r[r$randomLinkerSeq == a$randomLinkerSeq,]$remove <<- TRUE
+     } 
+   })) 
+  }
+  
+  saveRDS(subset(r, remove == TRUE), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'readsRemoved_randomID_sample_conflicts.rds'))
+  r <- subset(r, remove != TRUE)
+  
+  adriftReadAlignments <- subset(adriftReadAlignments, qName %in% r$readID)
+  adriftReadAlignments <- left_join(adriftReadAlignments, 
+                                    distinct(dplyr::select(r, readID, randomLinkerSeq)), by = c('qName' = 'readID'))
+  rm(r, randomIDs)
+  gc()
+  
+} else {
+  adriftReadAlignments$randomLinkerSeq <- 'NNNNNNNNNNNN'
+}
+
+# save.image(file = '~/buildFragments1.RData')
+#load('~/buildFragments1.RData')
+#opt$buildFragments_min_num_alignments_for_multiHit <- 500
+
+write(c(paste(now(), 'Reading in alignment results.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
+anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
+
+anchorReadAlignments <- subset(anchorReadAlignments, qName %in% adriftReadAlignments$qName)
 
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
 
 anchorReadAlignments <- select(anchorReadAlignments, sample, qName, tName, strand, tStart, tEnd, leaderSeq)
-adriftReadAlignments <- select(adriftReadAlignments, sample, qName, tName, strand, tStart, tEnd)
+adriftReadAlignments <- select(adriftReadAlignments, sample, qName, tName, strand, tStart, tEnd, randomLinkerSeq)
 
 names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads')
 names(adriftReadAlignments) <- paste0(names(adriftReadAlignments), '.adriftReads')
+
 
 # Filter read pairs such that one must mate must not be too 'jumpy'.
 # Setting buildFragments_min_num_alignments_for_multiHit to one would require 
@@ -40,10 +132,7 @@ tab$anchorReadAlnFreq <- ifelse(tab$anchorReadAlnFreq >= opt$buildFragments_min_
 tab$adriftReadAlnFreq <- ifelse(tab$adriftReadAlnFreq >= opt$buildFragments_min_num_alignments_for_multiHit, 1, 0)
 tab$s <- rowSums(tab[ , c(2,3)], na.rm=TRUE)
 
-if(! opt$buildFragments_readMates_allowed_to_be_multiHit %in% c('none', 'one', 'both')){
-  write(c(paste(now(), 'Errror -- buildFragments_readMates_allowed_to_be_multiHit must be set on none, one, or both.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
+
 
 if(opt$buildFragments_readMates_allowed_to_be_multiHit == 'none'){
   n <- 0
@@ -60,22 +149,39 @@ adriftReadAlignments <- subset(adriftReadAlignments, ! qName.adriftReads %in% re
 
 write(c(paste(now(), sprintf("%.2f%%", (n_distinct(readsToRemove) / n_distinct(tab$readID))*100), ' reads removed due to multiple alignments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
+rm(a, b, tab, readsToRemove)
+gc()
+
 ids <- unique(anchorReadAlignments$qName.anchorReads)
 id_groups <- split(ids, dplyr::ntile(1:length(ids), ceiling(length(ids)/opt$buildFragments_idGroup_size)))
 
 write(c(paste(now(), 'Building initial fragments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-frags <- bind_rows(lapply(id_groups, function(id_group){
-  library(dplyr)
-  
-  a <- subset(anchorReadAlignments, qName.anchorReads %in% id_group)
-  b <- subset(adriftReadAlignments, qName.adriftReads %in% id_group)
+
+# Convert from tibble to data.table for increased subsetting efficiency. 
+anchorReadAlignments <- data.table(anchorReadAlignments)
+adriftReadAlignments <- data.table(adriftReadAlignments)
+
+
+o <- lapply(id_groups, function(id_group){
+       list(anchorReadAlignments[qName.anchorReads %in% id_group],
+            adriftReadAlignments[qName.adriftReads %in% id_group])
+     })
+
+rm(anchorReadAlignments, adriftReadAlignments)
+gc()
+
+
+frags <- bind_rows(lapply(o, function(z){
+  a <- z[[1]]
+  b <- z[[2]]
   
   if(nrow(a) == 0 | nrow(b) == 0) return(data.frame())
   
+  # Consider using data.table nomenclature for joins.
+  
   # Join adrift reads alignments to anchor read alignments to create potential read pairs.
   frags <- left_join(a, b, by = c('qName.anchorReads' = 'qName.adriftReads')) %>% tidyr::drop_na()
-
   
   # Remove combinations not found on the same chromosome. 
   i <- which(frags$tName.anchorReads != frags$tName.adriftReads)
@@ -100,185 +206,86 @@ frags <- bind_rows(lapply(id_groups, function(id_group){
                 fragWidth <= opt$buildFragments_maxFragLength,
                 fragWidth >= opt$buildFragments_minFragLength) %>%
                 mutate(uniqueSample = sample.anchorReads, readID = qName.anchorReads) %>%
-                select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads)
+                select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads, randomLinkerSeq.adriftReads)
    r
 }))
 
-
-# The join between anchor and adrift reads can assign a single read to multiple fragments.
-
-# Row duplication is occuring somewhere
-frags <- dplyr::distinct(frags)
-
-
-# Random ids.
-if(opt$demultiplex_captureRandomLinkerSeq){
-  write(c(paste(now(), 'Capturing random IDs from adrift read linkers.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  
-  startingReadCount <- n_distinct(frags$readID)
-  
-  # Collect the random IDs isolated during demultiplexing.
-  files <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir), pattern = 'randomIDs', full.names = TRUE)
-  randomIDs <- Reduce('append', lapply(files,  readDNAStringSet))
-  r <- tibble(readID = names(randomIDs), randomLinkerSeq = as.character(randomIDs))
-  
-  frags <- left_join(frags, r, by = 'readID')
-  frags <- unpackUniqueSampleID(frags)
-  
-  # Random linker ids should be sample specific.
-  frags$s <- paste(frags$trial, frags$subject, frags$sample)
-  o <- group_by(frags, randomLinkerSeq) %>%
-       summarise(nSamples = n_distinct(s), reads = n_distinct(readID)) %>%
-       ungroup() %>%
-       filter(nSamples > 1)
-  
-  # Remove reads where the random id was seen in two or more samples and there are 
-  # too few reads were associated with the random id to attempt to segregate. 
-  z <- subset(o, reads < opt$buildFragments_randomLinkerID_minReadCountToSegreagate)$randomLinkerSeq
-  if(length(z) > 0){
-    frags <- subset(frags, ! randomLinkerSeq %in% z)
-  }
-  
-  
-  # Define random ids with two or more samples and enough reads to try to salvage,
-  # ie. retain reads where most are assigned to a single sample.
-  
-  z2 <- subset(o, reads >= opt$buildFragments_randomLinkerID_minReadCountToSegreagate)$randomLinkerSeq
-  
-  if(length(z2) > 0){
-    a <- subset(frags, ! randomLinkerSeq %in% z2)  # Undisputed reads
-    b <- subset(frags, randomLinkerSeq %in% z2)    # Reads which need to be examined.
-    
-    c <- bind_rows(lapply(split(b, b$randomLinkerSeq), function(x){
-           tab <- data.frame(table(x$s))
-           tab$percentReads <- (tab$Freq / n_distinct(x$readID))*100 
-           topSample <- dplyr::arrange(tab, desc(percentReads)) %>% dplyr::slice(1)
-           
-           if(topSample$percentReads >= opt$buildFragments_randomLinkerID_minSingleSampleMajorityPercent){
-             return(subset(x, s %in% topSample$Var1))
-           } else{
-             return(tibble())
-           }
-         }))
-    
-    if(nrow(c) > 0){
-      frags <- bind_rows(a, c)
-    } else {
-      frags <- a
-    }
-  }
-  
-  frags <- dplyr::select(frags, -randomLinkerSeq, -trial, -subject, -sample, -replicate, -s)
-  
-  msg <- paste0(startingReadCount - n_distinct(frags$readID), ' reads, ', sprintf("%.2f%%", (1 - n_distinct(frags$readID) / startingReadCount)*100), ' of total reads, removed due to random linker ID conflicts.')
-
-  write(c(paste(now(), msg)), file = file.path(opt$outputDir, 'log'), append = TRUE)
-}
-
+rm(o, id_groups)
 gc()
 
-frags <- unpackUniqueSampleID(frags)
-
-samples <- loadSamples()
-frags <- left_join(frags, select(samples, uniqueSample, flags), by = 'uniqueSample')
-
-dups <- tibble()
 
 if('buildFragments_duplicateReadFile' %in% names(opt)){
   write(c(paste(now(), 'Reading duplicate read file created by prepReads.R.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   dups <- readRDS(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile))
   dups <- data.table(dplyr::distinct(dplyr::select(dups, id, n)))
+  dups <- subset(dups, id %in% frags$readID)
+  
+  frags <- left_join(frags, dups, by = c('readID' = 'id'))
+  frags$n <- ifelse(is.na(frags$n), 0, frags$n)
+} else {
+  frags$n <- 0
 }
 
-cluster <- makeCluster(opt$buildFragments_CPUs)
-clusterExport(cluster, c('opt', 'dups'))
-
-frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', frags$replicate, ':', frags$chromosome, ':', frags$strand, ':', frags$fragStart, ':', frags$fragEnd)
-
-# Combine read level fragments into unique fragments with read counts.
-# Duplicate reads are tallied if a duplicate read file is provided.
-# Using data.table objects since they are split more efficiently.
-
-f <- data.table(frags)
-
-write(c(paste(now(), 'Refining fragments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-
-frags <- parLapply(cluster, split(f, f$fragID), function(x){
-           library(dplyr)
-           library(data.table)
-           source(file.path(opt$softwareDir, 'lib.R'))
-
-           if(nrow(x) == 1){
-             x$reads <- 1
-             x$repLeaderSeq <- x$leaderSeq.anchorReads
-             x$readIDlist   <- x$readID
-             return(select(as_tibble(x), -readID, -leaderSeq.anchorReads))
-           }
-
-           r <- representativeSeq(x$leaderSeq.anchorReads)
-
-           # Exclude reads where the leaderSeq is not similar to the representative sequence.
-           i <- stringdist::stringdist(r[[2]], x$leaderSeq.anchorReads) / nchar(r[[2]]) <= opt$buildStdFragments_maxLeaderSeqDiffScore
-           if(all(! i)) return(data.table::data.table())
-
-           x <- x[i,]
-
-           x$reads <- nrow(x)
-           x$repLeaderSeq <- r[[2]]
-
-           o <- dups[dups$id %in% x$readID]
-           if(nrow(o) > 0){
-             x$reads <- nrow(x) + sum(o$n)
-           }
-           
-           # Duplicate reads IDs are not stored.
-           readIDs <- x$readID
-           x <- as_tibble(x[1,])
-           x$readIDlist <- list(readIDs)
-
-           return(select(x[1,], -readID, -leaderSeq.anchorReads))
-})
-
-# Force single read ids into a list.
-frags <- bind_rows(lapply(frags, function(x){
-           if(! is.list(x$readIDlist)) x$readIDlist <- list(x$readIDlist)
-           x
-        }))
-
-stopCluster(cluster)
-
-frags <- dplyr::select(frags, trial, subject, sample, replicate, chromosome, strand, 
-                       fragStart, fragEnd, reads, repLeaderSeq, flags, readIDlist)
-
-frags$compDate <- as.character(lubridate::today())
-frags$dataLabel <- opt$dataLabel
-frags$uniqueSample <- paste0(frags$trial, '~', frags$subject,  '~', frags$sample,  '~', frags$replicate)
-frags <- left_join(frags, dplyr::select(samples, uniqueSample, refGenome.id), by = 'uniqueSample')
-
-saveRDS(distinct(frags), file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile), compress = 'xz')
-
-if('databaseGroup' %in% names(opt)){
-  library(RMariaDB)
-  library(DBI)
-  con <- dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
-  
-  invisible(lapply(split(frags, paste(frags$uniqueSample, frags$refGenome.id)), function(x){
-
-    dbExecute(con, paste0("delete from fragments where trial='", x$trial[1], "' and subject='", x$subject[1], 
-           "' and sample='", x$sample[1], "' and replicate='", x$replicate[1], "' and refGenome='", x$refGenome.id[1], "'"))
-    
-    r <- dbExecute(con,
-              "insert into fragments values (?, ?, ?, ?, ?, ?, ?, ?)",
-              params = list(x$trial[1], x$subject[1], x$sample[1], x$replicate[1], x$refGenome.id[1],
-                            x$dataLabel[1], x$compDate[1], list(serialize(dplyr::select(x, -uniqueSample, -refGenome.id, -dataLabel, -compDate), NULL))))
-    
-    if(r == 0){
-        write(c(paste(now(), 'Errror -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-        q(save = 'no', status = 1, runLast = FALSE) 
-      }
-  }))
-  
-  dbDisconnect(con)
-}
+saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
 
 q(save = 'no', status = 0, runLast = FALSE) 
+
+
+
+#--------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+# # Add sample flags.
+# # samples <- loadSamples()
+# # frags <- left_join(frags, select(samples, uniqueSample, flags), by = 'uniqueSample')
+# 
+# 
+# frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', frags$replicate, ':', frags$chromosome, ':', 
+#                        frags$strand, ':', frags$fragStart, ':', frags$fragEnd, ':', frags$randomLinkerSeq.adriftReads)
+# 
+# 
+# stopCluster(cluster)
+# 
+# frags <- dplyr::select(frags, trial, subject, sample, replicate, chromosome, strand, 
+#                        fragStart, fragEnd, reads, repLeaderSeq, flags, readIDlist)
+# 
+# frags$compDate <- as.character(lubridate::today())
+# frags$dataLabel <- opt$dataLabel
+# frags$uniqueSample <- paste0(frags$trial, '~', frags$subject,  '~', frags$sample,  '~', frags$replicate)
+# frags <- left_join(frags, dplyr::select(samples, uniqueSample, refGenome.id), by = 'uniqueSample')
+# 
+# saveRDS(distinct(frags), file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile), compress = 'xz')
+# 
+# if('databaseGroup' %in% names(opt)){
+#   library(RMariaDB)
+#   library(DBI)
+#   con <- dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+#   
+#   invisible(lapply(split(frags, paste(frags$uniqueSample, frags$refGenome.id)), function(x){
+# 
+#     dbExecute(con, paste0("delete from fragments where trial='", x$trial[1], "' and subject='", x$subject[1], 
+#            "' and sample='", x$sample[1], "' and replicate='", x$replicate[1], "' and refGenome='", x$refGenome.id[1], "'"))
+#     
+#     r <- dbExecute(con,
+#               "insert into fragments values (?, ?, ?, ?, ?, ?, ?, ?)",
+#               params = list(x$trial[1], x$subject[1], x$sample[1], x$replicate[1], x$refGenome.id[1],
+#                             x$dataLabel[1], x$compDate[1], list(serialize(dplyr::select(x, -uniqueSample, -refGenome.id, -dataLabel, -compDate), NULL))))
+#     
+#     if(r == 0){
+#         write(c(paste(now(), 'Errror -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+#         q(save = 'no', status = 1, runLast = FALSE) 
+#       }
+#   }))
+#   
+#   dbDisconnect(con)
+# }
+# 
+# q(save = 'no', status = 0, runLast = FALSE) 

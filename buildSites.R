@@ -7,17 +7,10 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
-
 dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 
 # Read in Standardized fragments.
 frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile))
-
-randomIDs <- tibble()
-if(opt$demultiplex_captureRandomLinkerSeq){
-  randomIDs <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir), pattern = 'randomIDs', full.names = TRUE), readDNAStringSet))
-  randomIDs <- tibble(id = names(randomIDs), seq = as.character(randomIDs))
-}
 
 if('buildSites_excludeSites' %in% names(opt)){
   p <- unlist(lapply(strsplit(unlist(strsplit(opt$buildSites_excludeSites, '\\|')), ','), function(x){
@@ -31,18 +24,15 @@ if('buildSites_excludeSites' %in% names(opt)){
 samples <- loadSamples()
 
 frags$fragWidth <- frags$fragEnd - frags$fragStart + 1
-frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 frags$replicate <- as.integer(frags$replicate)
 
 
 calcAbunds <- function(x){
-  # Only attempt to try estAbund() if there are 3 or more fragment lengths.
-  if(opt$buildSites_sonicLengthAbund){
-    if(n_distinct(x$fragWidth) >= 3){
+    if(n_distinct(x$fragWidth) >= 5){
       estAbund <- tryCatch(
         {
           o <- sonicLength::estAbund(locations = x$posid, lengths = x$fragWidth)
-          o$theta
+          as.integer(o$theta)
         },
         error=function(cond) {
           return(NA)
@@ -51,22 +41,13 @@ calcAbunds <- function(x){
     }else{
       estAbund <- n_distinct(x$fragWidth)
     }
-  } else {
-    estAbund <- n_distinct(x$fragWidth)
-  }
   
-  # Determine molecular codes for this replicate position.
-  molCodes <- NA
-  if(opt$demultiplex_captureRandomLinkerSeq){
-    seqs <- randomIDs[match(unlist(x$readIDlist), randomIDs$id),]$seq
-    molCodes <- n_distinct(conformMinorSeqDiffs(seqs, editDist = opt$buildSites_molCodes_minEditDist, abundSeqMinCount = opt$buildSites_molCodes_abundSeqMinCount))
-  }
-  
-  list(estAbund, molCodes)
+  list(estAbund, n_distinct(x$randomLinkerSeq.adriftReads))
 }
 
 
 # Build replicate level sites.
+if(! 'repLeaderSeqGroup' %in% names(frags)) frags$repLeaderSeqGroup <- 'X'
 o <- split(frags, paste(frags$trial, frags$subject, frags$sample, frags$replicate, frags$repLeaderSeqGroup, frags$posid))
   
 counter <- 1
@@ -82,8 +63,8 @@ sites <- bind_rows(lapply(o, function(x){
   if(nrow(x) == 1){
     
    # Just one fragment for this position.
-    return(dplyr::mutate(x, estAbund = estAbund, linkerMolCodes = molCodes, fragmentsRemoved = 0) %>%
-             dplyr::select(trial, subject, sample, replicate, posid, estAbund, linkerMolCodes, reads, fragmentsRemoved, repLeaderSeq))
+    return(dplyr::mutate(x, fragments = nrow(x), fragmentWidths = n_distinct(x$fragWidth), sonicAbund = estAbund, UMIs = molCodes, fragmentsRemoved = 0) %>%
+             dplyr::select(trial, subject, sample, replicate, posid, estAbund, UMIs, reads, fragmentsRemoved, repLeaderSeq))
     
   } else {
     i <- rep(TRUE, nrow(x))
@@ -107,8 +88,8 @@ sites <- bind_rows(lapply(o, function(x){
       o <- calcAbunds(x); estAbund <- o[[1]]; molCodes <- o[[2]]
     }
       
-    return(dplyr::mutate(x, estAbund = estAbund, linkerMolCodes = molCodes, reads = sum(reads), repLeaderSeq = r[[2]], fragmentsRemoved = sum(!i)) %>%
-           dplyr::select(trial, subject, sample, replicate, posid, estAbund, linkerMolCodes, reads, fragmentsRemoved, repLeaderSeq) %>%
+    return(dplyr::mutate(x, fragments = nrow(x), fragmentWidths = n_distinct(x$fragWidth), sonicAbund = estAbund, UMIs = molCodes, reads = sum(reads), repLeaderSeq = r[[2]], fragmentsRemoved = sum(!i)) %>%
+           dplyr::select(trial, subject, sample, replicate, posid, fragments, fragmentWidths, sonicAbund, UMIs, reads, fragmentsRemoved, repLeaderSeq) %>%
            dplyr::slice(1))
   }
 }))
@@ -125,15 +106,17 @@ tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sa
            o <- subset(x, replicate == r)
         
            if(nrow(o) == 1){
-             t <- tibble(x1 = o$estAbund, x2 = o$linkerMolCodes, x3 = o$reads, x4 = o$fragmentsRemoved, x5 = o$repLeaderSeq)
+             t <- tibble(x1 = o$fragments, x2 = o$fragmentWidths, x3 = o$sonicAbund, x4 = o$UMIs, x5 = o$reads, x6 = o$fragmentsRemoved, x7 = o$repLeaderSeq)
            } else if(nrow(o) > 1){
              stop('Row error 1')  
            } else {
-             t <- tibble(x1 = NA, x2 = NA, x3 = NA, x4 = NA, x5 = NA)
+             t <- tibble(x1 = NA, x2 = NA, x3 = NA, x4 = NA, x5 = NA, x6 = NA, x7 = NA)
            }
 
-           names(t) <- c(paste0('rep', r, '-estAbund'), 
-                         paste0('rep', r, '-linkerMolCodes'), 
+           names(t) <- c(paste0('rep', r, '-fragments'), 
+                         paste0('rep', r, '-fragmentWidths'), 
+                         paste0('rep', r, '-sonicAbund'),
+                         paste0('rep', r, '-UMIs'), 
                          paste0('rep', r, '-reads'), 
                          paste0('rep', r, '-fragsRemoved'),
                          paste0('rep', r, '-repLeaderSeq'))
@@ -154,13 +137,11 @@ tbl2 <- bind_rows(lapply(1:nrow(tbl1), function(x){
   if(nrow(f) == 1){
     
     # Just one fragment for this position.
-    k <- tibble(estAbund = estAbund, linkerMolCodes = molCodes, reads = f$reads, fragmentsRemoved = 0, repLeaderSeq = f$repLeaderSeq) 
+    k <- tibble(fragments = nrow(f), fragmentWidths = n_distinct(f$fragWidth), sonicAbund = estAbund, UMIs = molCodes, reads = f$reads, fragmentsRemoved = 0, repLeaderSeq = f$repLeaderSeq) 
     
   } else {
     i <- rep(TRUE, nrow(f))
     r <- representativeSeq(f$repLeaderSeq)
-    
-    #if(x$posid[1] == 'chrIX+53125') browser()
     
     # Exclude fragments that have distinctly different leader sequences compared to the consensus sequence.
     
@@ -180,7 +161,7 @@ tbl2 <- bind_rows(lapply(1:nrow(tbl1), function(x){
       o <- calcAbunds(f); estAbund <- o[[1]]; molCodes <- o[[2]]
     }
     
-    k <- tibble(estAbund = estAbund, linkerMolCodes = molCodes, reads = sum(f$reads), fragmentsRemoved = sum(!i), repLeaderSeq = r[[2]])
+    k <- tibble(fragments = nrow(f), fragmentWidths = n_distinct(f$fragWidth), sonicAbund = estAbund, UMIs = molCodes, reads = sum(f$reads), fragmentsRemoved = sum(!i), repLeaderSeq = r[[2]])
   }
   
   k$nRepsObs <- sum(! is.na(unlist(x[, which(grepl('\\-repLeaderSeq', names(x)))])))
@@ -188,10 +169,7 @@ tbl2 <- bind_rows(lapply(1:nrow(tbl1), function(x){
   bind_cols(x[,1:4], k, x[,5:length(x)])
 }))
 
-
 saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
-openxlsx::write.xlsx(arrange(tbl2, desc(estAbund)), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
+openxlsx::write.xlsx(arrange(tbl2, desc(UMIs)), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
-
-

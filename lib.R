@@ -475,9 +475,8 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
   reads <- reads[width(reads) > opt$prepReads_HMMsearchReadEndPos]
   if(length(reads) == 0) return(tibble())
   
-  # HERE
   writeXStringSet(subseq(reads, opt$prepReads_HMMsearchReadStartPos, opt$prepReads_HMMsearchReadEndPos), outputFile)
-  # comm <- paste0(opt$command.hmmsearch, ' --F1 ', opt$prepReads_HMM_F1, ' --F2 ', opt$prepReads_HMM_F2, ' --F3 ', opt$prepReads_HMM_F3,
+  # score 5
   comm <- paste0(opt$command.hmmsearch, ' --max --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
   system(comm)
 
