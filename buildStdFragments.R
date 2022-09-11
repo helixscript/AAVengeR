@@ -186,7 +186,7 @@ if(nrow(o) > 0){
                      }))
                    }))
   
-  # Return sites to frags if needed.
+  # Return reads to frags if needed.
   
   if(any(multiHitFrags$returnToFrags == TRUE)){
     # Isolate frag reads that should be returned.
@@ -223,7 +223,7 @@ if(nrow(o) > 0){
 
 multiHitClusters <- tibble()
 
-if(nrow(multiHitFrags) > 0){
+if(nrow(multiHitFrags) > 0 & opt$buildStdFragments_createMultiHitClusters){
   
   multiHitFrags$fragWidth = multiHitFrags$fragEnd - multiHitFrags$fragStart + 1
   
@@ -272,6 +272,8 @@ if(nrow(multiHitFrags) > 0){
       y
     }))
   }))
+  
+  saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))
 }
 
 
@@ -311,8 +313,7 @@ f <- bind_rows(lapply(o, function(x){
   x$reads <- n_distinct(readList) + sum(x$n)
   x <- x[1,]
   
-  minFragReads <- 1
-  if(x$reads < minFragReads) return(tibble())
+  if(x$reads < opt$buildStdFragments_minReadsPerFrag) return(tibble())
   
   x$readIDs <- as.list(list(readList))
   x
@@ -348,6 +349,6 @@ f <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x)
 
 f <- select(f, -uniqueSample, -n, -fragID, -fragID2)
 saveRDS(f, file.path(opt$outputDir, opt$buildStdFragments_outputDir, opt$buildStdFragments_outputFile))
-saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))
+
 
 q(save = 'no', status = 0, runLast = FALSE) 

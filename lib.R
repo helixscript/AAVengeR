@@ -504,9 +504,11 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
   
   # Subset HMM results such that alignments start at the start of reads, the end of the HMM
   # which contains the CA is includes and the alignment has a significant alignment scores.
+
   o <- subset(o, targetStart <= opt$prepReads_HMMmaxStartPos & 
-                hmmEnd == hmmLength & 
-                fullScore >= as.numeric(opt$prepReads_HMMminFullBitScore))
+                 hmmEnd == hmmLength & 
+                 fullScore >= as.numeric(opt$prepReads_HMMminFullBitScore))
+ 
   if(nrow(o) == 0) return(tibble())
   
   reads2 <- reads[names(reads) %in% o$targetName]
