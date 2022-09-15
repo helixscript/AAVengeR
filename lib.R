@@ -24,8 +24,8 @@ shortRead2DNAstringSet <- function(x){
 waitForFile <- function(f, seconds = 1){
   repeat
   {
-    if(file.exists(f)) break
     Sys.sleep(seconds)
+    if(file.exists(f)) break
   }
   return(TRUE)
 }
@@ -241,16 +241,20 @@ parseCutadaptLog <- function(f){
 representativeSeq <- function(s, percentReads = 95){
   if(length(s) == 1 | dplyr::n_distinct(s) == 1) return(list(0, s[1]))
 
+  k <- data.frame(table(s))
+  s <- unique(s)
+  
   if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
     s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
   }
-
-  f <- tmpFile()
-
+  
   # Align sequences in order to handle potential indels.
+  # Here we create and close connection so that we do not reach an open file limit when called in a loop.
+  f <- tmpFile()
   inputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.fasta'))
- 
-  write(paste0('>', paste0('s', 1:length(s)), '\n', s), file = inputFile)
+  fileConn <- file(inputFile)
+  write(paste0('>', paste0('s', 1:length(s)), '\n', s), file = fileConn)
+  close(fileConn)
   
   outputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.representativeSeq.muscle'))
 
@@ -258,34 +262,26 @@ representativeSeq <- function(s, percentReads = 95){
   
   if(! file.exists(outputFile)) waitForFile(outputFile)
 
+  # Alignments are read in with dashes.
   s <- as.character(Biostrings::readDNAStringSet(outputFile))
   
   invisible(file.remove(c(inputFile, outputFile)))
 
-  # Create an all vs. all edit distnace matrix.
+  # Create an all vs. all edit distance matrix.
   m <- as.matrix(stringdist::stringdistmatrix(s, nthread = opt$buildStdFragments_representativeSeqCalc_CPUs))
 
-  # Create a data frame of string indcies and the sum of their edit distances to all other strings
-  # and then order this data frame such that the strings with the small edit distnaces to other
-  # strings are at the top of the data frame.
-  maxDiffPerNT <- data.frame(n = 1:length(s), diffs = apply(m, 1, sum)) # %>% dplyr::arrange(diffs)
-  maxDiffPerNT <- dplyr::arrange(maxDiffPerNT, diffs)
-
-  # The function returns both the representative sequence (sequence with the lowest edit distnaces to others)
-  # and a metric max edit distance of any string / num characters in the selected representaive.
-  #
-  #  123456789012345
-  #  AGTCAGCTAGCTAGC  max edit distance to other LTRs: 3,  metric 3/15 = 0.2
-
-  # Remove 5% of the most dissimilar reads becasue we do not want an odd-ball read or two to skew the 
-  # returned metric. With percentReads = 95, dissimilar reads will not be removed unless more than 20 
-  # reads are provided.
-  rows <- maxDiffPerNT[1:ceiling(length(s) * (percentReads/100)),]$n
-  m <- m[rows, rows]
-  s <- s[rows]
-
+  # Select the sequence with the least amount of difference to other sequences.
   d <- apply(m, 1, sum)
-  list(max(apply(m, 1, max) / nchar(s)), gsub('-', '', s[which(d == min(d))[1]]))
+  lowestEditDistSeqs1 <- unique(s[which(d == min(d))])
+  lowestEditDistSeqs2 <- gsub('\\-', '', lowestEditDistSeqs1)
+  
+  if(length(lowestEditDistSeqs1) > 1){
+    lowestEditDistSeq <- dplyr::filter(k, s %in% lowestEditDistSeqs2) %>% slice_max(Freq, n = 1, with_ties = FALSE) %>% dplyr::pull(s) %>% as.character()
+  } else {
+    lowestEditDistSeq <- lowestEditDistSeqs2
+  }
+  
+  list(max(stringdist::stringdist(lowestEditDistSeqs1, s))/nchar(lowestEditDistSeq), lowestEditDistSeq)
 }
 
 

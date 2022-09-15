@@ -6,7 +6,6 @@ library(GenomicRanges)
 library(Biostrings)
 
 configFile <- commandArgs(trailingOnly=TRUE)
-
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
 
@@ -35,6 +34,7 @@ if(opt$demultiplex_captureRandomLinkerSeq){
   
   # Limit random ids to those found in the adrift read alignments.
   r <- subset(r, readID %in% adriftReadAlignments$qName)
+  message(n_distinct(r$randomLinkerSeq), ' unqiue random ids found in adrift read alignments.')
   
   # Add sample ids to read alignments.
   message('Adding sample names to adrift alignments')
@@ -62,8 +62,10 @@ if(opt$demultiplex_captureRandomLinkerSeq){
   
   r$remove <- FALSE
   
+  message(sprintf("%.2f%%", (n_distinct(o$randomLinkerSeq)/n_distinct(r$randomLinkerSeq))*100), ' random ids seen across two or more samples')
+  
   if(nrow(o) > 0){
-   message('Cleaning up instances where random ids are seen across samples.')
+   message('Cleaning up instances where random ids are seen across samples')
    invisible(lapply(split(o, 1:nrow(o)), function(a){
      b <- subset(r, randomLinkerSeq == a$randomLinkerSeq)
      
@@ -97,9 +99,6 @@ if(opt$demultiplex_captureRandomLinkerSeq){
   adriftReadAlignments$randomLinkerSeq <- 'NNNNNNNNNNNN'
 }
 
-# save.image(file = '~/buildFragments1.RData')
-#load('~/buildFragments1.RData')
-#opt$buildFragments_min_num_alignments_for_multiHit <- 500
 
 write(c(paste(now(), 'Reading in alignment results.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
@@ -170,6 +169,9 @@ o <- lapply(id_groups, function(id_group){
 
 rm(anchorReadAlignments, adriftReadAlignments)
 gc()
+
+
+#save.image('~/buildFragmentsDev.RData')
 
 
 frags <- bind_rows(lapply(o, function(z){

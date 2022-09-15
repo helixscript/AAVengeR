@@ -12,3 +12,11 @@ port=3306
 database=AAVengeR
 
 buildFragments_min_num_alignments_for_multiHit  -- consider 500
+
+
+chrXII+514047   tctgcgcgctcgctcgctcactgaggc   
+chrIII+51722    tctgcgcgctcgctcgctcactgaggccgggcgaccaaa   
+chrXII+1012895  tctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccgac   
+chrIX+53125     tctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccgacgcccgggcttt        xxx
+chrVII+384526   tctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccgacgcccgggctttgcccgggcg   
+chrIII+51517    tctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccgacgcccgggctttgcccgggcggcctcagtgagcgagcgagcgcgcagctgcctgcagg   
