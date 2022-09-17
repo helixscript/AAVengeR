@@ -13,11 +13,6 @@ source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
 
-if(! opt$buildFragments_readMates_allowed_to_be_multiHit %in% c('none', 'one', 'both')){
-  write(c(paste(now(), 'Errror -- buildFragments_readMates_allowed_to_be_multiHit must be set on none, one, or both.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
-
 # Read in adrift alignment reads.
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adriftReadsAlignmentFile))
 
@@ -104,6 +99,8 @@ write(c(paste(now(), 'Reading in alignment results.')), file = file.path(opt$out
 
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
 
+readID2reference <- tibble(readID = anchorReadAlignments$qName, refGenome = anchorReadAlignments$refGenome.id)
+
 anchorReadAlignments <- subset(anchorReadAlignments, qName %in% adriftReadAlignments$qName)
 
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
@@ -115,41 +112,44 @@ names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads
 names(adriftReadAlignments) <- paste0(names(adriftReadAlignments), '.adriftReads')
 
 
-# Filter read pairs such that one must mate must not be too 'jumpy'.
-# Setting buildFragments_min_num_alignments_for_multiHit to one would require 
-# one mate to map uniquely while the other mate could have multiple alignments. 
 
-write(c(paste(now(), 'Limiting multiple alignments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+# Limit the number of alignments per read.
 
-a <- as.data.frame(table(anchorReadAlignments$qName.anchorReads))
-names(a) <- c('readID', 'anchorReadAlnFreq')
-b <- as.data.frame(table(adriftReadAlignments$qName.adriftReads))
-names(b) <- c('readID', 'adriftReadAlnFreq')
-tab <- left_join(a, b, by = 'readID')
+k <- table(anchorReadAlignments$qName.anchorReads)
+p <- sprintf("%.2f%%", (sum(k > opt$buildFragments_maxReadAlignments)/n_distinct(anchorReadAlignments$qName.anchorReads))*100)
+write(c(paste(now(), paste0('   ', p, '  anchor reads have more than ', opt$buildFragments_maxReadAlignments, ' alignments.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+k <- k[k > opt$buildFragments_maxReadAlignments]
 
-tab$anchorReadAlnFreq <- ifelse(tab$anchorReadAlnFreq >= opt$buildFragments_min_num_alignments_for_multiHit, 1, 0)
-tab$adriftReadAlnFreq <- ifelse(tab$adriftReadAlnFreq >= opt$buildFragments_min_num_alignments_for_multiHit, 1, 0)
-tab$s <- rowSums(tab[ , c(2,3)], na.rm=TRUE)
-
-
-
-if(opt$buildFragments_readMates_allowed_to_be_multiHit == 'none'){
-  n <- 0
-} else if (opt$buildFragments_readMates_allowed_to_be_multiHit == 'one'){
-  n <- 1
-} else {
-  n <- 2
+if(length(k) > 0){
+  a <- anchorReadAlignments[anchorReadAlignments$qName.anchorReads %in% names(k),]
+  b <- anchorReadAlignments[! anchorReadAlignments$qName.anchorReads %in% names(k),]
+  
+  a2 <- bind_rows(lapply(split(a, a$qName.anchorReads), function(x){
+          set.seed(1)
+          dplyr::slice_sample(x, n = opt$buildFragments_maxReadAlignments)
+         }))
+  
+  anchorReadAlignments <- bind_rows(a2, b)
 }
 
-readsToRemove <- tab[tab$s > n,]$readID
 
-anchorReadAlignments <- subset(anchorReadAlignments, ! qName.anchorReads %in% readsToRemove)
-adriftReadAlignments <- subset(adriftReadAlignments, ! qName.adriftReads %in% readsToRemove)
+k <- table(adriftReadAlignments$qName.adriftReads)
+p <- sprintf("%.2f%%", (sum(k > opt$buildFragments_maxReadAlignments)/n_distinct(adriftReadAlignments$qName.adriftReads))*100)
+write(c(paste(now(), paste0('   ', p, '  adrift reads have more than ', opt$buildFragments_maxReadAlignments, ' alignments.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+k <- k[k > opt$buildFragments_maxReadAlignments]
 
-write(c(paste(now(), sprintf("%.2f%%", (n_distinct(readsToRemove) / n_distinct(tab$readID))*100), ' reads removed due to multiple alignments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+if(length(k) > 0){
+  a <- adriftReadAlignments[adriftReadAlignments$qName.adriftReads %in% names(k),]
+  b <- adriftReadAlignments[! adriftReadAlignments$qName.adriftReads %in% names(k),]
+  
+  a2 <- bind_rows(lapply(split(a, a$qName.adriftReads), function(x){
+    set.seed(1)
+    dplyr::slice_sample(x, n = opt$buildFragments_maxReadAlignments)
+  }))
+  
+  adriftReadAlignments <- bind_rows(a2, b)
+}
 
-rm(a, b, tab, readsToRemove)
-gc()
 
 ids <- unique(anchorReadAlignments$qName.anchorReads)
 id_groups <- split(ids, dplyr::ntile(1:length(ids), ceiling(length(ids)/opt$buildFragments_idGroup_size)))
@@ -169,9 +169,6 @@ o <- lapply(id_groups, function(id_group){
 
 rm(anchorReadAlignments, adriftReadAlignments)
 gc()
-
-
-#save.image('~/buildFragmentsDev.RData')
 
 
 frags <- bind_rows(lapply(o, function(z){
@@ -227,6 +224,12 @@ if('buildFragments_duplicateReadFile' %in% names(opt)){
 } else {
   frags$n <- 0
 }
+
+stopCluster(cluster)
+
+samples <- loadSamples()
+frags <- left_join(frags, select(samples, uniqueSample, flags), by = 'uniqueSample')
+frags <- left_join(frags, readID2reference, by = 'readID')
 
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
 

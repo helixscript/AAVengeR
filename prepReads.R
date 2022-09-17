@@ -273,8 +273,7 @@ if(! 'leaderSeqHMM' %in% names(samples)){
 
        b <- select(b, qname, evalue, alignmentLength, sseqid, qstart, qend, sstart, send)
        
-       if(! opt$prepReads_buildReadMaps_complex){
-         message('Not complex')
+       if(! opt$prepReads_buildReadMaps_blastReconstruction){
          b2 <- filter(b, qstart <= opt$prepReads_buildReadMaps_minMapStartPostion) %>%
                group_by(qname) %>% 
                slice_min(evalue, n = 1) %>% 

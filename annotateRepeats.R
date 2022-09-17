@@ -64,7 +64,14 @@ sites <- bind_rows(lapply(unique(sites$refGenome.id), function(x){
   }
 })) 
 
-saveRDS(select(sites, -chromosome, -strand, -position, -refGenome.id, -uniqueSample), file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, opt$annotateRepeats_outputFile))
+select(sites, -chromosome, -strand, -position, -refGenome.id, -uniqueSample)
+
+sites2 <- bind_cols(sites[,1:which(names(sites) == 'posid')],
+                    sites[,(length(sites)-1):length(sites)],
+                    sites[,(which(names(sites) == 'posid')+1):(length(sites)-7)])
+
+saveRDS(sites2, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, opt$annotateRepeats_outputFile))
+openxlsx::write.xlsx(arrange(sites2, desc(UMIs)), file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.xlsx'))
 
 
 
@@ -75,8 +82,6 @@ if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiH
   samples$s <- paste(samples$trial, samples$subject, samples$sample)
   o$s <- paste(o$trial, o$subject, o$sample)
   o <- left_join(o, distinct(select(samples, s, refGenome.id)), by = 's')
-  
-  
   
   o <- bind_rows(lapply(unique(o$refGenome.id), function(x){
     r <- readr::read_tsv(file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x, '.repeatTable.gz')))
@@ -125,7 +130,9 @@ if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiH
   })) 
  }))
   
-  saveRDS(o, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.rds'))
+ o2 <- bind_cols(o[,1:3], o[,14:15], o[,5:13], o[,4]) %>% arrange(desc(reads))
+ saveRDS(o2, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.rds'))
+ openxlsx::write.xlsx(o2, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'mhcs.xlsx'))
 }
 
 q(save = 'no', status = 0, runLast = FALSE) 

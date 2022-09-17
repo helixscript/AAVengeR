@@ -281,7 +281,8 @@ representativeSeq <- function(s, percentReads = 95){
     lowestEditDistSeq <- lowestEditDistSeqs2
   }
   
-  list(max(stringdist::stringdist(lowestEditDistSeqs1, s))/nchar(lowestEditDistSeq), lowestEditDistSeq)
+  # list(max(stringdist::stringdist(lowestEditDistSeqs1, s))/nchar(lowestEditDistSeq), lowestEditDistSeq)
+  list(NA, lowestEditDistSeq)
 }
 
 

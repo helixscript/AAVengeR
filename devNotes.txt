@@ -11,6 +11,13 @@ host=localhost
 port=3306
 database=AAVengeR
 
+
+# Missing Jones site
+subset(frags, fragEnd >= (135628506-10) & fragEnd <= (135628506+10))
+
+
+
+
 buildFragments_min_num_alignments_for_multiHit  -- consider 500
 
 

@@ -1,6 +1,5 @@
 library(dplyr)
-library(sonicLength)
-library(Biostrings)
+library(lubridate)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
@@ -12,20 +11,134 @@ dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 # Read in Standardized fragments.
 frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile))
 
-if('buildSites_excludeSites' %in% names(opt)){
-  p <- unlist(lapply(strsplit(unlist(strsplit(opt$buildSites_excludeSites, '\\|')), ','), function(x){
-    if(length(x) != 3) return()
-    subset(frags, seqnames == x[1] & start >= x[2] & start <= x[3])$posid
+samples <- distinct(tibble(trial = frags$trial, subject = frags$subject, sample = frags$sample, replicate = frags$replicate, flags = frags$flags))
+
+# Process fragments as integrase u5/u3 sites if all samples have a u5/u3 sample flag.
+if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
+  
+  frags$id  <- paste(frags$trial, frags$subject, frags$sample, frags$replicate)
+  frags$id2 <- paste(frags$trial, frags$subject, frags$sample, frags$replicate, frags$posid)
+  
+  intSiteFlags <- tibble()
+  
+  # Dual detection - look for samples with both u3 and u5 entries.
+  invisible(lapply(split(samples, paste(samples$trial, samples$subject, samples$sample)), function(x){
+    
+    if('IN_u5' %in% x$flags & 'IN_u3' %in% x$flags){
+      
+      # Subset u3 / u5 isolates.
+      u3 <- subset(x, flags == 'IN_u3')
+      u5 <- subset(x, flags == 'IN_u5')
+    
+      u3.ids <- paste(u3$trial, u3$subject, u3$sample, u3$replicate)
+      u5.ids <- paste(u5$trial, u5$subject, u5$sample, u5$replicate)
+    
+      # Isolate corresponding u3 and u5 fragments.
+      u3.frags <- subset(frags, id %in% u3.ids)
+      u5.frags <- subset(frags, id %in% u5.ids)
+      
+      # Remove leader sequence groupings to search for neighboring sites.
+      u3.frags$posid2 <- sub('\\.\\d+$', '', u3.frags$posid)
+      u5.frags$posid2 <- sub('\\.\\d+$', '', u5.frags$posid)
+    
+      
+      # If we find a dual detection, determine its orientation and move the frags 
+      # from one strand to another. U3 neg means pos ort.
+      invisible(lapply(unique(u3.frags$posid), function(u3_posid){
+        
+        a <- sub('\\.\\d+$', '', u3_posid)
+        o <- unlist(strsplit(a, '[\\+\\-]'))
+        strand <- stringr::str_extract(a, '[\\+\\-]')
+ 
+        # Create alternative sites +/- 5 this u3 site.
+        alts <- paste0(o[1], ifelse(strand == '+', '-', '+'), (as.integer(o[2])-6):(as.integer(o[2])+6))
+        
+        # Search u5 fragments for alternative sites.
+        # z may have multiple rows, one for each associated fragment.
+        # More than one position id would single more than one closely spaced site was included (need to patch).
+        z <- subset(u5.frags, posid2 %in% alts)
+        
+
+        if(nrow(z) > 0){
+          # Just need to change the strand and position id of the records without the 
+          # the correction orientation strand. Frags will be pointing away from others 
+          # but will be tallied correctly. 
+          f1 <- subset(u3.frags, posid2 == a)            # u3
+          f2 <- subset(u5.frags, posid2 %in% z$posid2)   # u5
+        
+          # Assign both most common u3 and u5 leader sequences to each proximal site.
+          f1.seq <- names(sort(table(frags[frags$id2 %in% f1$id2,]$repLeaderSeq), decreasing = TRUE))[1]
+          f2.seq <- names(sort(table(frags[frags$id2 %in% f2$id2,]$repLeaderSeq), decreasing = TRUE))[1]                             
+                                       
+          frags[frags$id2 %in% f1$id2,]$repLeaderSeq <<- paste0(f1.seq, '/', f2.seq)
+          frags[frags$id2 %in% f2$id2,]$repLeaderSeq <<- paste0(f1.seq, '/', f2.seq)
+        
+          intSiteFlags <<- bind_rows(intSiteFlags, 
+                                     tibble(trial = f1$trial[1], subject = f1$subject[1], 
+                                            sample = f1$sample[1], u3_posid = u3_posid, u5_posid = f2$posid[1],
+                                            posid = f2$posid[1]))
+          
+          # [u3][R][u5]------------[u3][R][u5]
+          
+          if(strand == '-'){
+            frags[frags$id2 %in% f1$id2,]$strand <<- '+'         # Set the u3 frag strands to positive to reflect correct orientation. U5 posid already '+'.
+            frags[frags$id2 %in% f1$id2,]$posid  <<- f2$posid[1] # Set the u3 frag posids to the u5 posid which is positive causing its fragments to merge with U3 fragments.
+          } else {
+            frags[frags$id2 %in% f1$id2,]$strand <<- '-'         # Set the u3 frag strands to negative to reflect reverse orientation. U5 posid already '-'.
+            frags[frags$id2 %in% f1$id2,]$posid  <<- f2$posid[1] # Set the u3 frag posids to the u5 posid which is negative causing its fragments to merge with U3 fragments.
+          }
+        }
+      }))
+    }
   }))
   
-  frags <- subset(frags, ! posid %in% p)
-}
+  frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$sample)), function(x){
 
-samples <- loadSamples()
+    dualDetect <- subset(intSiteFlags, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1])
+    
+    a <- subset(frags, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & posid %in% dualDetect$posid)
+    b <- subset(frags, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & ! posid %in% dualDetect$posid)
+  
+    a1 <- subset(a, strand == '+')
+    if(nrow(a1) > 0) a1$posid <- unlist(lapply(strsplit(a1$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2])+2, '.', x[3])))
+  
+    a2 <- subset(a, strand == '-')
+    if(nrow(a2) > 0) a2$posid <- unlist(lapply(strsplit(a2$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '-', as.integer(x[2])-2, '.', x[3])))
+  
+    a <- bind_rows(a1, a2)
+    a$flags <- 'dual detect'
+  
+    # Shift positions to reflect duplication caused by integrase.
+    b1 <- subset(b, strand == '+')
+    if(nrow(b1) > 0) b1$posid <- unlist(lapply(strsplit(b1$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2])+2, '.', x[3])))
+
+    b2 <- subset(b, strand == '-')
+    if(nrow(b2) > 0) b2$posid <- unlist(lapply(strsplit(b2$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '-', as.integer(x[2])-2, '.', x[3])))
+
+    b <- bind_rows(b1, b2)
+
+    updatePosIdStrand <- function(x, s){
+      o <- unlist(strsplit(x, '[\\+\\-]'))
+      paste0(o[1], s, o[2])
+    }
+
+    # Change strand to reflect orientation. 
+    b1 <- subset(b, strand == '+' & grepl('IN_u3', b$flags))
+    b2 <- subset(b, strand == '-' & grepl('IN_u3', b$flags))
+    b3 <- subset(b, strand == '+' & grepl('IN_u5', b$flags))
+    b4 <- subset(b, strand == '-' & grepl('IN_u5', b$flags))
+
+    if(nrow(b1) > 0) b1$posid <- sapply(b1$posid, updatePosIdStrand, '-')
+    if(nrow(b2) > 0) b2$posid <- sapply(b2$posid, updatePosIdStrand, '+')
+    if(nrow(b3) > 0) b3$posid <- sapply(b3$posid, updatePosIdStrand, '+')
+    if(nrow(b4) > 0) b4$posid <- sapply(b4$posid, updatePosIdStrand, '-')
+
+    bind_rows(a, b1, b2, b3, b4)
+  }))
+}
 
 frags$fragWidth <- frags$fragEnd - frags$fragStart + 1
 frags$replicate <- as.integer(frags$replicate)
-
 
 calcAbunds <- function(x){
     if(n_distinct(x$fragWidth) >= 5){
@@ -46,50 +159,24 @@ calcAbunds <- function(x){
 }
 
 
-# Build replicate level sites.
-if(! 'repLeaderSeqGroup' %in% names(frags)) frags$repLeaderSeqGroup <- 'X'
-o <- split(frags, paste(frags$trial, frags$subject, frags$sample, frags$replicate, frags$repLeaderSeqGroup, frags$posid))
-  
+o <- split(frags, paste(frags$trial, frags$subject, frags$sample, frags$replicate, frags$posid))
 counter <- 1
 total <- length(o)
 
 sites <- bind_rows(lapply(o, function(x){
   message(counter, ' / ', total); counter <<- counter + 1
-
-  if(opt$buildStdFragments_categorize_anchorRead_remnants) x$posid <- paste0(x$posid, '.', x$repLeaderSeqGroup)
   
   o <- calcAbunds(x); estAbund <- o[[1]]; molCodes <- o[[2]]
   
   if(nrow(x) == 1){
-    
-   # Just one fragment for this position.
-    return(dplyr::mutate(x, fragments = nrow(x), fragmentWidths = n_distinct(x$fragWidth), sonicAbund = estAbund, UMIs = molCodes, fragmentsRemoved = 0) %>%
-             dplyr::select(trial, subject, sample, replicate, posid, estAbund, UMIs, reads, fragmentsRemoved, repLeaderSeq))
-    
+    return(dplyr::mutate(x, fragments = molCodes, fragmentWidths = n_distinct(x$fragWidth), sonicAbund = estAbund) %>%
+             dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, sonicAbund, reads, maxLeaderSeqDist, repLeaderSeq))
   } else {
-    i <- rep(TRUE, nrow(x))
-    r <- representativeSeq(x$repLeaderSeq)
+    r <- representativeSeq(unlist(x$leaderSeqs))
     
-    # Exclude fragments that have distinctly different leader sequences compared to the consensus sequence.
-
-    if(r[[1]] > opt$buildStdFragments_maxLeaderSeqDiffScore){
-      i <- as.vector(stringdist::stringdistmatrix(x$repLeaderSeq, r[[2]]) / nchar(x$repLeaderSeq) <= opt$buildStdFragments_maxLeaderSeqDiffScore)
-     
-      # Is there a majority of fragments that are similar to the consensus sequences?
-      # If there is we salvage those fragments otherwise we discard this site.
-      if(sum(i)/nrow(x) >= opt$buildSites_assemblyConflictResolution){
-        x <- x[i,]
-        r <- representativeSeq(x$repLeaderSeq)
-      } else {
-        return(tibble())
-      }
-      
-      # Recalculate abundances since fragments were removed.
-      o <- calcAbunds(x); estAbund <- o[[1]]; molCodes <- o[[2]]
-    }
-      
-    return(dplyr::mutate(x, fragments = nrow(x), fragmentWidths = n_distinct(x$fragWidth), sonicAbund = estAbund, UMIs = molCodes, reads = sum(reads), repLeaderSeq = r[[2]], fragmentsRemoved = sum(!i)) %>%
-           dplyr::select(trial, subject, sample, replicate, posid, fragments, fragmentWidths, sonicAbund, UMIs, reads, fragmentsRemoved, repLeaderSeq) %>%
+    return(dplyr::mutate(x, fragments = molCodes, fragmentWidths = n_distinct(x$fragWidth), sonicAbund = estAbund, reads = sum(reads), repLeaderSeq = r[[2]], 
+                         maxLeaderSeqDist = max(stringdist::stringdistmatrix(unlist(x$leaderSeqs)))) %>%
+           dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, sonicAbund, reads, maxLeaderSeqDist, repLeaderSeq) %>%
            dplyr::slice(1))
   }
 }))
@@ -106,24 +193,22 @@ tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sa
            o <- subset(x, replicate == r)
         
            if(nrow(o) == 1){
-             t <- tibble(x1 = o$fragments, x2 = o$fragmentWidths, x3 = o$sonicAbund, x4 = o$UMIs, x5 = o$reads, x6 = o$fragmentsRemoved, x7 = o$repLeaderSeq)
+             t <- tibble(x1 = o$fragments, x2 = o$fragmentWidths, x3 = o$sonicAbund, x4 = o$reads, x5 = o$repLeaderSeq)
            } else if(nrow(o) > 1){
              stop('Row error 1')  
            } else {
-             t <- tibble(x1 = NA, x2 = NA, x3 = NA, x4 = NA, x5 = NA, x6 = NA, x7 = NA)
+             t <- tibble(x1 = NA, x2 = NA, x3 = NA, x4 = NA, x5 = NA)
            }
 
            names(t) <- c(paste0('rep', r, '-fragments'), 
                          paste0('rep', r, '-fragmentWidths'), 
                          paste0('rep', r, '-sonicAbund'),
-                         paste0('rep', r, '-UMIs'), 
                          paste0('rep', r, '-reads'), 
-                         paste0('rep', r, '-fragsRemoved'),
                          paste0('rep', r, '-repLeaderSeq'))
           t
          }))
          
-      bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], posid = x$posid[1]), o)
+      bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], refGenome = x$refGenome[1], posid = x$posid[1], flags = x$flags[1]), o)
 }))
 
 
@@ -135,41 +220,23 @@ tbl2 <- bind_rows(lapply(1:nrow(tbl1), function(x){
   o <- calcAbunds(f); estAbund <- o[[1]]; molCodes <- o[[2]]
   
   if(nrow(f) == 1){
-    
-    # Just one fragment for this position.
-    k <- tibble(fragments = nrow(f), fragmentWidths = n_distinct(f$fragWidth), sonicAbund = estAbund, UMIs = molCodes, reads = f$reads, fragmentsRemoved = 0, repLeaderSeq = f$repLeaderSeq) 
+    k <- tibble(fragments = molCodes, fragmentWidths = n_distinct(f$fragWidth), sonicAbund = estAbund, reads = f$reads, 
+                maxLeaderSeqDist = f$maxLeaderSeqDist, repLeaderSeq = f$repLeaderSeq) 
     
   } else {
-    i <- rep(TRUE, nrow(f))
-    r <- representativeSeq(f$repLeaderSeq)
+    r <- representativeSeq(unlist(f$leaderSeqs))
     
-    # Exclude fragments that have distinctly different leader sequences compared to the consensus sequence.
-    
-    if(r[[1]] > opt$buildStdFragments_maxLeaderSeqDiffScore){
-      i <- as.vector(stringdist::stringdistmatrix(f$repLeaderSeq, r[[2]]) / nchar(f$repLeaderSeq) <= opt$buildStdFragments_maxLeaderSeqDiffScore)
-      
-      # Is there a majority of fragments that are similar to the consensus sequences?
-      # If there is we salvage those fragments otherwise we discard this site.
-      if(sum(i)/nrow(f) >= opt$buildSites_assemblyConflictResolution){
-        f <- f[i,]
-        r <- representativeSeq(f$repLeaderSeq)
-      } else {
-        return(tibble())
-      }
-      
-      # Recalculate abundances since fragments were removed.
-      o <- calcAbunds(f); estAbund <- o[[1]]; molCodes <- o[[2]]
-    }
-    
-    k <- tibble(fragments = nrow(f), fragmentWidths = n_distinct(f$fragWidth), sonicAbund = estAbund, UMIs = molCodes, reads = sum(f$reads), fragmentsRemoved = sum(!i), repLeaderSeq = r[[2]])
+    k <- tibble(fragments = molCodes, fragmentWidths = n_distinct(f$fragWidth), sonicAbund = estAbund, reads = sum(f$reads), 
+                maxLeaderSeqDist = max(stringdist::stringdistmatrix(unlist(f$leaderSeqs))), repLeaderSeq = r[[2]])
   }
   
   k$nRepsObs <- sum(! is.na(unlist(x[, which(grepl('\\-repLeaderSeq', names(x)))])))
-  k$repLeaderSeqDists <- paste0(stringdist::stringdist(k$repLeaderSeq, unlist(x[, which(grepl('\\-repLeaderSeq', names(x)))])), collapse = ', ')
-  bind_cols(x[,1:4], k, x[,5:length(x)])
+  bind_cols(x[,1:6], k, x[,7:length(x)])
 }))
 
-saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
-openxlsx::write.xlsx(arrange(tbl2, desc(UMIs)), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
+tbl2[is.infinite(tbl2$maxLeaderSeqDist),]$maxLeaderSeqDist <- NA
+
+saveRDS(select(tbl2), file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
+openxlsx::write.xlsx(arrange(tbl2, desc(fragments)), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
