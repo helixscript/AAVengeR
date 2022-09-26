@@ -245,6 +245,8 @@ representativeSeq <- function(s, percentReads = 95){
   s <- unique(s)
   
   if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
+    set.seed(1)
+    message('Sampling ', opt$buildStdFragments_representativeSeqCalc_maxReads, ' reads in representativeSeq()')
     s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
   }
   

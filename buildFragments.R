@@ -111,44 +111,133 @@ adriftReadAlignments <- select(adriftReadAlignments, sample, qName, tName, stran
 names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads')
 names(adriftReadAlignments) <- paste0(names(adriftReadAlignments), '.adriftReads')
 
+#----------------------------------
 
+# Create a table where each row is a read pair id and the columns are the number
+# of anchor and adrift read alignments. These values are converted to 0 if the 
+# value is less than opt$buildFragments_maxReadAlignments and converted to 1 if 
+# the value is greater. Row sums of 2 tell us that both mates have more than 
+# alignments and should be pruned.
 
-# Limit the number of alignments per read.
+a <- as.data.frame(table(anchorReadAlignments$qName.anchorReads))
+names(a) <- c('readID', 'anchorReadAlnFreq')
+b <- as.data.frame(table(adriftReadAlignments$qName.adriftReads))
+names(b) <- c('readID', 'adriftReadAlnFreq')
+tab <- left_join(a, b, by = 'readID')
 
-k <- table(anchorReadAlignments$qName.anchorReads)
-p <- sprintf("%.2f%%", (sum(k > opt$buildFragments_maxReadAlignments)/n_distinct(anchorReadAlignments$qName.anchorReads))*100)
-write(c(paste(now(), paste0('   ', p, '  anchor reads have more than ', opt$buildFragments_maxReadAlignments, ' alignments.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
-k <- k[k > opt$buildFragments_maxReadAlignments]
+tab$anchorReadAlnFreq <- ifelse(tab$anchorReadAlnFreq > opt$buildFragments_maxReadAlignments, 1, 0)
+tab$adriftReadAlnFreq <- ifelse(tab$adriftReadAlnFreq > opt$buildFragments_maxReadAlignments, 1, 0)
+tab$s <- rowSums(tab[ , c(2,3)], na.rm=TRUE)
 
-if(length(k) > 0){
-  a <- anchorReadAlignments[anchorReadAlignments$qName.anchorReads %in% names(k),]
-  b <- anchorReadAlignments[! anchorReadAlignments$qName.anchorReads %in% names(k),]
+# Find read pairs where both anchor and adrift mates have more than opt$buildFragments_maxReadAlignments alignments.
+z <- as.character(tab[tab$s == 2,]$readID)
+
+if(length(z) > 0){
   
-  a2 <- bind_rows(lapply(split(a, a$qName.anchorReads), function(x){
-          set.seed(1)
-          dplyr::slice_sample(x, n = opt$buildFragments_maxReadAlignments)
-         }))
+  write(c(paste(now(), paste0(length(z), ' read pairs, ', sprintf("%.2f%%", (length(z)/nrow(tab))*100),    
+                              ' of reads, have more than ', 
+                              opt$buildFragments_maxReadAlignments, ' alignments.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
-  anchorReadAlignments <- bind_rows(a2, b)
+  # Find the anchor read alignments from reads with more than the maximum number of alignments.
+  a <- filter(anchorReadAlignments, qName.anchorReads %in% z)
+  
+  # Sample a number of alignments from each overly aligned anchor read.
+  set.seed(1)
+  a <- group_by(a, qName.anchorReads) %>%
+       sample_n(opt$buildFragments_maxReadAlignments) %>%
+       ungroup()
+  
+  # Find the subset of adrift reads alignments which corespond to the randomly selected anchor read alignments.
+  b <- filter(adriftReadAlignments, qName.adriftReads %in% a$qName.anchorReads)
+  
+  # Split the alignments by read id.
+  a <- split(a, a$qName.anchorReads)
+  b <- split(b, b$qName.adriftReads)
+  if(! all(names(a) == names(b))) stop('Error -- excess read name alignment error.')
+  
+  # Split the anchor read and adrift reads lists into another list whose elements can be processed in parallel.
+  k <- lapply(split(1:length(a), ntile(1:length(a), opt$buildFragments_CPUs)), function(x) list(a[x], b[x]))
+
+  o <- parLapply(cluster, k, function(x){
+  #o <- lapply(k, function(x){
+         library(dplyr)
+         library(GenomicRanges)
+    
+         a <- x[[1]]
+         b <- x[[2]]
+
+         j <- lapply(1:length(a), function(x2){
+                a <- a[[x2]]
+                b <- b[[x2]]
+         
+                a.pos <- subset(a, strand.anchorReads == '+')
+                a.neg <- subset(a, strand.anchorReads == '-')
+         
+                a.pos.gr <- GenomicRanges::makeGRangesFromDataFrame(tibble(
+                              seqnames = a.pos$tName.anchorReads, 
+                              strand = '+',
+                              start = a.pos$tStart.anchorReads,
+                              end = a.pos$tEnd.anchorReads))
+         
+                a.neg.gr <- GenomicRanges::makeGRangesFromDataFrame(tibble(
+                              seqnames = a.neg$tName.anchorReads, 
+                              strand = '-',
+                              start = a.neg$tStart.anchorReads,
+                              end = a.neg$tEnd.anchorReads))
+                
+                b.pos <- subset(b, b$strand.adriftReads == '+')
+                b.neg <- subset(b, b$strand.adriftReads == '-')
+         
+                b.pos.gr <- GenomicRanges::makeGRangesFromDataFrame(tibble(
+                              seqnames = b.pos$tName.adriftReads, 
+                              strand = '+',
+                              start = b.pos$tStart.adriftReads-1000,
+                              end = b.pos$tEnd.adriftReads+1000))
+         
+               b.neg.gr <- GenomicRanges::makeGRangesFromDataFrame(tibble(
+                             seqnames = b.neg$tName.adriftReads, 
+                             strand = '-',
+                             start = b.neg$tStart.adriftReads-1000,
+                             end = b.neg$tEnd.adriftReads+1000))
+         
+               negAlignmentsToReturn <- tibble()
+               posAlignmentsToReturn <- tibble()
+         
+               i <- vector()
+               if(length(a.pos.gr) > 0 & length(b.neg.gr) > 0) i <- findOverlaps(a.pos.gr, b.neg.gr, ignore.strand = TRUE)
+               if(length(i) > 0) negAlignmentsToReturn <- b.neg[unique(as.integer(subjectHits(i))),]
+         
+               i <- vector()
+               if(length(a.neg.gr) > 0 & length(b.pos.gr) > 0) i <- findOverlaps(a.neg.gr, b.pos.gr, ignore.strand = TRUE)
+               if(length(i) > 0) posAlignmentsToReturn <- b.pos[unique(as.integer(subjectHits(i))),]
+         
+              list(bind_rows(a.pos, a.neg), bind_rows(negAlignmentsToReturn, posAlignmentsToReturn))
+          })
+  
+         list(bind_rows(lapply(j, '[[', 1)), (bind_rows(lapply(j, '[[', 2)))) 
+       })
+  
+  # Recombine the selected alignments from the parallel processing.
+  o2 <- list(bind_rows(lapply(o, '[[', 1)), (bind_rows(lapply(o, '[[', 2)))) 
+  
+  # Remove alignments with too many alignments from the alignment data frames.
+  anchorReadAlignments <- subset(anchorReadAlignments, ! qName.anchorReads %in% z)
+  adriftReadAlignments <- subset(adriftReadAlignments, ! qName.adriftReads %in% z)
+  
+  # Add back the sampled alignments.
+  anchorReadAlignments <- bind_rows(anchorReadAlignments, o2[[1]])
+  adriftReadAlignments <- bind_rows(adriftReadAlignments, o2[[2]])
+  
+  rm(z, a, b, tab, k, o, o2)
+  gc()
 }
 
 
-k <- table(adriftReadAlignments$qName.adriftReads)
-p <- sprintf("%.2f%%", (sum(k > opt$buildFragments_maxReadAlignments)/n_distinct(adriftReadAlignments$qName.adriftReads))*100)
-write(c(paste(now(), paste0('   ', p, '  adrift reads have more than ', opt$buildFragments_maxReadAlignments, ' alignments.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
-k <- k[k > opt$buildFragments_maxReadAlignments]
 
-if(length(k) > 0){
-  a <- adriftReadAlignments[adriftReadAlignments$qName.adriftReads %in% names(k),]
-  b <- adriftReadAlignments[! adriftReadAlignments$qName.adriftReads %in% names(k),]
-  
-  a2 <- bind_rows(lapply(split(a, a$qName.adriftReads), function(x){
-    set.seed(1)
-    dplyr::slice_sample(x, n = opt$buildFragments_maxReadAlignments)
-  }))
-  
-  adriftReadAlignments <- bind_rows(a2, b)
-}
+
+
+#--------------------
+
 
 
 ids <- unique(anchorReadAlignments$qName.anchorReads)

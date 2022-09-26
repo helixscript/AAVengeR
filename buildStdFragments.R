@@ -15,11 +15,13 @@ dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
 
 write(c(paste(now(), 'Reading in fragment file(s).')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
+message('f1')
 
 # Load fragment data from database or local file depending on configuration file.
 # Fragments are read in on the read level and contain a variable (n) which is the number 
 # of identical read pairs that were removed in prepReads. (n) can be added to fragment
 # read counts to account for all reads suporting fragments.
+
 
 if('databaseGroup' %in% names(opt)){
   library(RMariaDB)
@@ -58,8 +60,12 @@ if('databaseGroup' %in% names(opt)){
            }))
 }
 
-# Create fragment ids.
+message('f2')
+
+# Create fragment ids. (Very slow...)
 frags <- unpackUniqueSampleID(frags)
+
+message('f3')
 
 # Look at ITR/LTR remnants on the subject level, order by UMI counts, and assign
 # identifiers to each so they can be standardized separately.
@@ -98,6 +104,8 @@ frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject)), funct
 }))
 
 
+message('f4')
+
 # Define fragment ids -- everything that makes a fragment unique.
 frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample, ':',  
                        frags$replicate, ':', frags$chromosome, ':', frags$strand, ':', 
@@ -118,6 +126,8 @@ f <- group_by(frags, fragID) %>%
 
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
+
+message('f5')
 
 # Standardize integration positions.
 g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
@@ -145,6 +155,9 @@ g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s
 
 g <- data.frame(g)
 
+
+message('f6')
+
 # Record original fragment positions.
 frags$orgFragStart <- frags$fragStart
 frags$orgFragEnd   <- frags$fragEnd
@@ -170,7 +183,8 @@ frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', 
                        frags$leaderSeqGroup, ':', frags$randomLinkerSeq.adriftReads)
 
 
-# Rather than standardizing across subjects, here we standardize breaks within replicate / random id groups.
+# Rather than standardizing across subjects, here we standardize breaks within replicate / random id groups
+# and parallelize across unique samples.
 f <- group_by(frags, fragID) %>%
      summarise(seqnames = chromosome[1], start = fragStart[1], end = fragEnd[1], strand = strand[1], 
                reads = n_distinct(readID) + sum(n), fragID = fragID[1],
@@ -182,17 +196,34 @@ f <- group_by(frags, fragID) %>%
 # Separate fragment records into those with and those without multiple reads
 # since we do not need to standardize fragments with a single read.
 
-f1 <- subset(f, n == 1)
-f2 <- subset(f, n > 1)
+z <- table(f$s2)
+f1 <- subset(f, ! s2 %in% names(z[z > 1]))
+f2 <- subset(f, s2 %in% names(z[z > 1]))
+
+
+message('f7')
 
 if(nrow(f2) > 0){
-  f2 <- bind_rows(parLapply(cluster, split(f2, f2$s1), function(x){
+  
+  message(opt$buildStdFragments_CPUs, ' cores.')
+  
+  o <- split(f2, f2$s2)
+  i <- ntile(1:length(o), opt$buildStdFragments_CPUs)
+  f2 <- bind_rows(lapply(1:length(o), function(x){
+        a <- o[[x]]
+        a$s3 <- i[x]
+        a
+  }))
+  
+  f2 <- bind_rows(parLapply(cluster, split(f2, f2$s3), function(x){
           library(dplyr) 
           library(GenomicRanges)
           source(file.path(opt$softwareDir, 'lib.R'))
       
           g <- GenomicRanges::makeGRangesFromDataFrame(x, keep.extra.columns = TRUE)
+
           g <- unlist(GenomicRanges::GRangesList(lapply(split(g, g$s2), function(x){
+            
                  x$breakPointRefined <- FALSE
   
                  out <- tryCatch({
@@ -217,6 +248,10 @@ if(nrow(f2) > 0){
 stopCluster(cluster)
 
 f <- bind_rows(f1, f2)
+rm(f1, f2)
+
+
+message('f8')
 
 # Record original fragment positions.
 frags$orgFragStart2 <- frags$fragStart
@@ -250,6 +285,8 @@ frags$fragID2 <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sampl
 # Correct for instances where a read maps to more than fragment but all fragments have the sample integration position.
 # These are instances of fuzzy break points and here we select the shortest fragments lengths.
 
+message('f9')
+
 o <- split(frags, frags$readID)
 frags <- bind_rows(lapply(o, function(x){
   if(n_distinct(x$fragID2) > 1 & n_distinct(x$posid) == 1){
@@ -272,6 +309,8 @@ o <- group_by(frags, readID) %>%
 
 multiHitFrags <- tibble()
 
+
+message('f10')
 
 if(nrow(o) > 0){
   
@@ -337,7 +376,13 @@ if(nrow(o) > 0){
 
 multiHitClusters <- tibble()
 
+message('f11')
+
+save.image(file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClustersStart.RData'))
+
 if(nrow(multiHitFrags) > 0 & opt$buildStdFragments_createMultiHitClusters){
+  
+  ### save.image(file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClustersStart.RData'))
   
   multiHitFrags$fragWidth = multiHitFrags$fragEnd - multiHitFrags$fragStart + 1
   
@@ -403,9 +448,16 @@ fragsRemoved <- tibble()
 # The reads per fragment filter is applied here since it will effect the following 
 # clean up of UMIs found across multiple fragment records.
 
+message('f12')
+
 o <- split(frags, frags$fragID)
 
+t <- length(o)
+i <- 1
+
 f <- bind_rows(lapply(o, function(x){
+       message(i, '/', t); i <<- i + 1
+       
        totalReads <- n_distinct(x$readID) + sum(x$n)
   
        if(totalReads < opt$buildStdFragments_minReadsPerFrag) return(tibble())
@@ -419,7 +471,7 @@ f <- bind_rows(lapply(o, function(x){
   
        x <- x[1,]
        x$reads <- totalReads
-       x$maxLeaderSeqDist <- max(stringdist::stringdistmatrix(leaderSeqs))
+       x$maxLeaderSeqDist <- NA # Too slow. Uses all cores. max(stringdist::stringdistmatrix(leaderSeqs))
        x$readIDs <- list(readList)
        x$leaderSeqs <- list(leaderSeqs)
   
@@ -449,13 +501,16 @@ f$randomLinkerSeq.selectedReadMajority <- NA
 # o$fragWidth <- o$fragEnd - o$fragStart + 1
 # select(o, randomLinkerSeq.adriftReads, uniqueSample, posid, fragStart, fragEnd, reads, repLeaderSeq) 
 
+message('f13')
+
 f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x){
        t <- table(x$randomLinkerSeq.adriftReads) 
        t <- names(t[which(t > 1)])
        
-       if(length(t) >= 0){
+       if(length(t) > 0){
          a <- subset(x, ! randomLinkerSeq.adriftReads %in% t)
          b <- subset(x, randomLinkerSeq.adriftReads %in% t)
+         
          b$randomLinkerSeq.dispute <- TRUE
     
          b2 <- bind_rows(lapply(t, function(i){
@@ -469,6 +524,8 @@ f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x
     
        x
      }))
+
+message('f done')
 
 f2 <- select(f2, -uniqueSample, -n, -fragID, -fragID2, -readID, -leaderSeq.anchorReads)
 saveRDS(f2, file.path(opt$outputDir, opt$buildStdFragments_outputDir, opt$buildStdFragments_outputFile))

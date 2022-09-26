@@ -94,46 +94,53 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
   
   frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$sample)), function(x){
 
-    dualDetect <- subset(intSiteFlags, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1])
+    dualDetect <- tibble()
+    if(nrow(intSiteFlags) > 0) dualDetect <- subset(intSiteFlags, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1])
     
     a <- subset(frags, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & posid %in% dualDetect$posid)
     b <- subset(frags, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & ! posid %in% dualDetect$posid)
   
-    a1 <- subset(a, strand == '+')
-    if(nrow(a1) > 0) a1$posid <- unlist(lapply(strsplit(a1$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2])+2, '.', x[3])))
+    if(nrow(a)){
+      a1 <- subset(a, strand == '+')
+      if(nrow(a1) > 0) a1$posid <- unlist(lapply(strsplit(a1$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2])+2, '.', x[3])))
   
-    a2 <- subset(a, strand == '-')
-    if(nrow(a2) > 0) a2$posid <- unlist(lapply(strsplit(a2$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '-', as.integer(x[2])-2, '.', x[3])))
+      a2 <- subset(a, strand == '-')
+      if(nrow(a2) > 0) a2$posid <- unlist(lapply(strsplit(a2$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '-', as.integer(x[2])-2, '.', x[3])))
   
-    a <- bind_rows(a1, a2)
-    a$flags <- 'dual detect'
-  
-    # Shift positions to reflect duplication caused by integrase.
-    b1 <- subset(b, strand == '+')
-    if(nrow(b1) > 0) b1$posid <- unlist(lapply(strsplit(b1$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2])+2, '.', x[3])))
-
-    b2 <- subset(b, strand == '-')
-    if(nrow(b2) > 0) b2$posid <- unlist(lapply(strsplit(b2$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '-', as.integer(x[2])-2, '.', x[3])))
-
-    b <- bind_rows(b1, b2)
-
-    updatePosIdStrand <- function(x, s){
-      o <- unlist(strsplit(x, '[\\+\\-]'))
-      paste0(o[1], s, o[2])
+      a <- bind_rows(a1, a2)
+      a$flags <- 'dual detect'
     }
+    
+    # Shift positions to reflect duplication caused by integrase.
+    if(nrow(b)){
+      b1 <- subset(b, strand == '+')
+      if(nrow(b1) > 0) b1$posid <- unlist(lapply(strsplit(b1$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2])+2, '.', x[3])))
 
-    # Change strand to reflect orientation. 
-    b1 <- subset(b, strand == '+' & grepl('IN_u3', b$flags))
-    b2 <- subset(b, strand == '-' & grepl('IN_u3', b$flags))
-    b3 <- subset(b, strand == '+' & grepl('IN_u5', b$flags))
-    b4 <- subset(b, strand == '-' & grepl('IN_u5', b$flags))
+      b2 <- subset(b, strand == '-')
+      if(nrow(b2) > 0) b2$posid <- unlist(lapply(strsplit(b2$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '-', as.integer(x[2])-2, '.', x[3])))
 
-    if(nrow(b1) > 0) b1$posid <- sapply(b1$posid, updatePosIdStrand, '-')
-    if(nrow(b2) > 0) b2$posid <- sapply(b2$posid, updatePosIdStrand, '+')
-    if(nrow(b3) > 0) b3$posid <- sapply(b3$posid, updatePosIdStrand, '+')
-    if(nrow(b4) > 0) b4$posid <- sapply(b4$posid, updatePosIdStrand, '-')
+      b <- bind_rows(b1, b2)
 
-    bind_rows(a, b1, b2, b3, b4)
+      updatePosIdStrand <- function(x, s){
+        o <- unlist(strsplit(x, '[\\+\\-]'))
+        paste0(o[1], s, o[2])
+      }
+
+      # Change strand to reflect orientation. 
+      b1 <- subset(b, strand == '+' & grepl('IN_u3', b$flags))
+      b2 <- subset(b, strand == '-' & grepl('IN_u3', b$flags))
+      b3 <- subset(b, strand == '+' & grepl('IN_u5', b$flags))
+      b4 <- subset(b, strand == '-' & grepl('IN_u5', b$flags))
+
+      if(nrow(b1) > 0) b1$posid <- sapply(b1$posid, updatePosIdStrand, '-')
+      if(nrow(b2) > 0) b2$posid <- sapply(b2$posid, updatePosIdStrand, '+')
+      if(nrow(b3) > 0) b3$posid <- sapply(b3$posid, updatePosIdStrand, '+')
+      if(nrow(b4) > 0) b4$posid <- sapply(b4$posid, updatePosIdStrand, '-')
+
+      b <- bind_rows(b1, b2, b3, b4)
+    }
+      
+    bind_rows(a, b)
   }))
 }
 
@@ -164,6 +171,7 @@ counter <- 1
 total <- length(o)
 
 sites <- bind_rows(lapply(o, function(x){
+  ### if(counter == 4797) browser()
   message(counter, ' / ', total); counter <<- counter + 1
   
   o <- calcAbunds(x); estAbund <- o[[1]]; molCodes <- o[[2]]
@@ -172,10 +180,17 @@ sites <- bind_rows(lapply(o, function(x){
     return(dplyr::mutate(x, fragments = molCodes, fragmentWidths = n_distinct(x$fragWidth), sonicAbund = estAbund) %>%
              dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, sonicAbund, reads, maxLeaderSeqDist, repLeaderSeq))
   } else {
-    r <- representativeSeq(unlist(x$leaderSeqs))
+    
+    s <- unlist(x$leaderSeqs)
+    if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
+      set.seed(1)
+      s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
+    }
+    
+    r <- representativeSeq(s)
     
     return(dplyr::mutate(x, fragments = molCodes, fragmentWidths = n_distinct(x$fragWidth), sonicAbund = estAbund, reads = sum(reads), repLeaderSeq = r[[2]], 
-                         maxLeaderSeqDist = max(stringdist::stringdistmatrix(unlist(x$leaderSeqs)))) %>%
+                         maxLeaderSeqDist = max(stringdist::stringdistmatrix(s))) %>%
            dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, sonicAbund, reads, maxLeaderSeqDist, repLeaderSeq) %>%
            dplyr::slice(1))
   }
@@ -224,19 +239,25 @@ tbl2 <- bind_rows(lapply(1:nrow(tbl1), function(x){
                 maxLeaderSeqDist = f$maxLeaderSeqDist, repLeaderSeq = f$repLeaderSeq) 
     
   } else {
-    r <- representativeSeq(unlist(f$leaderSeqs))
+    s <- unlist(f$leaderSeqs)
+    if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
+      set.seed(1)
+      s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
+    }
+    
+    r <- representativeSeq(s)
     
     k <- tibble(fragments = molCodes, fragmentWidths = n_distinct(f$fragWidth), sonicAbund = estAbund, reads = sum(f$reads), 
-                maxLeaderSeqDist = max(stringdist::stringdistmatrix(unlist(f$leaderSeqs))), repLeaderSeq = r[[2]])
+                maxLeaderSeqDist = max(stringdist::stringdistmatrix(s)), repLeaderSeq = r[[2]])
   }
   
   k$nRepsObs <- sum(! is.na(unlist(x[, which(grepl('\\-repLeaderSeq', names(x)))])))
   bind_cols(x[,1:6], k, x[,7:length(x)])
 }))
 
-tbl2[is.infinite(tbl2$maxLeaderSeqDist),]$maxLeaderSeqDist <- NA
+if(any(is.infinite(tbl2$maxLeaderSeqDist))) tbl2[is.infinite(tbl2$maxLeaderSeqDist),]$maxLeaderSeqDist <- NA
 
-saveRDS(select(tbl2), file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
+saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
 openxlsx::write.xlsx(arrange(tbl2, desc(fragments)), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

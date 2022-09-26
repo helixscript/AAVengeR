@@ -11,54 +11,44 @@ dir.create(file.path(opt$outputDir, opt$callNearestGenes_outputDir))
 
 sites <- readRDS(file.path(opt$outputDir, opt$callNearestGenes_inputFile))
 
-# Add refGenome to sites.
-sites <- distinct(left_join(sites, select(samples, uniqueSample, refGenome.id), by = 'uniqueSample'))
+sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
 
-sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome.id), function(x){
-  
-           genes <- file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x$refGenome.id[1], '.TUs.rds'))
-           if(! file.exists(genes)){
-             write(c(paste(now(), "Error - could not find data file: ", genes)), file = file.path(opt$outputDir, 'log'), append = TRUE)
+           if(! x$refGenome[1] %in% names(opt$callNearestGenes_boundaries)){
+             write(c(paste(now(), paste0('   Error - ', x$refGenome[1], ' is not defined beneath callNearestGenes_boundaries in the config file.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
              q(save = 'no', status = 1, runLast = FALSE) 
            }
-           genes <- readRDS(genes)
-       
-           exons <- file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x$refGenome.id[1], '.exons.rds'))
-           if(! file.exists(exons)){
-             write(c(paste(now(), "Error - could not find data file: ", exons)), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  
+           if(! 'TUs' %in% names(opt$callNearestGenes_boundaries[[x$refGenome[1]]])){
+             write(c(paste(now(), paste0('   Error - TUs file not defined for ', x$refGenome[1], ' in the config file.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
              q(save = 'no', status = 1, runLast = FALSE) 
            }
-           exons <- readRDS(exons)
   
-           if(opt$callNearestGenes_use_humanXeno){
-             genes <- file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x$refGenome.id[1], '.humanXeno.TUs.rds'))
-             if(grepl('hg\\d+', x$refGenome.id[1])) genes <- sub('\\.humanXeno', '', genes) # Undo adding humanXeno to a human genome.
-         
-             if(! file.exists(genes)){
-               write(c(paste(now(), "Error - could not find data file: ", genes)), file = file.path(opt$outputDir, 'log'), append = TRUE)
-               q(save = 'no', status = 1, runLast = FALSE) 
-             }
-             
-             genes <- readRDS(genes)
-
-             exons <- file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x$refGenome.id[1], '.humanXeno.exons.rds'))
-             if(grepl('hg\\d+', x$refGenome.id[1])) exons <- sub('\\.humanXeno', '', exons)  # Undo adding humanXeno to a human genome.
-         
-             if(! file.exists(exons)){
-               write(c(paste(now(), "Error - could not find data file: ", exons)), file = file.path(opt$outputDir, 'log'), append = TRUE)
-               q(save = 'no', status = 1, runLast = FALSE) 
-             }
-             
-             exons <- readRDS(exons)
+           if(! 'exons' %in% names(opt$callNearestGenes_boundaries[[x$refGenome[1]]])){
+             write(c(paste(now(), paste0('   Error - exons file not defined for ', x$refGenome[1], ' in the config file.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+             q(save = 'no', status = 1, runLast = FALSE) 
            }
+  
+           if(! file.exists(file.path(opt$softwareDir, 'data', 'genomeAnnotations', opt$callNearestGenes_boundaries[[x$refGenome[1]]][['TUs']]))){
+             write(c(paste(now(), paste0('   Error - TUs file set for ', x$refGenome[1], ' could not be found.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+             q(save = 'no', status = 1, runLast = FALSE) 
+           }
+  
+           if(! file.exists(file.path(opt$softwareDir, 'data', 'genomeAnnotations', opt$callNearestGenes_boundaries[[x$refGenome[1]]][['exons']]))){
+             write(c(paste(now(), paste0('   Error - exons file set for ', x$refGenome[1], ' could not be found.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+             q(save = 'no', status = 1, runLast = FALSE) 
+           }
+  
+  
+           genes <- readRDS(file.path(opt$softwareDir, 'data', 'genomeAnnotations', opt$callNearestGenes_boundaries[[x$refGenome[1]]][['TUs']]))
+           exons <- readRDS(file.path(opt$softwareDir, 'data', 'genomeAnnotations', opt$callNearestGenes_boundaries[[x$refGenome[1]]][['exons']]))
   
            # Collapse TUs to single positions if requested. 
            # Remove exons since they would not be relevant.
            if(opt$callNearestGenes_TU_position != 'either'){
              options(warn=-1)
-             if (subjectSide == "start") genes <- GenomicRanges::flank(genes, width = -1)
-             if (subjectSide == "end")   genes <- GenomicRanges::flank(genes, width = -1, start = FALSE)
-             if (subjectSide == "center") ranges(genes) <- IRanges(mid(ranges(genes)), width = 1)
+             if (opt$callNearestGenes_TU_position == "start")  genes <- GenomicRanges::flank(genes, width = -1)
+             if (opt$callNearestGenes_TU_position == "end")    genes <- GenomicRanges::flank(genes, width = -1, start = FALSE)
+             if (opt$callNearestGenes_TU_position == "center") ranges(genes) <- IRanges(mid(ranges(genes)), width = 1)
              options(warn=0)
              exons <- GenomicRanges::GRanges()
            }
@@ -72,12 +62,16 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome.id), function(x)
           n <- n[!duplicated(n$posid2),]
           x$posid2 <- sub('\\.\\d+', '', x$posid)
           
-          left_join(x, select(n, nearestGene, nearestGeneStrand, nearestGeneDist, inGene, inExon, beforeNearestGene, posid2), by = 'posid2') %>% select(-posid2)
+          len <- length(x)
+          n <- select(n, nearestGene, nearestGeneStrand, nearestGeneDist, inGene, inExon, beforeNearestGene, posid2)
+          
+          x <- left_join(x, n, by = 'posid2') %>% select(-posid2)
+          
+          # Move joined result to after the posid column.
+          bind_cols(x[,c(1:which(names(x) == 'posid'))], x[,c(len:(len+5))], x[,c((which(names(x) == 'posid')+1):(len-1))])
        })))
 
-saveRDS(select(sites, -uniqueSample, refGenome.id), file.path(opt$outputDir, opt$callNearestGenes_outputDir, opt$callNearestGenes_outputFile))
-openxlsx::write.xlsx(select(sites, -uniqueSample, refGenome.id), file.path(opt$outputDir, opt$callNearestGenes_outputDir, 'sites.xlsx'))
+saveRDS(sites, file.path(opt$outputDir, opt$callNearestGenes_outputDir, opt$callNearestGenes_outputFile))
+openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$callNearestGenes_outputDir, 'sites.xlsx'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
-
-
