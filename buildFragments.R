@@ -12,6 +12,7 @@ opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
+dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads'))
 
 # Read in adrift alignment reads.
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adriftReadsAlignmentFile))
@@ -41,11 +42,18 @@ if(opt$demultiplex_captureRandomLinkerSeq){
   # Correct random ids to the most abundant within samples.
   # Uncorrectable codes are returned as NNNN and removed.
   message('Correcting minor differences in random ids.')
-  # r <- bind_rows(lapply(split(r, r$sample), function(x){
+  #r <- bind_rows(lapply(split(r, r$sample), function(x){
   r <- bind_rows(parLapply(cluster, split(r, r$sample), function(x){
          source(file.path(opt$softwareDir, 'lib.R'))
          library(dplyr)
          x$randomLinkerSeq <- conformMinorSeqDiffs(x$randomLinkerSeq)
+         #browser()
+         
+         o <- x[grepl('N', x$randomLinkerSeq),]
+         if(nrow(o) > 0){
+           readr::write_tsv(o, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', paste0('uncorrectableIDs~', x$sample[1], '.tsv')))
+         }
+         
          x[! grepl('N', x$randomLinkerSeq),]
        }))
   

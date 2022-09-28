@@ -464,6 +464,10 @@ f <- bind_rows(lapply(o, function(x){
   
        r <- representativeSeq(x$leaderSeq.anchorReads)
   
+       # Prevent repetitive calls to muscle in representativeSeq() from causing 
+       # a system level error with too many open connections.
+       if(i %% 100 == 0) closeAllConnections()
+       
        x$repLeaderSeq <- r[[2]]
   
        leaderSeqs <- x$repLeaderSeq
