@@ -34,7 +34,7 @@ if(opt$demultiplex_captureRandomLinkerSeq){
   
   # Add sample ids to read alignments.
   message('Adding sample names to adrift alignments')
-  r <- left_join(r, dplyr::select(adriftReadAlignments, qName, sample), by = c('readID' = 'qName'))
+  r <- dplyr::distinct(left_join(r, dplyr::select(adriftReadAlignments, qName, sample), by = c('readID' = 'qName')))
   
   # Remove replicate identifiers from sample names to evaluate on the sample level.
   r$sample <- sub('~\\d+$', '', r$sample)
@@ -46,13 +46,11 @@ if(opt$demultiplex_captureRandomLinkerSeq){
   r <- bind_rows(parLapply(cluster, split(r, r$sample), function(x){
          source(file.path(opt$softwareDir, 'lib.R'))
          library(dplyr)
-         x$randomLinkerSeq <- conformMinorSeqDiffs(x$randomLinkerSeq)
-         #browser()
+         x$randomLinkerSeqPre <- x$randomLinkerSeq
+         x$randomLinkerSeq    <- conformMinorSeqDiffs(x$randomLinkerSeq)
          
          o <- x[grepl('N', x$randomLinkerSeq),]
-         if(nrow(o) > 0){
-           readr::write_tsv(o, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', paste0('uncorrectableIDs~', x$sample[1], '.tsv')))
-         }
+         if(nrow(o) > 0) readr::write_tsv(subset(x, readID %in% o$readID), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', paste0('uncorrectableIDs~', x$sample[1], '.tsv')))
          
          x[! grepl('N', x$randomLinkerSeq),]
        }))
@@ -89,7 +87,11 @@ if(opt$demultiplex_captureRandomLinkerSeq){
    })) 
   }
   
+  o <- subset(r, remove == TRUE)
+  if(nrow(o) > 0)  readr::write_tsv(subset(r, remove == TRUE), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', 'read_IDs_shared_between_samples.tsv'))
+    
   saveRDS(subset(r, remove == TRUE), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'readsRemoved_randomID_sample_conflicts.rds'))
+  
   r <- subset(r, remove != TRUE)
   
   adriftReadAlignments <- subset(adriftReadAlignments, qName %in% r$readID)
@@ -107,7 +109,7 @@ write(c(paste(now(), 'Reading in alignment results.')), file = file.path(opt$out
 
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
 
-readID2reference <- tibble(readID = anchorReadAlignments$qName, refGenome = anchorReadAlignments$refGenome.id)
+readID2reference <- distinct(tibble(readID = anchorReadAlignments$qName, refGenome = anchorReadAlignments$refGenome.id))
 
 anchorReadAlignments <- subset(anchorReadAlignments, qName %in% adriftReadAlignments$qName)
 
@@ -239,14 +241,6 @@ if(length(z) > 0){
   rm(z, a, b, tab, k, o, o2)
   gc()
 }
-
-
-
-
-
-#--------------------
-
-
 
 ids <- unique(anchorReadAlignments$qName.anchorReads)
 id_groups <- split(ids, dplyr::ntile(1:length(ids), ceiling(length(ids)/opt$buildFragments_idGroup_size)))
