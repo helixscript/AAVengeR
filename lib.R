@@ -36,13 +36,15 @@ qualTrimReads <- function(f, chunkSize, label, ouputDir){
   # Create a pointer like object to the read file.
   strm <- FastqStreamer(f, n = as.integer(chunkSize))
   
-  # Extract chunks from file and write out chunks with numeric suffixes, eg. anchorReads.5
+  if(! 'demultiplex_qualtrim_events' %in% names(opt)) opt$demultiplex_qualtrim_events <- 2
+  if(! 'demultiplex_qualtrim_halfWidth' %in% names(opt)) opt$demultiplex_qualtrim_halfWidth <- 5
+  
   n <- 1
   repeat {
     fq <- yield(strm)
     if(length(fq) == 0) break
     
-    fq <- trimTailw(fq, 2, opt$demultiplex_qualtrim_code, 5)
+    fq <- trimTailw(fq, opt$demultiplex_qualtrim_events, opt$demultiplex_qualtrim_code, opt$demultiplex_qualtrim_halfWidth)
     fq <- fq[width(fq) >= opt$demultiplex_qualtrim_minLength]
     
     if(length(fq) > 0) writeFastq(fq, file = file.path(ouputDir, paste0(label, '.', n)), compress = FALSE)
