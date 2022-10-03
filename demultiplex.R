@@ -178,10 +178,11 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
 stopCluster(cluster)
 
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), recursive = TRUE))
-    
+
 # Collate chunked reads and write out sample read files.
 write(paste(now(), '   Colating data files.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 invisible(lapply(unique(samples$uniqueSample), function(x){
+  message(x)
   f1 <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.anchorReads'), full.names = TRUE)
   f2 <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.adriftReads'), full.names = TRUE)
   if(length(f1) == 0 | length(f2) == 0 | length(f1) != length(f2)) return()

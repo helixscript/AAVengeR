@@ -365,8 +365,6 @@ save.image(file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'mul
 
 if(nrow(multiHitFrags) > 0 & opt$buildStdFragments_createMultiHitClusters){
   
-  ### save.image(file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClustersStart.RData'))
-  
   multiHitFrags$fragWidth = multiHitFrags$fragEnd - multiHitFrags$fragStart + 1
   
   # For each read, create a from -> to data frame and capture the width of the read. 
@@ -498,7 +496,20 @@ f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x
     
          b2 <- bind_rows(lapply(t, function(i){
                  o <- dplyr::arrange(subset(b, randomLinkerSeq.adriftReads == i), desc(reads))
-                 if((o[1,]$reads/sum(o$reads))*100 < opt$buildStdFragments_UMI_conflict_minPercentReads) return(tibble())
+                 o$percentReads <- (o$reads / sum(o$reads))*100
+
+                 if(o[1,]$percentReads < opt$buildStdFragments_UMI_conflict_minPercentReads){
+                   o$msg <- 'All fragments rejected'
+                   o$percentReads <- sprintf("%.2f%%", o$percentReads)
+                   readr::write_tsv(dplyr::select(o, trial, subject, sample, replicate, readID, randomLinkerSeq.adriftReads, posid, percentReads, msg), 
+                                    file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'randomIDexcludedReads', paste0('duplicate_UMIs_withinSample~', x$trial[1], '~', x$subject[1], '~', x$sample[1], '.tsv')))
+                   return(tibble())
+                 } else {
+                   o$msg <- 'Top fragment retained'
+                   o$percentReads <- sprintf("%.2f%%", o$percentReads)
+                   readr::write_tsv(dplyr::select(o[2:nrow(o),], trial, subject, sample, replicate, readID, randomLinkerSeq.adriftReads, posid, percentReads, msg), 
+                                    file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'randomIDexcludedReads', paste0('duplicate_UMIs_withinSample~', x$trial[1], '~', x$subject[1], '~', x$sample[1], '.tsv')))
+                 }
                  o[1,]
                }))
        

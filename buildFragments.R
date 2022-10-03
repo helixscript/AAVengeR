@@ -20,6 +20,9 @@ adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adri
 cluster <- makeCluster(opt$buildFragments_CPUs)
 clusterExport(cluster, c('opt'))
 
+anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
+anchorReadAlignments$posid <- paste0(anchorReadAlignments$tName, anchorReadAlignments$strand, ifelse(anchorReadAlignments$strand == '+', anchorReadAlignments$tStart, anchorReadAlignments$tEnd))
+
 # Random ids.
 if(opt$demultiplex_captureRandomLinkerSeq){
   
@@ -42,16 +45,19 @@ if(opt$demultiplex_captureRandomLinkerSeq){
   # Correct random ids to the most abundant within samples.
   # Uncorrectable codes are returned as NNNN and removed.
   message('Correcting minor differences in random ids.')
-  #r <- bind_rows(lapply(split(r, r$sample), function(x){
-  r <- bind_rows(parLapply(cluster, split(r, r$sample), function(x){
+  r <- bind_rows(lapply(split(r, r$sample), function(x){
+  #r <- bind_rows(parLapply(cluster, split(r, r$sample), function(x){
          source(file.path(opt$softwareDir, 'lib.R'))
          library(dplyr)
          x$randomLinkerSeqPre <- x$randomLinkerSeq
          x$randomLinkerSeq    <- conformMinorSeqDiffs(x$randomLinkerSeq)
          
          o <- x[grepl('N', x$randomLinkerSeq),]
-         if(nrow(o) > 0) readr::write_tsv(subset(x, readID %in% o$readID), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', paste0('uncorrectableIDs~', x$sample[1], '.tsv')))
-         
+         if(nrow(o) > 0){
+           o <- dplyr::select(dplyr::mutate(o, randomLinkerSeq = randomLinkerSeqPre), -randomLinkerSeqPre)
+           o <- left_join(o, dplyr::select(anchorReadAlignments, qName, posid), by = c('readID' = 'qName'))
+           readr::write_tsv(o, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', paste0('uncorrectableIDs~', x$sample[1], '.tsv')))
+         }     
          x[! grepl('N', x$randomLinkerSeq),]
        }))
   
@@ -87,10 +93,12 @@ if(opt$demultiplex_captureRandomLinkerSeq){
    })) 
   }
   
+  # Report reads removed because their random ids was seen in two or more samples.
   o <- subset(r, remove == TRUE)
-  if(nrow(o) > 0)  readr::write_tsv(subset(r, remove == TRUE), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', 'read_IDs_shared_between_samples.tsv'))
-    
-  saveRDS(subset(r, remove == TRUE), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'readsRemoved_randomID_sample_conflicts.rds'))
+  if(nrow(o) > 0){
+    o <- left_join(o, dplyr::select(anchorReadAlignments, qName, posid), by = c('readID' = 'qName'))
+    readr::write_tsv(o, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', 'read_IDs_shared_between_samples.tsv'))
+  }
   
   r <- subset(r, remove != TRUE)
   
@@ -107,7 +115,7 @@ if(opt$demultiplex_captureRandomLinkerSeq){
 
 write(c(paste(now(), 'Reading in alignment results.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
+
 
 readID2reference <- distinct(tibble(readID = anchorReadAlignments$qName, refGenome = anchorReadAlignments$refGenome.id))
 

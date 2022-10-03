@@ -46,8 +46,6 @@ r <- bind_rows(lapply(split(d, d$sample), function(x){
    r
 }))
 
-save.image('~/alignToVector.RData')
-
 
 d <- distinct(tibble(seqnames = 'chr1', subject = r$sample, replicate = 1, reads = 1, 
                      qStart = r$qStart, strand = r$strand, fragStart = r$tStart, fragEnd = r$tEnd))

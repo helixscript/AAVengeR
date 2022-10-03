@@ -1,14 +1,9 @@
-# AAV configuration.
-#
-# This configuration for AAV analyses uses sequence homology to vector sequences to model likely ITR remnant
-# sequences using overlapping local BLAST alignments. HMM specific parameters are ignored. 
-# The alignReads_genomeAlignment_anchorRead_maxStartPos parameter should be set to a large value, eg. 100, 
-# which will allow additional NTs between the modeled ITR remnant and the start of genomic alignments to
-# be captured and added to ITR remnant sequences.
+# Run specific and common processing parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
-outputDir:         /home/ubuntu/projects/Encoded/20220222/output
-sampleConfigFile:  /home/ubuntu/projects/Encoded/20220222/sampleData.tsv
+# Data paths.
+outputDir:         /home/ubuntu/projects/Encoded/20220817_autoInt/output
+sampleConfigFile:  /home/ubuntu/projects/Encoded/20220817_autoInt/sampleData.tsv
 
 modules:
    - demultiplex
@@ -23,10 +18,7 @@ modules:
 # Processing parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
-demultiplex_CPUs: 30
-demultiplex_anchorReadsFile: /home/ubuntu/projects/Encoded/20220222/data/220222_M03249_0243_000000000-JHTY6/Undetermined_S0_L001_R2_001.fastq.gz
-demultiplex_adriftReadsFile: /home/ubuntu/projects/Encoded/20220222/data/220222_M03249_0243_000000000-JHTY6/Undetermined_S0_L001_R1_001.fastq.gz
-demultiplex_index1ReadsFile: /home/ubuntu/projects/Encoded/20220222/data/220222_M03249_0243_000000000-JHTY6/Undetermined_S0_L001_I1_001.fastq.gz
+demultiplex_CPUs: 20
 demultiplex_outputDir: demultiplex
 demultiplex_RC_I1_barcodes: FALSE
 demultiplex_RC_I1_barcodes_auto: TRUE
@@ -39,16 +31,15 @@ demultiplex_useAdriftReadUniqueLinkers: TRUE
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1
 demultiplex_captureRandomLinkerSeq: TRUE
 demultiplex_anchorRead.startSeq.maxMisMatch: 1  # Evaluated if anchorRead.startSeq is a column in the sample data file.
+demultiplex_anchorReadsFile: /home/ubuntu/projects/Encoded/20220817/data/Undetermined_S0_R2_001.fastq.gz
+demultiplex_adriftReadsFile: /home/ubuntu/projects/Encoded/20220817/data/Undetermined_S0_R1_001.fastq.gz
+demultiplex_index1ReadsFile: /home/ubuntu/projects/Encoded/20220817/data/Undetermined_S0_I1_001.fastq.gz
 
-prepReads_CPUs: 30
+prepReads_CPUs: 20
 prepReads_outputDir: prepReads
 prepReads_inputDir:  demultiplex
-prepReads_excludeVectorHits: TRUE
-prepReads_HMMsearchReadStartPos: 1  # Subsequences of reads are used for HMM analysis, this is the read start position.
-prepReads_HMMsearchReadEndPos:  90  # Subsequences of reads are used for HMM analysis, this is the read end position.
-prepReads_HMMmaxStartPos: 3         # Maximum start position within HMM to accept a HMM hit.
-prepReads_HMMminFullBitScore: 55    # Min. score for accepting an HMM hit. Consider using toy sequences to determine reasonable cut-offs for each HMM.
-prepReads_buildReadMaps_blastReconstruction: TRUE
+prepReads_excludeVectorHits: FALSE
+prepReads_buildReadMaps_blastReconstruction: FALSE
 prepReads_minAnchorReadLength: 40
 prepReads_minAdriftReadLength: 30
 prepReads_commonLinkerAdapterLength: 14
@@ -59,6 +50,11 @@ prepReads_vectorAlignmentTestLength_drift: 2
 prepReads_vectorAlignmentChunkSize: 25000
 prepReads_buildReadMaps_minMapStartPostion: 5
 prepReads_keepIntermediateFiles: FALSE
+prepReads_HMMsearchReadStartPos: 1  # Subsequences of reads are used for HMM analysis, this is the read start position.
+prepReads_HMMsearchReadEndPos:  90  # Subsequences of reads are used for HMM analysis, this is the read end position.
+                                    # Consider using read start position + length of HMM + 10% length of HMM to accommodate for insertions.
+prepReads_HMMmaxStartPos: 3         # Maximum start position within HMM to accept a HMM hit.
+prepReads_HMMminFullBitScore: 55    # Min. score for accepting an HMM hit. Consider using toy sequences to determine reasonable cut-offs for each HMM.
 
 alignReads_CPUs: 20
 alignReads_outputDir: alignReads
@@ -66,8 +62,6 @@ alignReads_inputDir:  prepReads/final
 alignReads_mapLeaderSequencesOutputFile: prepReads/alignments.rds
 alignReads_anchorReadAlignmentsOutputFile: anchorReadAlignments.rds
 alignReads_adriftReadAlignmentsOutputFile: adriftReadAlignments.rds
-alignReads_alignmentChunkSize: 0                        # Set to zero to distibute reads across alignemnt CPUs.
-alignReads_genomeAlignment_anchorRead_maxStartPos: 100  # Set to a small value such as 3 when using HMMs, large value such as 100 for AAV analyses.
 alignReads_minAnchorReadLengthPostTrim: 20
 alignReads_minAdriftReadLengthPostTrim: 20
 alignReads_genomeAlignment_minPercentID: 97
@@ -75,9 +69,12 @@ alignReads_genomeAlignment_blatStepSize: 9
 alignReads_genomeAlignment_blatTileSize: 11
 alignReads_genomeAlignment_repMatch: 3000
 alignReads_genomeAlignment_anchorReadEnd_maxUnaligned: 3  # Max number of NTs at the end of anchor reads not aligning to the genome.
-alignReads_genomeAlignment_adriftReadEnd_maxUnaligned: 10 # Max number of NTs at the end of adrift reads not aligning to the genome.
+alignReads_genomeAlignment_adriftReadEnd_maxUnaligned: 10  # Max number of NTs at the end of adrift reads not aligning to the genome.
+alignReads_genomeAlignment_anchorReadMinStart: 10
 alignReads_genomeAlignment_adriftReadMaxStart: 3
 alignReads_keepIntermediateFiles: FALSE
+alignReads_alignmentChunkSize: 0    # Set to zero to distibute reads across alignemnt CPUs.
+alignReads_genomeAlignment_anchorRead_maxStartPos: 100  # Set to a small value such as 3 when using HMMs, large value such as 100 for AAV analyses.
 
 buildFragments_CPUs: 20
 buildFragments_outputDir: buildFragments
@@ -92,9 +89,9 @@ buildFragments_maxFragLength: 2500
 buildFragments_randomLinkerID_minReadCountToSegreagate: 10
 buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90
 
-buildStdFragments_CPUs: 62
+buildStdFragments_CPUs: 20
 buildStdFragments_minReadsPerFrag: 3
-buildStdFragments_createMultiHitClusters: TRUE
+buildStdFragments_createMultiHitClusters: FALSE
 buildStdFragments_inputFiles: buildFragments/fragments.rds
 buildStdFragments_outputDir: buildStdFragments
 buildStdFragments_outputFile: stdFragments.rds
@@ -107,32 +104,7 @@ buildSites_inputFile: buildStdFragments/stdFragments.rds
 buildSites_outputDir: buildSites
 buildSites_outputFile: sites.rds
 
-callNearestGenes_CPUs: 25
-callNearestGenes_inputFile: buildSites/sites.rds
-callNearestGenes_outputDir: callNearestSites
-callNearestGenes_outputFile: sites.rds
-callNearestGenes_TU_position: either # options: start, end, center, either
-callNearestGenes_use_humanXeno: TRUE
-
-mapSiteLeaderSequences_outputDir:  mapSiteLeaderSequences
-mapSiteLeaderSequences_inputFile:  buildSites/sites.rds
-mapSiteLeaderSequences_outputFile: sites.rds
-mapSiteLeaderSequences_CPUs: 25
-mapSiteLeaderSequences_alignmentChunkSize: 10000
-mapSiteLeaderSequences_minAlignmentLength: 10
-mapSiteLeaderSequences_minAlignmentPercentID: 90
-
-callNearestOncoGenes_CPUs: 25
-callNearestOncoGenes_geneList:
-  hg38:    hg38.Bushman.oncoGeneList.rds
-  macFas5: hg38.Bushman.oncoGeneList.rds
-  mm9:     mm9.Bushman.oncoGeneList.rds
-callNearestOncoGenes_inputFile: callNearestSites/sites.rds
-callNearestOncoGenes_outputDir: callNearestOncoSites
-callNearestOncoGenes_outputFile: sites.rds
-callNearestOncoGenes_TU_position: either # options: start, end, center, either
-
-annotateRepeats_CPUs: 25
+annotateRepeats_CPUs: 20
 annotateRepeats_inputFile: buildSites/sites.rds
 annotateRepeats_outputDir: annotateRepeats
 annotateRepeats_outputFile: sites.rds
@@ -153,6 +125,10 @@ command_muscle:      /home/ubuntu/software/muscle
 command_makeblastdb: /home/ubuntu/software/ncbi-blast-2.12.0+/bin/makeblastdb
 command_blastn:      /home/ubuntu/software/ncbi-blast-2.12.0+/bin/blastn
 command.hmmsearch:   /home/ubuntu/software/hmmer-3.3.2/bin/hmmsearch
+command.faToTwoBit:  /home/ubuntu/software/faToTwoBit
+command.bwa:         /home/ubuntu/software/bwa
+command.bwa-mem2:    /home/ubuntu/software/bwa-mem2-2.0pre2_x64-linux/bwa-mem2
+command.samtools:    /home/ubuntu/software/samtools/bin/samtools
 
 Rscript:             /usr/bin/Rscript
 softwareDir:         /home/ubuntu/software/AAVengeR
