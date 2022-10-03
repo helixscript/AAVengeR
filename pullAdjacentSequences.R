@@ -1,6 +1,7 @@
 library(dplyr)
 library(lubridate)
 library(rtracklayer)
+library(Biostrings)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
@@ -38,15 +39,7 @@ o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
        }))
        
        left_join(x, r, by = 'uniqueSite')
-}))
-
-o2 <- relocate(o, strand, .after = posid) %>% 
-      relocate(downGenome, .after = strand) %>% 
-      relocate(upGenome, .after = downGenome) %>%
-      arrange(posid)
-
-z <- table(sub('\\.\\d+$', '', o2$posid))
-message(sprintf("%.2f%%", (length(z[z>1])/length(z))*100), ' duplicated positions.')
+})) %>% relocate(strand, downGenome, upGenome, .after = posid) %>% arrange(posid) %>% select(-uniqueSite)
 
 saveRDS(o2, file = file.path(opt$outputDir, opt$pullAdjacentSequences_outputDir, opt$pullAdjacentSequences_outputFile))
 openxlsx::write.xlsx(o2, file = file.path(opt$outputDir, opt$pullAdjacentSequences_outputDir, 'sites.xlsx'))
