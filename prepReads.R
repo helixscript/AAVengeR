@@ -19,6 +19,7 @@ dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'trimmed'))
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'unique'))
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'dupTables'))
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'))
+dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'adriftReadAlignments'))
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'final'))
 
 write(c(paste(now(), '   Reading sample data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
@@ -200,11 +201,58 @@ if(opt$prepReads_excludeVectorHits){
           }))
   }))
 
+  
+  #--------
+  
+  if(opt$prepReads_excludeVectorHits_adriftReads){
+      
+     d$file2 <- sub('anchorReads', 'adriftReads', d$file)
+     
+     invisible(lapply(split(d, d$vectorFastaFile), function(x){
+       invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
+    
+       system(paste0(opt$command_makeblastdb, ' -in ', x$vectorFastaFile[1], ' -dbtype nucl -out ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
+       waitForFile(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd.nin'))
+    
+       files <- sapply(x$file2, lpe)
+       adriftReadFiles <- file.path(opt$outputDir, opt$prepReads_outputDir, 'unique', files[grepl('adriftRead', files)])
+       adriftReadFiles <- adriftReadFiles[file.exists(adriftReadFiles)]
+    
+       file_n <- 1
+       invisible(lapply(adriftReadFiles, function(file){  
+         message(file_n, ' / ', length(adriftReadFiles))
+         file_n <<- file_n + 1
+      
+         reads <- readDNAStringSet(file)
+      
+         # Here we truncate reads to a handful of NTs at their ends to test if they originate from the vector.
+         reads <- subseq(reads, (width(reads) - opt$prepReads_vectorAlignmentTestLength) + 1 , width(reads))
+      
+         b <- bind_rows(parLapply(cluster, mixAndChunkSeqs(reads, opt$prepReads_vectorAlignmentChunkSize), blastReads))
+      
+         if(nrow(b) > 0){
+           readLengths <- tibble(file = lpe(file), qname = names(reads), qlength = width(reads))
+           b <- dplyr::left_join(b, readLengths, by = 'qname') 
+        
+           b$alignmentLength <- b$qend - b$qstart + 1
+           b <- dplyr::filter(b, pident >= opt$prepReads_minAlignmentPercentID, alignmentLength >= floor(opt$prepReads_vectorAlignmentTestLength * 0.90), gapopen <= 1)
+         }
+      
+         saveRDS(b, sub('fasta\\.gz$', 'ends.rds', file.path(opt$outputDir, opt$prepReads_outputDir, 'adriftReadAlignments', lpe(file))))
+       }))
+    }))
+  }
+  
+  #--------
+  
+  
   # Retrieve the anchor read ends alignments and create a tibble with most significant hit for each read.
   write(c(paste(now(), '   Defining vector hits.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
-  vectorHits <- bind_rows(parLapply(cluster, list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), 
-                                              pattern = 'ends.rds', full.names = TRUE), function(x){
+  endFiles <- c(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), pattern = 'ends.rds', full.names = TRUE),
+                list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'adriftReadAlignments'), pattern = 'ends.rds', full.names = TRUE))
+  
+  vectorHits <- bind_rows(parLapply(cluster, endFiles, function(x){
                     library(dplyr)
                     o <- readRDS(x)
                   
@@ -217,6 +265,7 @@ if(opt$prepReads_excludeVectorHits){
   
   saveRDS(vectorHits, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorHits.rds'))
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), full.names = TRUE)))
+  invisible(file.remove(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'adriftReadAlignments'), full.names = TRUE)))
 }  
 
 
@@ -417,6 +466,7 @@ if(! opt$prepReads_keepIntermediateFiles){
   unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'unique'), recursive = TRUE)
   unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'dupTables'), recursive = TRUE)
   unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), recursive = TRUE)
+  unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'adriftReadAlignments'), recursive = TRUE)
 }
 
 q(save = 'no', status = 0, runLast = FALSE) 

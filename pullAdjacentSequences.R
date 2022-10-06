@@ -41,5 +41,7 @@ o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
        left_join(x, r, by = 'uniqueSite')
 })) %>% relocate(strand, downGenome, upGenome, .after = posid) %>% arrange(posid) %>% select(-uniqueSite)
 
-saveRDS(o2, file = file.path(opt$outputDir, opt$pullAdjacentSequences_outputDir, opt$pullAdjacentSequences_outputFile))
-openxlsx::write.xlsx(o2, file = file.path(opt$outputDir, opt$pullAdjacentSequences_outputDir, 'sites.xlsx'))
+saveRDS(o, file = file.path(opt$outputDir, opt$pullAdjacentSequences_outputDir, opt$pullAdjacentSequences_outputFile))
+openxlsx::write.xlsx(o, file = file.path(opt$outputDir, opt$pullAdjacentSequences_outputDir, 'sites.xlsx'))
+
+q(save = 'no', status = 0, runLast = FALSE) 
