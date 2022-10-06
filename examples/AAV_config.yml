@@ -44,6 +44,7 @@ prepReads_CPUs: 30
 prepReads_outputDir: prepReads
 prepReads_inputDir:  demultiplex
 prepReads_excludeVectorHits: TRUE
+prepReads_excludeVectorHits_adriftReads: FALSE
 prepReads_HMMsearchReadStartPos: 1  # Subsequences of reads are used for HMM analysis, this is the read start position.
 prepReads_HMMsearchReadEndPos:  90  # Subsequences of reads are used for HMM analysis, this is the read end position.
 prepReads_HMMmaxStartPos: 3         # Maximum start position within HMM to accept a HMM hit.

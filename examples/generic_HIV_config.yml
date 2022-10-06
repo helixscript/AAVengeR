@@ -49,6 +49,7 @@ prepReads_HMMsearchReadEndPos:  90  # Subsequences of reads are used for HMM ana
 prepReads_HMMmaxStartPos: 3         # Maximum start position within HMM to accept a HMM hit.
 prepReads_HMMminFullBitScore: 55    # Min. score for accepting an HMM hit. Consider using toy sequences to determine reasonable cut-offs for each HMM.
 prepReads_excludeVectorHits: TRUE
+prepReads_excludeVectorHits_adriftReads: FALSE
 prepReads_buildReadMaps_blastReconstruction: TRUE
 prepReads_minAnchorReadLength: 40
 prepReads_minAdriftReadLength: 30

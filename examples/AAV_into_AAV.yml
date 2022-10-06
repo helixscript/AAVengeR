@@ -39,6 +39,7 @@ prepReads_CPUs: 20
 prepReads_outputDir: prepReads
 prepReads_inputDir:  demultiplex
 prepReads_excludeVectorHits: FALSE
+prepReads_excludeVectorHits_adriftReads: FALSE
 prepReads_buildReadMaps_blastReconstruction: FALSE
 prepReads_minAnchorReadLength: 40
 prepReads_minAdriftReadLength: 30
