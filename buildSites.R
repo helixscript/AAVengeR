@@ -9,12 +9,15 @@ source(file.path(opt$softwareDir, 'lib.R'))
 dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 
 # Read in Standardized fragments.
+write(c(paste(now(), '   Reading standardized fragment data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile))
 
 samples <- distinct(tibble(trial = frags$trial, subject = frags$subject, sample = frags$sample, replicate = frags$replicate, flags = frags$flags))
 
 # Process fragments as integrase u5/u3 sites if all samples have a u5/u3 sample flag.
 if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
+  
+  write(c(paste(now(), '   Processing IN_u3 / IN_u5 flags.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
   frags$id  <- paste(frags$trial, frags$subject, frags$sample, frags$replicate)
   frags$id2 <- paste(frags$trial, frags$subject, frags$sample, frags$replicate, frags$posid)
@@ -166,6 +169,8 @@ calcAbunds <- function(x){
 }
 
 
+write(c(paste(now(), '   Building replicate level integration sites.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 o <- split(frags, paste(frags$trial, frags$subject, frags$sample, frags$replicate, frags$posid))
 counter <- 1
 total <- length(o)
@@ -203,6 +208,8 @@ sites <- bind_rows(lapply(o, function(x){
 minReplicate <- min(sites$replicate)
 maxReplicate <- max(sites$replicate)
 
+write(c(paste(now(), '   Creating a wide view of the replicate level integration site data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sample, sites$posid)), function(x){ 
          o <- bind_cols(lapply(minReplicate:maxReplicate, function(r){
            o <- subset(x, replicate == r)
@@ -226,6 +233,8 @@ tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sa
       bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], refGenome = x$refGenome[1], posid = x$posid[1], flags = x$flags[1]), o)
 }))
 
+
+write(c(paste(now(), '   Buiding sample level integration sites.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 tbl2 <- bind_rows(lapply(1:nrow(tbl1), function(x){
   x <- tbl1[x,]

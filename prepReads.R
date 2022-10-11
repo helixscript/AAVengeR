@@ -2,6 +2,7 @@ library(ShortRead)
 library(dplyr)
 library(parallel)
 library(lubridate)
+library(Biostrings)
 options(stringsAsFactors = FALSE)
 
 configFile <- commandArgs(trailingOnly=TRUE)
@@ -165,7 +166,7 @@ clusterExport(cluster, c('tmpFile', 'waitForFile', 'opt', 'lpe'))
   
 # Align the ends of anchor reads to the vector to identify vector reads which should be removed.
 
-if(opt$prepReads_excludeVectorHits){
+if(opt$prepReads_excludeAnchorReadVectorHits){
   write(c(paste(now(), '   Aligning the ends of anchor reads to vector file.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   invisible(lapply(split(d, d$vectorFastaFile), function(x){
            invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
@@ -194,21 +195,19 @@ if(opt$prepReads_excludeVectorHits){
                 b <- dplyr::left_join(b, readLengths, by = 'qname') 
             
                 b$alignmentLength <- b$qend - b$qstart + 1
-                b <- dplyr::filter(b, pident >= opt$prepReads_minAlignmentPercentID, alignmentLength >= floor(opt$prepReads_vectorAlignmentTestLength * 0.90), gapopen <= 1)
+                b <- dplyr::filter(b, pident >= opt$prepReads_vectorAlignmentTest_minPercentID, alignmentLength >= floor(opt$prepReads_vectorAlignmentTestLength * (opt$prepReads_vectorAlignmentTest_minPercentCoverage/100)), gapopen <= 1)
               }
             
               saveRDS(b, sub('fasta\\.gz$', 'ends.rds', file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments', lpe(file))))
           }))
   }))
+}
 
-  
-  #--------
-  
-  if(opt$prepReads_excludeVectorHits_adriftReads){
-      
-     d$file2 <- sub('anchorReads', 'adriftReads', d$file)
+if(opt$prepReads_excludeAdriftReadVectorHits){
+  write(c(paste(now(), '   Aligning the ends of adrift reads to vector file.')), file = file.path(opt$outputDir, 'log'), append = TRUE)  
+  d$file2 <- sub('anchorReads', 'adriftReads', d$file)
      
-     invisible(lapply(split(d, d$vectorFastaFile), function(x){
+  invisible(lapply(split(d, d$vectorFastaFile), function(x){
        invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
     
        system(paste0(opt$command_makeblastdb, ' -in ', x$vectorFastaFile[1], ' -dbtype nucl -out ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
@@ -235,38 +234,61 @@ if(opt$prepReads_excludeVectorHits){
            b <- dplyr::left_join(b, readLengths, by = 'qname') 
         
            b$alignmentLength <- b$qend - b$qstart + 1
-           b <- dplyr::filter(b, pident >= opt$prepReads_minAlignmentPercentID, alignmentLength >= floor(opt$prepReads_vectorAlignmentTestLength * 0.90), gapopen <= 1)
+           b <- dplyr::filter(b, pident >= opt$prepReads_vectorAlignmentTest_minPercentID, alignmentLength >= floor(opt$prepReads_vectorAlignmentTestLength * (opt$prepReads_vectorAlignmentTest_minPercentCoverage/100)), gapopen <= 1)
          }
       
          saveRDS(b, sub('fasta\\.gz$', 'ends.rds', file.path(opt$outputDir, opt$prepReads_outputDir, 'adriftReadAlignments', lpe(file))))
        }))
-    }))
-  }
+  }))
+}
   
-  #--------
-  
-  
-  # Retrieve the anchor read ends alignments and create a tibble with most significant hit for each read.
+if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVectorHits){
   write(c(paste(now(), '   Defining vector hits.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
-  endFiles <- c(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), pattern = 'ends.rds', full.names = TRUE),
-                list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'adriftReadAlignments'), pattern = 'ends.rds', full.names = TRUE))
+  a <- list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), pattern = 'ends.rds', full.names = TRUE)
+  b <- list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'adriftReadAlignments'), pattern = 'ends.rds', full.names = TRUE)
   
-  vectorHits <- bind_rows(parLapply(cluster, endFiles, function(x){
-                    library(dplyr)
-                    o <- readRDS(x)
+  a_hits <- tibble()
+  b_hits <- tibble()
+  
+  if(length(a) > 0){
+    a_hits <- bind_rows(parLapply(cluster, a, function(x){
+                library(dplyr)
+                o <- readRDS(x)
                   
-                    if(nrow(o) == 0) return(tibble())
-                    o$start <- ifelse(o$sstart > o$send, o$send, o$sstart)
-                    o$end <- ifelse(o$sstart > o$send,  o$sstart, o$send)
-                    o$strand <- ifelse(o$sstart > o$send, '-', '+')
-                    group_by(o, qname) %>% top_n(1, wt = pident) %>% arrange(desc(strand)) %>% dplyr::slice(1) %>% ungroup()
-                  }))
+                if(nrow(o) == 0) return(tibble())
+                o$start  <- ifelse(o$sstart > o$send, o$send, o$sstart)
+                o$end    <- ifelse(o$sstart > o$send,  o$sstart, o$send)
+                o$strand <- ifelse(o$sstart > o$send, '-', '+')
+                group_by(o, qname) %>% top_n(1, wt = pident) %>% arrange(desc(strand)) %>% dplyr::slice(1) %>% ungroup()
+              }))
+  }
+  
+  if(length(b) > 0){
+    b_hits <- bind_rows(parLapply(cluster, b, function(x){
+                library(dplyr)
+                o <- readRDS(x)
+      
+                if(nrow(o) == 0) return(tibble())
+                o$start  <- ifelse(o$sstart > o$send, o$send, o$sstart)
+                o$end    <- ifelse(o$sstart > o$send,  o$sstart, o$send)
+                o$strand <- ifelse(o$sstart > o$send, '-', '+')
+                group_by(o, qname) %>% top_n(1, wt = pident) %>% arrange(desc(strand)) %>% dplyr::slice(1) %>% ungroup()
+              }))
+  }
+  
+  i <- base::intersect(a_hits$qname, b_hits$qname)
+  a_only <- n_distinct(a_hits$qname) - n_distinct(i)
+  b_only <- n_distinct(b_hits$qname) - n_distinct(i)
+  
+  write(c(paste(now(), '   vector hits: anchor reads only (', a_only, '),  both reads (', n_distinct(i), '), adrift reads only (', b_only, ')')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  
+  vectorHits <- distinct(bind_rows(a_hits, b_hits))
   
   saveRDS(vectorHits, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorHits.rds'))
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'anchorReadAlignments'), full.names = TRUE)))
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'adriftReadAlignments'), full.names = TRUE)))
-}  
+}
 
 
 if(! 'leaderSeqHMM' %in% names(samples)){
@@ -440,25 +462,6 @@ invisible(lapply(files[grepl('anchorReads', files)], function(file){
 }))
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
-
-# if(file.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))){
-#   
-#   write(c(paste(now(), "   Building read attrition table.")), file = file.path(opt$outputDir, 'log'), append = TRUE)
-#   
-#   o <- readr::read_tsv(file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))
-#   o$preppedReads <- 0
-#     
-#   for(x in o$sample){
-#     file <- file.path(opt$outputDir, opt$prepReads_outputDir, 'final', paste0(x, '.anchorReads.fasta'))
-#     if(file.exists(file)) o[o$sample == x,]$preppedReads <- length(Biostrings::readDNAStringSet(file))
-#   }
-#   
-#   # Too long
-#   t <- length(ShortRead::readFastq(opt$demultiplex_anchorReadsFile))
-#   o <- tibble::add_column(o, .after = 'sample', 'totalReads' = t)
-#   o$preppedReadsPercentTotal <- (o$preppedReads / o$totalReads)*100
-#   readr::write_tsv(o, file.path(opt$outputDir, opt$prepReads_outputDir, 'readAttritionTbl.tsv'))
-# }
 
 if(! opt$prepReads_keepIntermediateFiles){
   unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'), recursive = TRUE)

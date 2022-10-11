@@ -37,27 +37,27 @@ demultiplex_sequenceChunkSize: 100000
 demultiplex_index1ReadMaxMismatch: 0
 demultiplex_useAdriftReadUniqueLinkers: TRUE
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1
-demultiplex_captureRandomLinkerSeq: TRUE
-demultiplex_anchorRead.startSeq.maxMisMatch: 1  # Evaluated if anchorRead.startSeq is a column in the sample data file.
+demultiplex_anchorRead.startSeq.maxMisMatch: 1
 
 prepReads_CPUs: 30
 prepReads_outputDir: prepReads
 prepReads_inputDir:  demultiplex
-prepReads_excludeVectorHits: TRUE
-prepReads_excludeVectorHits_adriftReads: FALSE
-prepReads_HMMsearchReadStartPos: 1  # Subsequences of reads are used for HMM analysis, this is the read start position.
-prepReads_HMMsearchReadEndPos:  90  # Subsequences of reads are used for HMM analysis, this is the read end position.
-prepReads_HMMmaxStartPos: 3         # Maximum start position within HMM to accept a HMM hit.
-prepReads_HMMminFullBitScore: 55    # Min. score for accepting an HMM hit. Consider using toy sequences to determine reasonable cut-offs for each HMM.
+prepReads_excludeAnchorReadVectorHits: TRUE
+prepReads_excludeAdriftReadVectorHits: TRUE
+prepReads_vectorAlignmentTestLength: 25
+prepReads_vectorAlignmentTest_minPercentCoverage: 90
+prepReads_vectorAlignmentTest_minPercentID: 90
+prepReads_HMMsearchReadStartPos: 1
+prepReads_HMMsearchReadEndPos:  90
+prepReads_HMMmaxStartPos: 3
+prepReads_HMMminFullBitScore: 55
 prepReads_buildReadMaps_blastReconstruction: TRUE
 prepReads_minAnchorReadLength: 40
 prepReads_minAdriftReadLength: 30
 prepReads_commonLinkerAdapterLength: 14
 prepReads_minAlignmentPercentID: 90
 prepReads_minAlignmentLength: 15
-prepReads_vectorAlignmentTestLength: 25
-prepReads_vectorAlignmentTestLength_drift: 2
-prepReads_vectorAlignmentChunkSize: 25000
+prepReads_vectorAlignmentChunkSize: 10000
 prepReads_buildReadMaps_minMapStartPostion: 5
 prepReads_keepIntermediateFiles: FALSE
 

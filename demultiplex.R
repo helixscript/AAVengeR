@@ -61,7 +61,7 @@ if(opt$demultiplex_correctGolayIndexReads){
   index1Reads.org <- index1Reads
   index1Reads <- Reduce('append', parLapply(cluster, split(index1Reads, ntile(1:length(index1Reads), opt$demultiplex_CPUs)), golayCorrection))
   percentChanged <- (sum(! as.character(index1Reads.org) == as.character(index1Reads)) / length(index1Reads))*100
-  write(paste(now(), '   Golay correction complete. ', sprintf("%.2f", percentChanged), '% of reads updated via Golay correction'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(paste(now(), '   Golay correction complete.', sprintf("%.2f", percentChanged), '% of reads updated via Golay correction.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
   rm(index1Reads.org)
 }
 
@@ -109,6 +109,8 @@ gc()
 
 
 write(paste(now(), '   Demultiplexing sequence chunks.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+if('anchorRead.startSeq' %in% names(samples)) write(paste(now(), '   Anchor read start sequence filter enabled.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 
 invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
 #invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
@@ -125,9 +127,7 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
   # Loop through samples in sample data file to demultiplex and apply read specific filters.
   invisible(lapply(1:nrow(samples), function(r){
     r <- samples[r,]
-    #message(r$uniqueSample)
-    #browser()
-    
+
     v0 <- rep(TRUE, length(anchorReads))
     if('anchorRead.startSeq' %in% names(r)){
       v0 <- vcountPattern(r$anchorRead.startSeq, subseq(anchorReads, 1, nchar(r$anchorRead.startSeq)), max.mismatch = opt$demultiplex_anchorRead.startSeq.maxMisMatch) == 1
@@ -160,10 +160,8 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
       if(length(index1Reads) == 0){
           log.report$demultiplexedReads <- 0
       } else {
-        if(opt$demultiplex_captureRandomLinkerSeq){
           writeFasta(subseq(adriftReads, r$adriftRead.linkerRandomID.start, r$adriftRead.linkerRandomID.end), 
                      file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.randomAdriftReadIDs.gz')), compress = TRUE)
-        }
         
         writeFasta(anchorReads, file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.anchorReads.gz')), compress = TRUE)
         writeFasta(adriftReads, file.path(opt$outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.adriftReads.gz')), compress = TRUE)
@@ -195,17 +193,16 @@ invisible(lapply(unique(samples$uniqueSample), function(x){
 }))
 
 
-# Collate random linker ids if collected.
-if(opt$demultiplex_captureRandomLinkerSeq){
-  write(paste(now(), '   Capturing random IDs from linker sequences.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  invisible(lapply(unique(samples$uniqueSample), function(x){
+# Collate random linker ids.
+write(paste(now(), '   Capturing random IDs from linker sequences.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+invisible(lapply(unique(samples$uniqueSample), function(x){
     
-    f <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.randomAdriftReadIDs'), full.names = TRUE)
-    if(length(f) == 0) return()
-    writeFasta(Reduce('append', lapply(f, readFasta)), 
+  f <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.randomAdriftReadIDs'), full.names = TRUE)
+  if(length(f) == 0) return()
+  writeFasta(Reduce('append', lapply(f, readFasta)), 
                file.path(opt$outputDir, opt$demultiplex_outputDir, paste0(x, '.randomIDs.fasta.gz')), compress = TRUE)
-  }))
-}
+}))
+
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 

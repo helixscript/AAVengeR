@@ -182,13 +182,11 @@ loadSamples <- function(){
       write(c(paste(lubridate::now(), 'Error - adriftRead.linkerBarcode.start or adriftRead.linkerBarcode.end is set to NA when requesting demultiplex_useAdriftReadUniqueLinkers')), file = file.path(opt$outputDir, 'log'), append = TRUE)
       q(save = 'no', status = 1, runLast = FALSE)
     }
- }
+  }
   
-  if(opt$demultiplex_captureRandomLinkerSeq){
-    if(any(is.na(samples$adriftRead.linkerRandomID.start)) | any(is.na(samples$adriftRead.linkerRandomID.end))){
-      write(c(paste(lubridate::now(), 'Error - adriftRead.linkerRandomID.start or adriftRead.linkerRandomID.end is set to NA when requesting demultiplex_captureRandomLinkerSeq')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  if(any(is.na(samples$adriftRead.linkerRandomID.start)) | any(is.na(samples$adriftRead.linkerRandomID.end))){
+      write(c(paste(lubridate::now(), 'Error - adriftRead.linkerRandomID.start or adriftRead.linkerRandomID.end is set to NA.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
       q(save = 'no', status = 1, runLast = FALSE)
-    }
   }
   
   samples$uniqueSample <- paste0(samples$trial, '~', samples$subject, '~', samples$sample, '~', samples$replicate)

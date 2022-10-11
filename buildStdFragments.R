@@ -15,12 +15,12 @@ dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
 
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'randomIDexcludedReads'))
 
-write(c(paste(now(), 'Reading in fragment file(s).')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Reading in fragment file(s).')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 # Load fragment data from database or local file depending on configuration file.
 # Fragments are read in on the read level and contain a variable (n) which is the number 
 # of identical read pairs that were removed in prepReads. (n) can be added to fragment
-# read counts to account for all reads suporting fragments.
+# read counts to account for all reads supporting fragments.
 
 
 if('databaseGroup' %in% names(opt)){
@@ -55,7 +55,7 @@ if('databaseGroup' %in% names(opt)){
   opt$buildStdFragments_inputFiles <- gsub('\\s*,\\s*', ',', opt$buildStdFragments_inputFiles)
 
   frags <- bind_rows(lapply(unlist(strsplit(opt$buildStdFragments_inputFiles, ',')), function(x){
-             write(c(paste(now(), '  reading in local data file ', x)), file = file.path(opt$outputDir, 'log'), append = TRUE)
+             write(c(paste(now(), '   Reading in local data file: ', x)), file = file.path(opt$outputDir, 'log'), append = TRUE)
              readRDS(file.path(opt$outputDir, x))
            }))
 }
@@ -67,6 +67,9 @@ frags <- unpackUniqueSampleID(frags)
 
 # Look at ITR/LTR remnants on the subject level, order by UMI counts, and assign
 # identifiers to each so they can be standardized separately.
+
+write(c(paste(now(), '   Categorizing leader sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject)), function(x){
   
   d <- group_by(x, leaderSeq.anchorReads) %>% 
@@ -124,6 +127,9 @@ cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
 
 # Standardize integration positions.
+
+write(c(paste(now(), '   Standardizing integration positions within subjects.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
 g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
        library(dplyr)
@@ -195,7 +201,7 @@ f2 <- subset(f, s2 %in% names(z[z > 1]))
 
 if(nrow(f2) > 0){
   
-  message(opt$buildStdFragments_CPUs, ' cores.')
+  write(c(paste(now(), '   Standardizing sonic break postions within UMI / replicate groupings.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
   o <- split(f2, f2$s2)
   i <- ntile(1:length(o), opt$buildStdFragments_CPUs)
@@ -272,7 +278,7 @@ frags$fragID2 <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sampl
 # Correct for instances where a read maps to more than fragment but all fragments have the sample integration position.
 # These are instances of fuzzy break points and here we select the shortest fragments lengths.
 
-message('f9')
+write(c(paste(now(), '   Correcting fuzzy break points.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 o <- split(frags, frags$readID)
 frags <- bind_rows(lapply(o, function(x){
@@ -290,6 +296,9 @@ frags <- bind_rows(lapply(o, function(x){
 
 
 # Identify reads which map to more than position id and define these as multi-hit reads.
+
+write(c(paste(now(), '   Identifying multi-hit reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 o <- group_by(frags, readID) %>% 
      summarise(n = n_distinct(fragID2)) %>%
      dplyr::filter(n > 1)
@@ -318,6 +327,8 @@ if(nrow(o) > 0){
   # and flag reads to be returned to frags if only one site in the list of potential sites is in the list uniquely resolved sites.
   
   multiHitFrags$returnToFrags <- FALSE
+  
+  write(c(paste(now(), '   Identifying multi-hit reads that can be returned to list of uniquely called sites.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
   multiHitFrags <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$s), function(x){
                      uniqueSites <- unique(dplyr::filter(frags, trial == x$trial[1], subject == x$subject[1])$posid)
@@ -349,7 +360,8 @@ if(nrow(o) > 0){
       x
     }))
     
-    write(paste0(sprintf("%.2f%%", (nrow(m) / nrow(multiHitFrags))*100), ' of multihit reads recovered because one potential site was in the unabiguous site list.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    msg <- paste0('   ', sprintf("%.2f%%", (nrow(m) / nrow(multiHitFrags))*100), ' of multihit reads recovered because one potential site was in the unabiguous site list.')
+    write(c(paste(now(), msg)), file = file.path(opt$outputDir, 'log'), append = TRUE)
     
     # Remove salvaged reads from multi-hit reads.
     multiHitFrags <- subset(multiHitFrags, ! readID %in% m$readID) %>% dplyr::select(-s, -returnToFrags)
@@ -361,10 +373,9 @@ if(nrow(o) > 0){
 
 multiHitClusters <- tibble()
 
-save.image(file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClustersStart.RData'))
-
 if(nrow(multiHitFrags) > 0 & opt$buildStdFragments_createMultiHitClusters){
   
+  write(c(paste(now(), '   Building mulit-hit networks.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   multiHitFrags$fragWidth = multiHitFrags$fragEnd - multiHitFrags$fragStart + 1
   
   # For each read, create a from -> to data frame and capture the width of the read. 
@@ -376,6 +387,7 @@ if(nrow(multiHitFrags) > 0 & opt$buildStdFragments_createMultiHitClusters){
   }))
   
   # Build networks for each sample.
+  write(c(paste(now(), '   Building mulit-hit clusters.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   multiHitClusters <- bind_rows(lapply(split(multiHitNet_replicates, paste(multiHitNet_replicates$trial, multiHitNet_replicates$subject, multiHitNet_replicates$sample)), function(x){
     
     # Create a local copy of read-level multiHitFrags data frame specific to this sample.
@@ -434,6 +446,8 @@ o <- split(frags, frags$fragID)
 t <- length(o)
 i <- 1
 
+write(c(paste(now(), '   Bundling fragment reads into fragment records.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 f <- bind_rows(lapply(o, function(x){
        message(i, '/', t); i <<- i + 1
        
@@ -481,8 +495,7 @@ f$randomLinkerSeq.selectedReadMajority <- NA
 # We record the percentage iof UMI reads attributed to the most read fragment for 
 # down stream filtering.
 
-# o$fragWidth <- o$fragEnd - o$fragStart + 1
-# select(o, randomLinkerSeq.adriftReads, uniqueSample, posid, fragStart, fragEnd, reads, repLeaderSeq) 
+write(c(paste(now(), '   Correcting instances where the same UMI is associated with more than one sample fragment.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x){
        t <- table(x$randomLinkerSeq.adriftReads) 
