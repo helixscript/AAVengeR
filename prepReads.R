@@ -62,6 +62,9 @@ d$uniqueSample <- unlist(lapply(d$file, function(x){
 
 d <- left_join(d, select(samples, uniqueSample, adriftRead.linker.seq, vectorFastaFile), by = 'uniqueSample')
 
+# New...
+d <- tidyr::drop_na(d)
+
 # Extract the common linker.
 d$adapter <- substr(d$adriftRead.linker.seq, nchar(d$adriftRead.linker.seq) - opt$prepReads_commonLinkerAdapterLength, nchar(d$adriftRead.linker.seq))
 d$adapter <- as.character(reverseComplement(DNAStringSet(d$adapter)))

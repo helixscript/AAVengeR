@@ -4,8 +4,8 @@ library(rtracklayer)
 library(Biostrings)
 options(stringsAsFactors = FALSE)
 
-# vectorFastaFile <- '/home/ubuntu/software/AAVengeR/data/vectors/Encoded_ITR_to_ITR_flip_flip.fasta'
-vectorFastaFile <- '/home/ubuntu/software/AAVengeR/data/vectors/Sabatino_vectors.fasta'
+vectorFastaFile <- '/home/ubuntu/software/AAVengeR/data/vectors/Encoded_ITR_to_ITR.fasta'
+#vectorFastaFile <- '/home/ubuntu/software/AAVengeR/data/vectors/Sabatino_vectors.fasta'
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
