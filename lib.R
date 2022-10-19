@@ -79,7 +79,7 @@ unpackUniqueSampleID <- function(d){
 
 
 # Function to remove minor sequence variation from short sequences.
-conformMinorSeqDiffs <- function(x, editDist = 1, abundSeqMinCount = 10){
+conformMinorSeqDiffs <- function(x, editDist = 1, abundSeqMinCount = 10, nThreads = 10){
   tab <- table(unname(x))
   if(length(tab[tab >= abundSeqMinCount]) == 0) return(x)
   
@@ -91,7 +91,7 @@ conformMinorSeqDiffs <- function(x, editDist = 1, abundSeqMinCount = 10){
   
   conversion_table <- tibble(a = nonAbundant_codes,
                              b = unlist(lapply(nonAbundant_codes, function(x){
-                               z <- stringdist::stringdist(x, abundant_codes, nthread = 10)
+                               z <- stringdist::stringdist(x, abundant_codes, nthread = nThreads)
                                i <- which(z <= editDist)
                                if(length(i) == 1) x <- abundant_codes[i]
                                if(length(i) > 1) x <- paste0(rep('N', nchar(x)), collapse = '')
