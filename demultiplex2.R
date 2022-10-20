@@ -214,7 +214,7 @@ reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
   
   r <- subset(samples, uniqueSample == x)
   c <- substr(r$adriftRead.linker.seq, max(stringr::str_locate_all(r$adriftRead.linker.seq, 'NNN')[[1]][,2])+1, nchar(r$adriftRead.linker.seq))
-  t <- as.character(reverseComplement(DNAString(substr(c, nchar(c) - opt$prepReads_commonLinkerAdapterLength, nchar(c)))))
+  t <- as.character(reverseComplement(DNAString(substr(c, nchar(c) - 14, nchar(c)))))
 
   data.table(uniqueSample = x, readID = names(anchorReads), anchorReadSeq = as.character(anchorReads), adriftReadSeq = as.character(adriftReads), 
              adriftReadRandomID = as.character(randomIDs), adriftReadTrimSeq = t, adriftLinkerSeqEnd = nchar(r$adriftRead.linker.seq),

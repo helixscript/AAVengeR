@@ -33,16 +33,7 @@ if(! all(file.exists(file.path(opt$softwareDir, 'data', 'blatDBs', paste0(unique
 cluster <- makeCluster(opt$alignReads_CPUs)
 clusterExport(cluster, c('opt', 'samples', 'tmpFile'))
 
-reads <- readRDS(file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds'))
-
-reads <- left_join(reads, distinct(samples, uniqueSample, refGenome.id), by = 'uniqueSample')
-
-
-#----
-xxx <- readLines('controlReadsAligningToNonYeast')
-x <- reads[reads$readID %in% xxx,]
-
-#----
+reads <- readRDS(file.path(opt$outputDir, opt$alignReads_inputFile))
 
 
 blat <- function(y, ref, dir){
@@ -61,17 +52,17 @@ blat <- function(y, ref, dir){
   write('done', paste0(f, '.done'))
 }
 
-anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome.id), function(x){
+anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
   s <- data.table(seq = unique(x$anchorReadSeq))
   s$id <- paste0('s', 1:nrow(s))
   
   s$cut <- cut(nchar(s$seq), c(-Inf, seq(0, max(nchar(s$seq)), by = 10), Inf), labels = FALSE)
   s <- group_by(s, cut) %>% mutate(n = ntile(1:n(), opt$alignReads_CPUs)) %>% ungroup()
   
-  message('Aligning ', nrow(s), ' reads against ', x$refGenome.id[1])
+  message('Aligning ', nrow(s), ' reads against ', x$refGenome[1])
   
   dir <- file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1')
-  invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome.id[1], dir))
+  invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome[1], dir))
   
   b <- rbindlist(lapply(list.files(dir, pattern = '*.psl', full.names = TRUE), function(x){
          b <- data.table(parseBLAToutput(x))
@@ -87,7 +78,7 @@ anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome.id), funct
   
   # Use the unique sequences to map alignments back to sequences 
   b <- left_join(b, distinct(dplyr::select(s, id, seq)), by = c('qName' = 'id'))
-  x2 <- dplyr::select(x, uniqueSample, readID, refGenome.id, anchorReadSeq) %>% dplyr::filter(anchorReadSeq %in% b$seq)
+  x2 <- dplyr::select(x, uniqueSample, readID, refGenome, anchorReadSeq) %>% dplyr::filter(anchorReadSeq %in% b$seq)
   left_join(x2, b, by = c('anchorReadSeq' = 'seq')) %>% dplyr::select(-anchorReadSeq, -qName)
 }))
 
@@ -106,16 +97,16 @@ anchorReadAlignments <- anchorReadAlignments[i,]
 
 reads <- subset(reads, readID %in% anchorReadAlignments$readID)
 
-adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome.id), function(x){
+adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
   s <- data.table(seq = unique(x$adriftReadSeq))
   s$id <- paste0('s', 1:nrow(s))
   
   s$cut <- cut(nchar(s$seq), c(-Inf, seq(0, max(nchar(s$seq)), by = 10), Inf), labels = FALSE)
   s <- group_by(s, cut) %>% mutate(n = ntile(1:n(), opt$alignReads_CPUs)) %>% ungroup() %>% data.table()
   
-  message('Aligning ', nrow(s), ' reads against ', x$refGenome.id[1])
+  message('Aligning ', nrow(s), ' reads against ', x$refGenome[1])
   dir <- file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2')
-  invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome.id[1], dir))
+  invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome[1], dir))
   
   b <- rbindlist(lapply(list.files(dir, pattern = '*.psl', full.names = TRUE), function(x){
     b <- data.table(parseBLAToutput(x))
@@ -130,7 +121,7 @@ adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome.id), funct
   
   # Use the unique sequences to map alignments back to sequences 
   b <- left_join(b, distinct(dplyr::select(s, id, seq)), by = c('qName' = 'id'))
-  x2 <- dplyr::select(x, uniqueSample, readID, refGenome.id, adriftReadSeq) %>% dplyr::filter(adriftReadSeq %in% b$seq)
+  x2 <- dplyr::select(x, uniqueSample, readID, refGenome, adriftReadSeq) %>% dplyr::filter(adriftReadSeq %in% b$seq)
   left_join(x2, b, by = c('adriftReadSeq' = 'seq')) %>% dplyr::select(-adriftReadSeq, -qName)
 }))
 
@@ -176,10 +167,7 @@ anchorReadAlignments <- dplyr::select(anchorReadAlignments, -anchorReadSeq)
 saveRDS(dplyr::distinct(anchorReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_anchorReadAlignmentsOutputFile))  
 saveRDS(dplyr::distinct(adriftReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_adriftReadAlignmentsOutputFile)) 
 
-# Cleanup.
-if(! opt$alignReads_keepIntermediateFiles){
-  unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), recursive = TRUE)
-  unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'), recursive = TRUE)
-}
+unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), recursive = TRUE)
+unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'), recursive = TRUE)
 
 q(save = 'no', status = 0, runLast = FALSE) 
