@@ -14,240 +14,120 @@ source(file.path(opt$softwareDir, 'lib.R'))
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads'))
 
-write(c(paste(now(), '   Reading in anchor and adrift read alignments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-
 # Read in adrift alignment reads.
+write(c(paste(now(), '   Reading in anchor and adrift read alignments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adriftReadsAlignmentFile))
-
-cluster <- makeCluster(opt$buildFragments_CPUs)
-clusterExport(cluster, c('opt'))
-
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
+
 anchorReadAlignments$posid <- paste0(anchorReadAlignments$tName, anchorReadAlignments$strand, ifelse(anchorReadAlignments$strand == '+', anchorReadAlignments$tStart, anchorReadAlignments$tEnd))
 
+r <- dplyr::select(readRDS(file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds')), readID, adriftReadRandomID) %>% dplyr::rename(randomLinkerSeq = adriftReadRandomID) %>% data.table()
 
-# Collect the random IDs isolated during demultiplexing.
-
-write(c(paste(now(), '   Reading in random id sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-
-files <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir), pattern = 'randomIDs', full.names = TRUE)
-randomIDs <- Reduce('append', lapply(files,  readDNAStringSet))
-r <- tibble(readID = names(randomIDs), randomLinkerSeq = as.character(randomIDs))
-  
 # Limit random ids to those found in the adrift read alignments.
-r <- subset(r, readID %in% adriftReadAlignments$qName)
-  
-# Add sample ids to read alignments.
-r <- dplyr::distinct(left_join(r, dplyr::select(adriftReadAlignments, qName, sample), by = c('readID' = 'qName')))
-  
-# Remove replicate identifiers from sample names to evaluate on the sample level.
-r$sample <- sub('~\\d+$', '', r$sample)
-  
+r <- subset(r, readID %in% adriftReadAlignments$readID)
+
+anchorReadAlignments$sample <- sub('~\\d+$', '', anchorReadAlignments$uniqueSample)
+adriftReadAlignments$sample <- sub('~\\d+$', '', adriftReadAlignments$uniqueSample)
+r <- left_join(r, distinct(dplyr::select(adriftReadAlignments, readID, sample)), by = 'readID')  
+
+
+
 # Correct random ids to the most abundant within samples.
 # Uncorrectable codes are returned as NNNN and removed.
 
 write(c(paste(now(), '   Correcting minor differences in random ids.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-r <- bind_rows(lapply(split(r, r$sample), function(x){
-         source(file.path(opt$softwareDir, 'lib.R'))
-         library(dplyr)
-         x$randomLinkerSeqPre <- x$randomLinkerSeq
-         x$randomLinkerSeq    <- conformMinorSeqDiffs(x$randomLinkerSeq)
-         
-         o <- x[grepl('N', x$randomLinkerSeq),]
-         if(nrow(o) > 0){
-           o <- dplyr::select(dplyr::mutate(o, randomLinkerSeq = randomLinkerSeqPre), -randomLinkerSeqPre)
-           o <- left_join(o, dplyr::select(anchorReadAlignments, qName, posid), by = c('readID' = 'qName'))
-           readr::write_tsv(o, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', paste0('uncorrectableIDs~', x$sample[1], '.tsv')))
-         }     
-         x[! grepl('N', x$randomLinkerSeq),]
-       }))
+
+# anchorReadAlignments too large to export to worker nodes.
+# stringDist uses all cores regardless of nthread option... best not to use parLappy().
+ara <- dplyr::select(anchorReadAlignments, readID, posid)
+
+# nrow(subset(anchorReadAlignments, posid == 'chr2+202308587')); nrow(subset(anchorReadAlignments, posid == 'chr2-202308470'))
+
+r <- rbindlist(lapply(split(r, r$sample), function(x){
+  message(x$sample[1])
+  x$randomLinkerSeqPre <- x$randomLinkerSeq
+  x$randomLinkerSeq    <- conformMinorSeqDiffs(x$randomLinkerSeq, nThreads = opt$buildFragments_CPUs)
   
+  o <- x[grepl('N', x$randomLinkerSeq),]
+  if(nrow(o) > 0){
+    o <- dplyr::select(dplyr::mutate(o, randomLinkerSeq = randomLinkerSeqPre), -randomLinkerSeqPre)
+    o <- left_join(o, ara, by = 'readID')
+    readr::write_tsv(o, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', paste0('uncorrectableIDs~', x$sample[1], '.tsv')))
+  }     
+  
+  data.table(x[! grepl('N', x$randomLinkerSeq),])
+}))
 
 write(c(paste(now(), '   Determining which random ids span multiple samples.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-o <- group_by(r, randomLinkerSeq) %>%
-       summarise(nSamples = n_distinct(sample)) %>%
-       ungroup() %>%
-       filter(nSamples > 1)
-  
-r$remove <- FALSE
-  
-write(c(paste(now(), paste0(sprintf("%.2f%%", (n_distinct(o$randomLinkerSeq)/n_distinct(r$randomLinkerSeq))*100), ' random ids seen across two or more samples'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  
-if(nrow(o) > 0){
-   write(c(paste(now(), '   Cleaning up instances where random ids are seen across samples')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-   invisible(lapply(split(o, 1:nrow(o)), function(a){
-     b <- subset(r, randomLinkerSeq == a$randomLinkerSeq)
-     
-     if(nrow(b) >= opt$buildFragments_randomLinkerID_minReadCountToSegreagate){
-       # Yes, there are enough reads to attempt to segregate.
-       t <- sort(table(b$sample), decreasing = TRUE)
-       
-       if((t[1]/sum(t))*100 >= opt$buildFragments_randomLinkerID_minSingleSampleMajorityPercent){
-         # Yes, there is a predominant sample for this code.
-         r[r$randomLinkerSeq == a$randomLinkerSeq & ! r$sample == names(t[1]),]$remove <<- TRUE
-       } else {
-         # No, no predominant sample, remove all codes.
-         r[r$randomLinkerSeq == a$randomLinkerSeq,]$remove <<- TRUE
-       }
-     } else {
-       r[r$randomLinkerSeq == a$randomLinkerSeq,]$remove <<- TRUE
-     } 
-   })) 
-}
+o <- group_by(r, randomLinkerSeq) %>%
+  summarise(nSamples = n_distinct(sample)) %>%
+  ungroup() %>%
+  filter(nSamples > 1)
+
+write(c(paste(now(), paste0(sprintf("%.2f%%", (n_distinct(o$randomLinkerSeq)/n_distinct(r$randomLinkerSeq))*100), ' random ids seen across two or more samples'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
+
+# Need to remove ids without enough reads to resolve...
+
+randomIDsNoIssue   <- dplyr::filter(r, ! randomLinkerSeq %in% o$randomLinkerSeq)
+
+randomIDsToResolve <- dplyr::filter(r, randomLinkerSeq %in% o$randomLinkerSeq) %>% 
+  dplyr::group_by(randomLinkerSeq) %>% 
+  dplyr::mutate(n = n()) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::filter(n >= opt$buildFragments_randomLinkerID_minReadCountToSegreagate) %>%
+  dplyr::pull(unique(randomLinkerSeq))
+
+if(length(randomIDsToResolve) > 0){
+  # Split data frame into CPU chunks while not breaking appart random ids.
+  r2 <- subset(r, randomLinkerSeq %in% randomIDsToResolve)
   
-# Report reads removed because their random ids was seen in two or more samples.
-o <- subset(r, remove == TRUE)
-if(nrow(o) > 0){
-    o <- left_join(o, dplyr::select(anchorReadAlignments, qName, posid), by = c('readID' = 'qName'))
+  randomIDIssuesResolved <- rbindlist(lapply(split(r2, r2$randomLinkerSeq), function(y){
+    y$remove <- TRUE
+    
+    t <- sort(table(y$sample), decreasing = TRUE)
+    if((t[1]/sum(t))*100 >= opt$buildFragments_randomLinkerID_minSingleSampleMajorityPercent){
+      y[y$sample == names(t)[1],]$remove <- FALSE
+    }
+    
+    y
+  })) %>% dplyr::filter(remove == FALSE) %>% dplyr::select(-remove)
+  
+  o <- subset(r2, ! randomLinkerSeq %in% randomIDIssuesResolved$randomLinkerSeq)
+  if(nrow(o) > 0){
+    o <- left_join(o, distinct(dplyr::select(anchorReadAlignments, readID, posid)), by = 'readID')
     readr::write_tsv(o, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', 'read_IDs_shared_between_samples.tsv'))
+  }
+  
+  r <- bind_rows(randomIDsNoIssue, randomIDIssuesResolved)
 }
-  
-r <- subset(r, remove != TRUE)
-  
-adriftReadAlignments <- subset(adriftReadAlignments, qName %in% r$readID)
-adriftReadAlignments <- left_join(adriftReadAlignments, 
-                                    distinct(dplyr::select(r, readID, randomLinkerSeq)), by = c('qName' = 'readID'))
-rm(r, randomIDs)
+
+
+# Remove reads where random IDs were in conflict and could not be corrected.
+adriftReadAlignments <- subset(adriftReadAlignments, readID %in% r$readID)
+anchorReadAlignments <- subset(anchorReadAlignments, readID %in% r$readID)
+
+
+adriftReadAlignments <- left_join(adriftReadAlignments, distinct(dplyr::select(r, readID, randomLinkerSeq)), by = 'readID')
+rm(r)
 gc()
 
 
 write(c(paste(now(), '   Preparing alignment data for fragment generation.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-readID2reference <- distinct(tibble(readID = anchorReadAlignments$qName, refGenome = anchorReadAlignments$refGenome.id))
 
-anchorReadAlignments <- subset(anchorReadAlignments, qName %in% adriftReadAlignments$qName)
+anchorReadAlignments <- subset(anchorReadAlignments, readID %in% adriftReadAlignments$readID)
 
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
 
-anchorReadAlignments <- select(anchorReadAlignments, sample, qName, tName, strand, tStart, tEnd, leaderSeq)
-adriftReadAlignments <- select(adriftReadAlignments, sample, qName, tName, strand, tStart, tEnd, randomLinkerSeq)
+anchorReadAlignments <- select(anchorReadAlignments, uniqueSample, sample, readID, tName, strand, tStart, tEnd, leaderSeq)
+adriftReadAlignments <- select(adriftReadAlignments, sample, readID, tName, strand, tStart, tEnd, randomLinkerSeq)
 
 names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads')
 names(adriftReadAlignments) <- paste0(names(adriftReadAlignments), '.adriftReads')
 
 
-# Create a table where each row is a read pair id and the columns are the number
-# of anchor and adrift read alignments. These values are converted to 0 if the 
-# value is less than opt$buildFragments_maxReadAlignments and converted to 1 if 
-# the value is greater. Row sums of 2 tell us that both mates have more than 
-# alignments and should be pruned.
-
-a <- as.data.frame(table(anchorReadAlignments$qName.anchorReads))
-names(a) <- c('readID', 'anchorReadAlnFreq')
-b <- as.data.frame(table(adriftReadAlignments$qName.adriftReads))
-names(b) <- c('readID', 'adriftReadAlnFreq')
-tab <- left_join(a, b, by = 'readID')
-
-tab$anchorReadAlnFreq <- ifelse(tab$anchorReadAlnFreq > opt$buildFragments_maxReadAlignments, 1, 0)
-tab$adriftReadAlnFreq <- ifelse(tab$adriftReadAlnFreq > opt$buildFragments_maxReadAlignments, 1, 0)
-tab$s <- rowSums(tab[ , c(2,3)], na.rm=TRUE)
-
-# Find read pairs where both anchor and adrift mates have more than opt$buildFragments_maxReadAlignments alignments.
-z <- as.character(tab[tab$s == 2,]$readID)
-
-if(length(z) > 0){
-  write(c(paste(now(), paste0('   ', length(z), ' read pairs, ', sprintf("%.2f%%", (length(z)/nrow(tab))*100),    
-                              ' of reads, have more than ', 
-                              opt$buildFragments_maxReadAlignments, ' alignments for both read anchor and adrift read mates.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  
-  write(c(paste(now(), paste0('   ', opt$buildFragments_maxReadAlignments, ' alignments will be sub-sampled for each over-aligned anchor read mate ',
-                              ' and retaining adrift read alignemnts that could for rational fragments with the sampled anchor read alignments.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  
-  # Find the anchor read alignments from reads with more than the maximum number of alignments.
-  a <- filter(anchorReadAlignments, qName.anchorReads %in% z)
-  
-  # Sample a number of alignments from each overly aligned anchor read.
-  set.seed(1)
-  a <- group_by(a, qName.anchorReads) %>%
-       sample_n(opt$buildFragments_maxReadAlignments) %>%
-       ungroup()
-  
-  # Find the subset of adrift reads alignments which corespond to the randomly selected anchor read alignments.
-  b <- filter(adriftReadAlignments, qName.adriftReads %in% a$qName.anchorReads)
-  
-  # Split the alignments by read id.
-  a <- split(a, a$qName.anchorReads)
-  b <- split(b, b$qName.adriftReads)
-  if(! all(names(a) == names(b))) stop('Error -- excess read name alignment error.')
-  
-  # Split the anchor read and adrift reads lists into another list whose elements can be processed in parallel.
-  k <- lapply(split(1:length(a), ntile(1:length(a), opt$buildFragments_CPUs)), function(x) list(a[x], b[x]))
-
-  o <- parLapply(cluster, k, function(x){
-  #o <- lapply(k, function(x){
-         library(dplyr)
-         library(GenomicRanges)
-    
-         a <- x[[1]]
-         b <- x[[2]]
-
-         j <- lapply(1:length(a), function(x2){
-                a <- a[[x2]]
-                b <- b[[x2]]
-         
-                a.pos <- subset(a, strand.anchorReads == '+')
-                a.neg <- subset(a, strand.anchorReads == '-')
-         
-                a.pos.gr <- GenomicRanges::makeGRangesFromDataFrame(tibble(
-                              seqnames = a.pos$tName.anchorReads, 
-                              strand = '+',
-                              start = a.pos$tStart.anchorReads,
-                              end = a.pos$tEnd.anchorReads))
-         
-                a.neg.gr <- GenomicRanges::makeGRangesFromDataFrame(tibble(
-                              seqnames = a.neg$tName.anchorReads, 
-                              strand = '-',
-                              start = a.neg$tStart.anchorReads,
-                              end = a.neg$tEnd.anchorReads))
-                
-                b.pos <- subset(b, b$strand.adriftReads == '+')
-                b.neg <- subset(b, b$strand.adriftReads == '-')
-         
-                b.pos.gr <- GenomicRanges::makeGRangesFromDataFrame(tibble(
-                              seqnames = b.pos$tName.adriftReads, 
-                              strand = '+',
-                              start = b.pos$tStart.adriftReads-1000,
-                              end = b.pos$tEnd.adriftReads+1000))
-         
-               b.neg.gr <- GenomicRanges::makeGRangesFromDataFrame(tibble(
-                             seqnames = b.neg$tName.adriftReads, 
-                             strand = '-',
-                             start = b.neg$tStart.adriftReads-1000,
-                             end = b.neg$tEnd.adriftReads+1000))
-         
-               negAlignmentsToReturn <- tibble()
-               posAlignmentsToReturn <- tibble()
-         
-               i <- vector()
-               if(length(a.pos.gr) > 0 & length(b.neg.gr) > 0) i <- findOverlaps(a.pos.gr, b.neg.gr, ignore.strand = TRUE)
-               if(length(i) > 0) negAlignmentsToReturn <- b.neg[unique(as.integer(subjectHits(i))),]
-         
-               i <- vector()
-               if(length(a.neg.gr) > 0 & length(b.pos.gr) > 0) i <- findOverlaps(a.neg.gr, b.pos.gr, ignore.strand = TRUE)
-               if(length(i) > 0) posAlignmentsToReturn <- b.pos[unique(as.integer(subjectHits(i))),]
-         
-              list(bind_rows(a.pos, a.neg), bind_rows(negAlignmentsToReturn, posAlignmentsToReturn))
-          })
-  
-         list(bind_rows(lapply(j, '[[', 1)), (bind_rows(lapply(j, '[[', 2)))) 
-       })
-  
-  # Recombine the selected alignments from the parallel processing.
-  o2 <- list(bind_rows(lapply(o, '[[', 1)), (bind_rows(lapply(o, '[[', 2)))) 
-  
-  # Remove alignments with too many alignments from the alignment data frames.
-  anchorReadAlignments <- subset(anchorReadAlignments, ! qName.anchorReads %in% z)
-  adriftReadAlignments <- subset(adriftReadAlignments, ! qName.adriftReads %in% z)
-  
-  # Add back the sampled alignments.
-  anchorReadAlignments <- bind_rows(anchorReadAlignments, o2[[1]])
-  adriftReadAlignments <- bind_rows(adriftReadAlignments, o2[[2]])
-  
-  rm(z, a, b, tab, k, o, o2)
-  gc()
-}
-
-ids <- unique(anchorReadAlignments$qName.anchorReads)
+ids <- unique(anchorReadAlignments$readID.anchorReads)
 id_groups <- split(ids, dplyr::ntile(1:length(ids), ceiling(length(ids)/opt$buildFragments_idGroup_size)))
 
 write(c(paste(now(), '   Building initial fragments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
@@ -258,9 +138,9 @@ adriftReadAlignments <- data.table(adriftReadAlignments)
 
 
 o <- lapply(id_groups, function(id_group){
-       list(anchorReadAlignments[qName.anchorReads %in% id_group],
-            adriftReadAlignments[qName.adriftReads %in% id_group])
-     })
+  list(anchorReadAlignments[readID.anchorReads %in% id_group],
+       adriftReadAlignments[readID.adriftReads %in% id_group])
+})
 
 rm(anchorReadAlignments, adriftReadAlignments)
 gc()
@@ -275,7 +155,7 @@ frags <- bind_rows(lapply(o, function(z){
   # Consider using data.table nomenclature for joins.
   
   # Join adrift reads alignments to anchor read alignments to create potential read pairs.
-  frags <- left_join(a, b, by = c('qName.anchorReads' = 'qName.adriftReads')) %>% tidyr::drop_na()
+  frags <- left_join(a, b, by = c('readID.anchorReads' = 'readID.adriftReads')) %>% tidyr::drop_na()
   
   # Remove combinations not found on the same chromosome. 
   i <- which(frags$tName.anchorReads != frags$tName.adriftReads)
@@ -290,18 +170,18 @@ frags <- bind_rows(lapply(o, function(z){
   # Determine the start and end of fragments based on their alignment strands
   # and perform some sanity tests then filter on fragment size. 
   r <- mutate(frags, 
-         fragStart  = ifelse(strand.anchorReads == '+', tStart.anchorReads + 1, tStart.adriftReads + 1),
-         fragEnd    = ifelse(strand.anchorReads == '+', tEnd.adriftReads + 1,   tEnd.anchorReads + 1),
-         strand     = ifelse(strand.anchorReads == '+', '+', '-'),
-         chromosome = tName.anchorReads,  
-         fragTest  = ifelse(strand.anchorReads == '+', tStart.anchorReads < tEnd.adriftReads, tStart.adriftReads < tEnd.anchorReads),  
-         fragWidth = (fragEnd - fragStart) + 1) %>%
-         filter(fragTest == TRUE, 
-                fragWidth <= opt$buildFragments_maxFragLength,
-                fragWidth >= opt$buildFragments_minFragLength) %>%
-                mutate(uniqueSample = sample.anchorReads, readID = qName.anchorReads) %>%
-                select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads, randomLinkerSeq.adriftReads)
-   r
+              fragStart  = ifelse(strand.anchorReads == '+', tStart.anchorReads + 1, tStart.adriftReads + 1),
+              fragEnd    = ifelse(strand.anchorReads == '+', tEnd.adriftReads + 1,   tEnd.anchorReads + 1),
+              strand     = ifelse(strand.anchorReads == '+', '+', '-'),
+              chromosome = tName.anchorReads,  
+              fragTest  = ifelse(strand.anchorReads == '+', tStart.anchorReads < tEnd.adriftReads, tStart.adriftReads < tEnd.anchorReads),  
+              fragWidth = (fragEnd - fragStart) + 1) %>%
+    filter(fragTest == TRUE, 
+           fragWidth <= opt$buildFragments_maxFragLength,
+           fragWidth >= opt$buildFragments_minFragLength) %>%
+    mutate(uniqueSample = uniqueSample.anchorReads, readID = readID.anchorReads) %>%
+    select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads, randomLinkerSeq.adriftReads)
+  r
 }))
 
 rm(o, id_groups)
@@ -312,21 +192,24 @@ write(c(paste(now(), '   Fragment generation complete.')), file = file.path(opt$
 if('buildFragments_duplicateReadFile' %in% names(opt)){
   write(c(paste(now(), '   Reading duplicate read file created by prepReads.R.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   dups <- readRDS(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile))
-  dups <- data.table(dplyr::distinct(dplyr::select(dups, id, n)))
-  dups <- subset(dups, id %in% frags$readID)
   
-  frags <- left_join(frags, dups, by = c('readID' = 'id'))
-  frags$n <- ifelse(is.na(frags$n), 0, frags$n)
+  if(nrows(dups) > 0){
+    dups <- data.table(dplyr::distinct(dplyr::select(dups, id, n)))
+    dups <- subset(dups, id %in% frags$readID)
+  
+    frags <- left_join(frags, dups, by = c('readID' = 'id'))
+    frags$n <- ifelse(is.na(frags$n), 0, frags$n)
+  } else {
+    frags$n <- 0
+  }
 } else {
   frags$n <- 0
 }
 
-stopCluster(cluster)
 
 write(c(paste(now(), '   Adding sample details to fragment data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 samples <- loadSamples()
-frags <- left_join(frags, select(samples, uniqueSample, flags), by = 'uniqueSample')
-frags <- left_join(frags, readID2reference, by = 'readID')
+frags <- left_join(frags, distinct(select(samples, uniqueSample, flags, vectorFastaFile, refGenome.id)), by = 'uniqueSample')
 
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
 

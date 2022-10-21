@@ -61,8 +61,15 @@ if('databaseGroup' %in% names(opt)){
 }
 
 
-# Create fragment ids. (Very slow...)
-frags <- unpackUniqueSampleID(frags)
+
+frags <- rbindlist(lapply(split(frags, frags$uniqueSample), function(x){
+   o <-  unlist(stringr::str_split(x$uniqueSample[1], '~'))
+   x$trial = o[1]; x$subject = o[2]; x$sample = o[3]; x$replicate = o[4]
+   x
+ }))
+   
+
+
 
 
 # Look at ITR/LTR remnants on the subject level, order by UMI counts, and assign
@@ -241,7 +248,6 @@ if(nrow(f2) > 0){
         }))
 }
 
-stopCluster(cluster)
 
 f <- bind_rows(f1, f2)
 rm(f1, f2)
@@ -280,20 +286,24 @@ frags$fragID2 <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sampl
 
 write(c(paste(now(), '   Correcting fuzzy break points.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-o <- split(frags, frags$readID)
-frags <- bind_rows(lapply(o, function(x){
-  if(n_distinct(x$fragID2) > 1 & n_distinct(x$posid) == 1){
-    if(x$strand[1] == '+'){
-      i <- which(x$fragEnd == min(x$fragEnd))[1]
-      x <- x[i,]
-    } else {
-      i <- which(x$fragStart == max(x$fragStart))[1]
-      x <- x[i,]
-    }
-  }
-  x
-}))
+z <- frags$readID[duplicated(frags$readID)]
+a <- subset(frags, readID %in% z)
+b <- subset(frags, ! readID %in% z)
 
+a2 <- rbindlist(lapply(split(a, a$readID), function(x){
+              if(n_distinct(x$fragID2) > 1 & n_distinct(x$posid) == 1){
+                if(x$strand[1] == '+'){
+                  i <- which(x$fragEnd == min(x$fragEnd))[1]
+                  x <- x[i,]
+                } else {
+                  i <- which(x$fragStart == max(x$fragStart))[1]
+                  x <- x[i,]
+                }
+              }
+              x
+          }))
+
+frags <- bind_rows(a2, b)
 
 # Identify reads which map to more than position id and define these as multi-hit reads.
 
@@ -441,39 +451,60 @@ fragsRemoved <- tibble()
 # The reads per fragment filter is applied here since it will effect the following 
 # clean up of UMIs found across multiple fragment records.
 
-o <- split(frags, frags$fragID)
-
+frags <- group_by(frags, fragID) %>% mutate(i = n()) %>% ungroup()
+a <- subset(frags, i == 1)
+b <- subset(frags, i > 1)
+o <- split(b, b$fragID)
 t <- length(o)
 i <- 1
 
 write(c(paste(now(), '   Bundling fragment reads into fragment records.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 f <- bind_rows(lapply(o, function(x){
-       message(i, '/', t); i <<- i + 1
-       
-       totalReads <- n_distinct(x$readID) + sum(x$n)
+  message(i, '/', t); i <<- i + 1
   
-       if(totalReads < opt$buildStdFragments_minReadsPerFrag) return(tibble())
+  totalReads <- n_distinct(x$readID) + sum(x$n)
   
-       r <- representativeSeq(x$leaderSeq.anchorReads)
+  if(totalReads < opt$buildStdFragments_minReadsPerFrag) return(tibble())
   
-       # Prevent repetitive calls to muscle in representativeSeq() from causing 
-       # a system level error with too many open connections.
-       if(i %% 100 == 0) closeAllConnections()
-       
-       x$repLeaderSeq <- r[[2]]
+  r <- representativeSeq(x$leaderSeq.anchorReads)
   
-       leaderSeqs <- x$repLeaderSeq
-       readList <- x$readID
+  # Prevent repetitive calls to muscle in representativeSeq() from causing 
+  # a system level error with too many open connections.
+  if(i %% 100 == 0) closeAllConnections()
   
-       x <- x[1,]
-       x$reads <- totalReads
-       x$maxLeaderSeqDist <- NA # Too slow. Uses all cores. max(stringdist::stringdistmatrix(leaderSeqs))
-       x$readIDs <- list(readList)
-       x$leaderSeqs <- list(leaderSeqs)
+  x$repLeaderSeq <- r[[2]]
   
-       x
+  leaderSeqs <- x$repLeaderSeq
+  readList <- x$readID
+  
+  x <- x[1,]
+  x$reads <- totalReads
+  x$maxLeaderSeqDist <- NA # Too slow. Uses all cores. max(stringdist::stringdistmatrix(leaderSeqs))
+  x$readIDs <- list(readList)
+  x$leaderSeqs <- list(leaderSeqs)
+  
+  x
 }))
+
+
+a$reads = a$n + 1
+a$repLeaderSeq = a$leaderSeq.anchorReads
+a$maxLeaderSeqDist = 0
+a$readIDs <- as.list(a$readID)
+
+z <- group_by(a, fragID) %>%
+     mutate(reads = n+1, 
+            repLeaderSeq = leaderSeq.anchorReads[1], 
+            maxLeaderSeqDist = 0,
+            readIDs = list(readID),
+            leaderSeqs = list(leaderSeq.anchorReads[1])) %>%
+    dplyr::slice(1) %>%
+    ungroup()
+            
+f <- bind_rows(f, z)
+
+stopCluster(cluster)
 
 
 # Clear out the tmp/ directory.
@@ -497,6 +528,7 @@ f$randomLinkerSeq.selectedReadMajority <- NA
 
 write(c(paste(now(), '   Correcting instances where the same UMI is associated with more than one sample fragment.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
+f$i <- NULL
 f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x){
        t <- table(x$randomLinkerSeq.adriftReads) 
        t <- names(t[which(t > 1)])
@@ -523,6 +555,7 @@ f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x
                    readr::write_tsv(dplyr::select(o[2:nrow(o),], trial, subject, sample, replicate, readID, randomLinkerSeq.adriftReads, posid, percentReads, msg), 
                                     file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'randomIDexcludedReads', paste0('duplicate_UMIs_withinSample~', x$trial[1], '~', x$subject[1], '~', x$sample[1], '.tsv')))
                  }
+                 
                  o[1,]
                }))
        
@@ -533,6 +566,19 @@ f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x
      }))
 
 f2 <- select(f2, -uniqueSample, -n, -fragID, -fragID2, -readID, -leaderSeq.anchorReads)
+
+
+r <- readRDS(file.path(opt$outputDir, opt$demultiplex_outputDir,'reads.rds'))
+
+f3 <- tidyr::unnest(f2, readIDs) %>% 
+      dplyr::mutate(fragmentWidth = fragEnd - fragStart + 1)  %>%
+      dplyr::select(trial, subject, sample, posid, fragmentWidth, readIDs) %>%
+      dplyr::rename(readID = readIDs) %>%
+      left_join(dplyr::select(r, readID, anchorReadSeq, adriftReadSeq, adriftReadRandomID), by = 'readID')
+  
 saveRDS(f2, file.path(opt$outputDir, opt$buildStdFragments_outputDir, opt$buildStdFragments_outputFile))
+saveRDS(f3, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragmentReads.rds'))
+readr::write_tsv(f3, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragmentReads.tsv'))
+system(paste0('gzip -9 ', file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragmentReads.tsv')))
 
 q(save = 'no', status = 0, runLast = FALSE) 
