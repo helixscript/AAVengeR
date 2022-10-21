@@ -161,6 +161,9 @@ if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVe
                 }
               }
               
+              if(nrow(b1) == 0) b1 <- data.table()
+              if(nrow(b2) == 0) b2 <- data.table()
+              
               b <- rbindlist(list(b1, b2))
               
               if(nrow(b) > 0){

@@ -35,7 +35,7 @@ m <- bind_rows(lapply(split(samples, samples$vectorFastaFile), function(x){
   
   #waitForFile(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs', 'd.nin'))
   
-  browser()
+ #browser()
   
   # Subset sites to match this identification sequence string.
   s <- subset(sites, s %in% unique(paste(x$subject, x$sample)))
@@ -43,7 +43,8 @@ m <- bind_rows(lapply(split(samples, samples$vectorFastaFile), function(x){
   reads <- DNAStringSet(unique(s$repLeaderSeq))
   names(reads) <- paste0('s', 1:length(reads))
   
-  
+  #browser()
+  #if('TCTGCGCGCTCGCTCGCCCACCGAGGCCGGGCGACCG' %in% s$repLeaderSeq) browser()
   
   b <- bind_rows(lapply(mixAndChunkSeqs(reads, opt$mapSiteLeaderSequences_alignmentChunkSize), function(a){
     f <- tmpFile()
@@ -58,7 +59,7 @@ m <- bind_rows(lapply(split(samples, samples$vectorFastaFile), function(x){
            ignore.stdout = TRUE, ignore.stderr = TRUE)
     
     #waitForFile(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))
-    browser()
+    # browser()
     
     if(file.info(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))$size == 0) return(tibble())
     
@@ -105,4 +106,8 @@ sites$repLeaderSeqMap <- unlist(lapply(split(sites, 1:nrow(sites)), function(x){
   gsub(';;', ';', paste0(o, collapse = ';'))
 }))
 
+sites <- dplyr::relocate(sites, repLeaderSeqMap, .after = posid)
+sites <- dplyr::relocate(sites, repLeaderSeqLength, .after = repLeaderSeqMap)
+
 saveRDS(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, opt$mapSiteLeaderSequences_outputFile))
+openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'sites.xlsx'))
