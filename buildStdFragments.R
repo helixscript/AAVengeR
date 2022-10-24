@@ -543,6 +543,7 @@ f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x
                  o <- dplyr::arrange(subset(b, randomLinkerSeq.adriftReads == i), desc(reads))
                  o$percentReads <- (o$reads / sum(o$reads))*100
 
+                 browser()
                  if(o[1,]$percentReads < opt$buildStdFragments_UMI_conflict_minPercentReads){
                    o$msg <- 'All fragments rejected'
                    o$percentReads <- sprintf("%.2f%%", o$percentReads)
@@ -555,7 +556,6 @@ f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x
                    readr::write_tsv(dplyr::select(o[2:nrow(o),], trial, subject, sample, replicate, readID, randomLinkerSeq.adriftReads, posid, percentReads, msg), 
                                     file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'randomIDexcludedReads', paste0('duplicate_UMIs_withinSample~', x$trial[1], '~', x$subject[1], '~', x$sample[1], '.tsv')))
                  }
-                 
                  o[1,]
                }))
        
@@ -566,19 +566,6 @@ f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x
      }))
 
 f2 <- select(f2, -uniqueSample, -n, -fragID, -fragID2, -readID, -leaderSeq.anchorReads)
-
-
-r <- readRDS(file.path(opt$outputDir, opt$demultiplex_outputDir,'reads.rds'))
-
-f3 <- tidyr::unnest(f2, readIDs) %>% 
-      dplyr::mutate(fragmentWidth = fragEnd - fragStart + 1)  %>%
-      dplyr::select(trial, subject, sample, posid, fragmentWidth, readIDs) %>%
-      dplyr::rename(readID = readIDs) %>%
-      left_join(dplyr::select(r, readID, anchorReadSeq, adriftReadSeq, adriftReadRandomID), by = 'readID')
-  
 saveRDS(f2, file.path(opt$outputDir, opt$buildStdFragments_outputDir, opt$buildStdFragments_outputFile))
-saveRDS(f3, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragmentReads.rds'))
-readr::write_tsv(f3, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragmentReads.tsv'))
-system(paste0('gzip -9 ', file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragmentReads.tsv')))
 
 q(save = 'no', status = 0, runLast = FALSE) 

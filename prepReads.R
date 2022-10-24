@@ -124,9 +124,8 @@ if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVe
             system(paste0(opt$command_makeblastdb, ' -in ', file.path(opt$softwareDir, 'data', 'vectors', x$vectorFastaFile[1]), 
                           ' -dbtype nucl -out ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
             waitForFile(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd.nin'))
-  
+            
             rbindlist(parLapply(cluster, split(x, ntile(1:nrow(x), opt$prepReads_CPUs)), function(y){
-            #rbindlist(lapply(split(x, ntile(1:nrow(x), opt$prepReads_CPUs)), function(y){   
               library(Biostrings)
               library(data.table)
               library(dplyr)
@@ -259,16 +258,11 @@ if(! 'leaderSeqHMM' %in% names(samples)){
 } else {
   write(c(paste(now(), '   Using leader sequence HMM to define mappings.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
-  # (!) UPDATE ME (!)
-  
-  
-  hmmResults <- bind_rows(lapply(split(d, 1:nrow(d)), function(x){ 
-                 source(file.path(opt$softwareDir, 'lib.R'))
-                 library(dplyr)
-                 library(Biostrings)
-                 message(x$file)
-                 captureLTRseqsLentiHMM(readDNAStringSet(x$file), subset(samples, uniqueSample == x$uniqueSample)$leaderSeqHMM)
-              }))
+  hmmResults <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
+    seqs <- DNAStringSet(x$anchorReadSeq)
+    names(seqs) <- x$readID
+    captureLTRseqsLentiHMM(seqs, subset(samples, uniqueSample == x$uniqueSample[1])$leaderSeqHMM)
+  }))
  
  if(nrow(hmmResults) > 0){
    m <- tibble(id = hmmResults$id, leaderMapping.qStart = 1, leaderMapping.qEnd = nchar(hmmResults$LTRseq), 
@@ -280,7 +274,6 @@ if(! 'leaderSeqHMM' %in% names(samples)){
 }
 
 stopCluster(cluster)
-
 
 reads <- subset(reads, readID %in% m$id)
 reads <- left_join(reads, dplyr::select(m, id, leaderMapping.qStart, leaderMapping.qEnd), by = c('readID' = 'id'))
