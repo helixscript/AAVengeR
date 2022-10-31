@@ -107,10 +107,6 @@ if(length(randomIDsToResolve) > 0){
 # Remove reads where random IDs were in conflict and could not be corrected.
 adriftReadAlignments <- subset(adriftReadAlignments, readID %in% r$readID)
 anchorReadAlignments <- subset(anchorReadAlignments, readID %in% r$readID)
-
-
-readID2reference <- distinct(tibble(readID = anchorReadAlignments$readID, refGenome = anchorReadAlignments$refGenome))
-
   
 adriftReadAlignments <- left_join(adriftReadAlignments, distinct(dplyr::select(r, readID, randomLinkerSeq)), by = 'readID')
 rm(r, randomIDs)
@@ -129,6 +125,8 @@ adriftReadAlignments <- select(adriftReadAlignments, sample, readID, tName, stra
 names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads')
 names(adriftReadAlignments) <- paste0(names(adriftReadAlignments), '.adriftReads')
 
+# Breaking reads into id groups prevents joins from exceeding internal row limits
+# before they can be filtered for correct pairings.
 
 ids <- unique(anchorReadAlignments$readID.anchorReads)
 id_groups <- split(ids, dplyr::ntile(1:length(ids), ceiling(length(ids)/opt$buildFragments_idGroup_size)))
@@ -139,6 +137,10 @@ write(c(paste(now(), '   Building initial fragments.')), file = file.path(opt$ou
 anchorReadAlignments <- data.table(anchorReadAlignments)
 adriftReadAlignments <- data.table(adriftReadAlignments)
 
+
+# (dev) parallelize this and use rbindlist
+# Large memory usage here.
+# %in% slow -- consider dplyr group indicies solution.
 
 o <- lapply(id_groups, function(id_group){
        list(anchorReadAlignments[readID.anchorReads %in% id_group],
@@ -207,8 +209,7 @@ if('buildFragments_duplicateReadFile' %in% names(opt)){
 
 write(c(paste(now(), '   Adding sample details to fragment data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 samples <- loadSamples()
-frags <- left_join(frags, select(samples, uniqueSample, flags), by = 'uniqueSample')
-frags <- left_join(frags, readID2reference, by = 'readID')
+frags <- left_join(frags, distinct(select(samples, uniqueSample, refGenome.id, vectorFastaFile, flags)), by = 'uniqueSample')
 
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
 

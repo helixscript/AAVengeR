@@ -188,6 +188,7 @@ reads <- subset(reads, ! readID %in% vectorHits$qname)
 nReadsPostFilter <- n_distinct(reads$readID)
 write(c(paste0(now(), '    ', sprintf("%.2f%%", 100 - (nReadsPostFilter/nReadsPreFilter)*100), ' unique reads removed because they aligned to the vector.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
+parallel::stopCluster(cluster)
 
 write(c(paste(now(), '   Aligning full length anchor reads to the vector sequence.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
@@ -233,41 +234,36 @@ if(! 'leaderSeqHMM' %in% names(samples)){
     write(c(paste0(now(), '    ', sprintf("%.2f%%", 100 - (nReadsPostFilter/nReadsPreFilter)*100), ' unique reads removed because no pieces aligned to the vector.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
     
     # Split reads into CPU chunks without dividing blast results for a read between chunks.
+    # Splitting vector is n.
     vectorHits2$i <- group_by(vectorHits2, qname) %>% group_indices() 
-    o <- tibble(n = 1:n_distinct(vectorHits2$i))
-    o$i2 <- ntile(1:nrow(o), opt$prepReads_CPUs)
-    vectorHits2 <- left_join(vectorHits2, o, by = c('i' = 'n'))
+    o <- tibble(i2 = 1:n_distinct(vectorHits2$i))
+    o$n <- ntile(1:nrow(o), opt$prepReads_CPUs)
+    vectorHits2 <- left_join(vectorHits2, o, by = c('i' = 'i2'))
     
-    m <- rbindlist(parLapply(cluster, split(vectorHits2, vectorHits2$i2), function(b){
-           library(data.table)
-           library(dplyr)
+    if(! opt$prepReads_buildReadMaps_blastReconstruction){
       
-           if(! opt$prepReads_buildReadMaps_blastReconstruction){
-             b2 <- filter(b, qstart <= opt$prepReads_buildReadMaps_minMapStartPostion) %>%
-                          group_by(qname) %>% 
-                          slice_min(evalue, n = 1) %>% 
-                          dplyr::slice(1) %>% 
-                          ungroup()
-        
-              mappings <- data.table(id = b2$qname, leaderMapping.qStart = 1, leaderMapping.qEnd = b2$qend,
-                                 leaderMapping.sStart = NA, leaderMapping.sEnd = NA)
-           } else {
-             library(GenomicRanges)
-          
-             mappings <- rbindlist(lapply(split(b, b$qname), function(a){
-               g <- makeGRangesFromDataFrame(a, ignore.strand = TRUE, seqnames.field = 'sseqid',  start.field = 'qstart', end.field = 'qend')
-               if(length(g) == 0) return(tibble())
-               g <- GenomicRanges::reduce(g, min.gapwidth = 4, ignore.strand = TRUE) # Allow merging if ranges separated by <= 3 NTs.
-               g <- g[start(g) <= opt$prepReads_buildReadMaps_minMapStartPostion]
-               if(length(g) == 0) return(tibble())
-               g <- g[width(g) == max(width(g))][1]
-               return(data.table(id = a$qname[1], leaderMapping.qStart = 1, leaderMapping.qEnd = end(g),
-                            leaderMapping.sStart = NA, leaderMapping.sEnd = NA))
-            }))
-           }
+      b2 <- dplyr::filter(vectorHits2, qstart <= opt$prepReads_buildReadMaps_minMapStartPostion) %>%
+            dplyr::group_by(qname) %>% 
+            dplyr::slice_min(evalue, n = 1) %>% 
+            dplyr::dplyr::slice(1) %>% 
+            dplyr::ungroup()
       
-       mappings
-    }))
+      m <- data.table(id = b2$qname, leaderMapping.qStart = 1, leaderMapping.qEnd = b2$qend,
+                             leaderMapping.sStart = NA, leaderMapping.sEnd = NA, leaderSeqMap = NA)
+      
+    } else {
+      cluster <- parallel::makeCluster(opt$prepReads_CPUs)
+      o <- rbindlist(parallel::parLapply(cluster, split(vectorHits2, vectorHits2$n), blast2rearangements_worker2))
+      parallel::stopCluster(cluster)
+      
+      o$endPos <- unlist(lapply(stringr::str_extract_all(o$rearrangement, '\\.\\.\\d+'), function(x){
+                    x <- sub('\\.\\.', '', x)
+                    as.integer(x[length(x)])
+                   }))
+      
+      m <- data.table(id = o$qname, leaderMapping.qStart = 1, leaderMapping.qEnd = o$endPos,
+                             leaderMapping.sStart = NA, leaderMapping.sEnd = NA, leaderSeqMap = o$rearrangement)
+    }
     
 } else {
   write(c(paste(now(), '   Using leader sequence HMM to define mappings.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
@@ -287,12 +283,12 @@ if(! 'leaderSeqHMM' %in% names(samples)){
  }
 }
 
-stopCluster(cluster)
 
 reads <- subset(reads, readID %in% m$id)
 reads <- left_join(reads, dplyr::select(m, id, leaderMapping.qStart, leaderMapping.qEnd), by = c('readID' = 'id'))
 reads$leaderSeq = substr(reads$anchorReadSeq, 1, reads$leaderMapping.qEnd)
 
+saveRDS(m, file.path(opt$outputDir, opt$prepReads_outputDir, 'leaderSeqMaps.rds'), compress = FALSE)
 
 reads$anchorReadSeq2 <- substr(reads$anchorReadSeq, reads$leaderMapping.qEnd+1, nchar(reads$anchorReadSeq))
 reads <- dplyr::select(reads, -leaderMapping.qStart, -leaderMapping.qEnd, -anchorReadSeq)

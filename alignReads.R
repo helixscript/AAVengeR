@@ -33,6 +33,8 @@ if(! all(file.exists(file.path(opt$softwareDir, 'data', 'blatDBs', paste0(unique
 cluster <- makeCluster(opt$alignReads_CPUs)
 clusterExport(cluster, c('opt', 'samples', 'tmpFile'))
 
+write(c(paste(now(), '   Reading in prepped reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 reads <- readRDS(file.path(opt$outputDir, opt$alignReads_inputFile))
 
 
@@ -59,7 +61,7 @@ anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   s$cut <- cut(nchar(s$seq), c(-Inf, seq(0, max(nchar(s$seq)), by = 10), Inf), labels = FALSE)
   s <- group_by(s, cut) %>% mutate(n = ntile(1:n(), opt$alignReads_CPUs)) %>% ungroup()
   
-  message('Aligning ', nrow(s), ' reads against ', x$refGenome[1])
+  write(c(paste0(now(), '   Aligning ', nrow(s), ' anchor reads against ', x$refGenome[1], '.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
   dir <- file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1')
   invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome[1], dir))
@@ -104,7 +106,8 @@ adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   s$cut <- cut(nchar(s$seq), c(-Inf, seq(0, max(nchar(s$seq)), by = 10), Inf), labels = FALSE)
   s <- group_by(s, cut) %>% mutate(n = ntile(1:n(), opt$alignReads_CPUs)) %>% ungroup() %>% data.table()
   
-  message('Aligning ', nrow(s), ' reads against ', x$refGenome[1])
+  write(c(paste0(now(), '   Aligning ', nrow(s), ' adrift reads against ', x$refGenome[1], '.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  
   dir <- file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2')
   invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome[1], dir))
   
@@ -124,9 +127,6 @@ adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   x2 <- dplyr::select(x, uniqueSample, readID, refGenome, adriftReadSeq) %>% dplyr::filter(adriftReadSeq %in% b$seq)
   left_join(x2, b, by = c('adriftReadSeq' = 'seq')) %>% dplyr::select(-adriftReadSeq, -qName)
 }))
-
-
-
 
 # Select adrift reads where the ends align to the genome.
 i <- (adriftReadAlignments$qSize - adriftReadAlignments$qEnd) <= opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned

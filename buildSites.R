@@ -10,7 +10,8 @@ dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 
 # Read in Standardized fragments.
 write(c(paste(now(), '   Reading standardized fragment data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile))
+frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile)) %>% 
+         dplyr::rename(refGenome = refGenome.id)
 
 samples <- distinct(tibble(trial = frags$trial, subject = frags$subject, sample = frags$sample, replicate = frags$replicate, flags = frags$flags))
 
@@ -117,6 +118,7 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
     # Shift positions to reflect duplication caused by integrase.
     if(nrow(b)){
       b1 <- subset(b, strand == '+')
+      browser()
       if(nrow(b1) > 0) b1$posid <- unlist(lapply(strsplit(b1$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2])+2, '.', x[3])))
 
       b2 <- subset(b, strand == '-')
@@ -163,7 +165,7 @@ sites <- bind_rows(lapply(o, function(x){
   
   if(nrow(x) == 1){
     return(dplyr::mutate(x, fragments = n_distinct(x$randomLinkerSeq.adriftReads), fragmentWidths = n_distinct(x$fragWidth), maxLeaderSeqDist = 0) %>%
-             dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, reads, maxLeaderSeqDist, repLeaderSeq))
+             dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile))
   } else {
     
     s <- unlist(x$leaderSeqs)
@@ -176,7 +178,7 @@ sites <- bind_rows(lapply(o, function(x){
     
     return(dplyr::mutate(x, fragments = n_distinct(x$randomLinkerSeq.adriftReads), fragmentWidths = n_distinct(x$fragWidth), reads = sum(reads), repLeaderSeq = r[[2]], 
                          maxLeaderSeqDist = max(stringdist::stringdistmatrix(s))) %>%
-           dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, reads, maxLeaderSeqDist, repLeaderSeq) %>%
+           dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile) %>%
            dplyr::slice(1))
   }
 }))
@@ -209,7 +211,7 @@ tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sa
           t
          }))
          
-      bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], refGenome = x$refGenome[1], posid = x$posid[1], flags = x$flags[1]), o)
+      bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], refGenome = x$refGenome[1], posid = x$posid[1], flags = x$flags[1], vectorFastaFile = x$vectorFastaFile[1]), o)
 }))
 
 

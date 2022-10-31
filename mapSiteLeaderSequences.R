@@ -22,54 +22,49 @@ sites$repLeaderSeqMap <- NULL
 dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir))
 dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'))
 
-samples <- loadSamples()
-
 sites$s <- paste(sites$subject, sites$sample)
 
-m <- bind_rows(lapply(split(samples, samples$vectorFastaFile), function(x){
-  
+m <- bind_rows(lapply(split(sites, sites$vectorFastaFile), function(x){
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'), full.names = TRUE)))
   
   system(paste0(opt$command_makeblastdb, ' -in ', file.path(opt$softwareDir, 'data', 'vectors', x$vectorFastaFile[1]), 
                 ' -dbtype nucl -out ', file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
   
-  #waitForFile(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs', 'd.nin'))
+  waitForFile(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs', 'd.nin'))
   
-  browser()
+  s <- data.frame(seq = unique(x$repLeaderSeq))
+  s$id <- paste0('s', 1:nrow(s))
   
-  # Subset sites to match this identification sequence string.
-  s <- subset(sites, s %in% unique(paste(x$subject, x$sample)))
+  s$cut <- cut(nchar(s$seq), c(-Inf, seq(0, max(nchar(s$seq)), by = 10), Inf), labels = FALSE)
+  s <- group_by(s, cut) %>% mutate(n = ntile(1:n(), opt$mapSiteLeaderSequences_CPUs)) %>% ungroup()
   
-  reads <- DNAStringSet(unique(s$repLeaderSeq))
-  names(reads) <- paste0('s', 1:length(reads))
+  reads <- DNAStringSet(s$seq)
+  names(reads) <- s$id
   
-  
-  
-  b <- bind_rows(lapply(mixAndChunkSeqs(reads, opt$mapSiteLeaderSequences_alignmentChunkSize), function(a){
-    f <- tmpFile()
+  b <- bind_rows(lapply(split(reads, s$n), function(a){
+         f <- tmpFile()
  
-    writeXStringSet(a,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
+         writeXStringSet(a,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
     
-    system(paste0(opt$command_blastn, ' -word_size 4 -evalue 50 -outfmt 6 -query ',
+         system(paste0(opt$command_blastn, ' -word_size 4 -evalue 50 -outfmt 6 -query ',
                   file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
-                 #' ~/test ', ' -db ',
                   file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs', 'd'),
-                  ' -num_threads 4 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),
-           ignore.stdout = TRUE, ignore.stderr = TRUE)
+                  ' -num_threads 1 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),
+                ignore.stdout = TRUE, ignore.stderr = TRUE)
     
-    #waitForFile(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))
-    browser()
+         waitForFile(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))
     
-    if(file.info(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))$size == 0) return(tibble())
+         if(file.info(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))$size == 0) return(tibble())
     
-    b <- read.table(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
-    names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
-    b$alignmentLength <- b$qend - b$qstart + 1
+          b <- read.table(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
+          names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
+          b$alignmentLength <- b$qend - b$qstart + 1
+          b$strand <- ifelse(b$sstart > b$send, '-', '+')
     
-    dplyr::filter(b, pident >= opt$mapSiteLeaderSequences_minAlignmentPercentID, alignmentLength >= opt$mapSiteLeaderSequences_minAlignmentLength)
-  }))
+          dplyr::filter(b, pident >= opt$mapSiteLeaderSequences_minAlignmentPercentID, alignmentLength >= opt$mapSiteLeaderSequences_minAlignmentLength)
+       }))
   
-  r <- blast2rearangements(b, minAlignmentLength = opt$mapSiteLeaderSequences_minAlignmentLength, 
+  r <- blast2rearangements(b, minAlignmentLength = opt$prepReads_mapLeaderSeqsMinAlignmentLength  , 
                            minPercentID = opt$mapSiteLeaderSequences_minAlignmentPercentID, CPUs = opt$mapSiteLeaderSequences_CPUs)
   
   left_join(tibble(qname = names(reads), leaderSeq = as.character(reads)), dplyr::rename(r, repLeaderSeqMap = rearrangement), by = 'qname')

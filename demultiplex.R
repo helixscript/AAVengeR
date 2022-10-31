@@ -42,7 +42,7 @@ if(! file.exists(opt$demultiplex_index1ReadsFile)){
 if(! 'demultiplex_percentReadDataToUse' %in% names(opt)) opt$demultiplex_percentReadDataToUse <- 100
 
 if(opt$demultiplex_percentReadDataToUse < 100){
-  
+  write(c(paste0(now(), '   Reading in a subset of the data (', opt$demultiplex_percentReadDataToUse, '%)')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   R1 <- readFastq(opt$demultiplex_adriftReadsFile)
   set.seed(opt$demultiplex_percentReadDataToUseRandomSeed)
   i <- sample(1:length(R1), floor(length(R1) * (opt$demultiplex_percentReadDataToUse/100)))
@@ -201,16 +201,21 @@ invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'
 # Collate chunked reads and write out sample read files.
 write(paste(now(), '   Colating data files.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
+save.image('~/demultiplexDev.RData')
 
 reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
   f1 <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.anchorReads'), full.names = TRUE)
   f2 <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.adriftReads'), full.names = TRUE)
   f3 <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.randomAdriftReadIDs'), full.names = TRUE)
   if(length(f1) == 0 | length(f2) == 0 | length(f1) != length(f2)) return()
+
+  write(paste0(now(), '   Colating reads for ', x), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
   anchorReads <- Reduce('append', lapply(f1, readDNAStringSet))
   adriftReads <- Reduce('append', lapply(f2, readDNAStringSet))
   randomIDs   <- Reduce('append', lapply(f3, readDNAStringSet))
+  
+  closeAllConnections()
   
   r <- subset(samples, uniqueSample == x)
   c <- substr(r$adriftRead.linker.seq, max(stringr::str_locate_all(r$adriftRead.linker.seq, 'NNN')[[1]][,2])+1, nchar(r$adriftRead.linker.seq))
@@ -221,14 +226,18 @@ reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
              vectorFastaFile = r$vectorFastaFile, refGenome = r$refGenome.id, flags = r$flags)
 }))
 
+write(paste(now(), '   Clearing tmp files.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 # Collect all the logs from the different computational nodes and create a single report.
+write(paste(now(), '   Colating log files.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 logReport <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), pattern = '*.logReport$', full.names = TRUE), function(f){
   read.table(f, header = TRUE, sep = '\t')
 }))
 
-
+write(paste(now(), '   Building final log.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 logReport <- bind_rows(lapply(split(logReport, logReport$sample), function(x){
   o <- data.frame(lapply(2:length(x), function(y){
     if(all(is.na(x[,y]))){
@@ -243,6 +252,7 @@ logReport <- bind_rows(lapply(split(logReport, logReport$sample), function(x){
 })) %>% dplyr::arrange(demultiplexedReads)
 
 
+write(paste(now(), '   Finalizing logs.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), recursive = TRUE))
 write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))
 
@@ -252,6 +262,7 @@ if(opt$demultiplex_percentReadDataToUse < 100){
   invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'I1.fastq.gz')))
 }
 
+write(paste(now(), '   Writing outputs.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = FALSE)
 
 q(save = 'no', status = 0, runLast = FALSE) 

@@ -1,0 +1,18 @@
+#                                                               --- full sequence ---- --- best 1 domain ---- --- domain number estimation ----
+# target name        accession  query name           accession    E-value  score  bias   E-value  score  bias   exp reg clu  ov env dom rep inc description of target
+#------------------- ---------- -------------------- ---------- --------- ------ ----- --------- ------ -----   --- --- --- --- --- --- --- --- ---------------------
+a                    -          leaderSeq            -            6.1e-05    9.9   0.0   6.1e-05    9.9   0.0   1.0   1   0   0   1   1   1   1 -
+c                    -          leaderSeq            -            0.00038    8.0   0.0   0.00038    8.0   0.0   1.1   1   0   0   1   1   1   1 -
+b                    -          leaderSeq            -            0.00045    7.8   0.0   0.00045    7.8   0.0   1.1   1   0   0   1   1   1   1 -
+d                    -          leaderSeq            -             0.0028    6.0   0.0    0.0028    6.0   0.0   1.1   1   0   0   1   1   1   1 -
+e                    -          leaderSeq            -             0.0036    5.7   0.0    0.0036    5.7   0.0   1.1   1   0   0   1   1   1   1 -
+#
+# Program:         hmmsearch
+# Version:         3.3.2 (Nov 2020)
+# Pipeline mode:   SEARCH
+# Query file:      cd4Zeta.hmm
+# Target file:     test.seq
+# Option settings: /home/ubuntu/software/hmmer-3.3.2/bin/hmmsearch --tblout tbl --domtblout domTbl --max cd4Zeta.hmm test.seq 
+# Current dir:     /home/ubuntu/software/AAVengeR/data/hmms
+# Date:            Thu Oct 27 03:13:36 2022
+# [ok]

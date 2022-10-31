@@ -60,17 +60,16 @@ if('databaseGroup' %in% names(opt)){
            }))
 }
 
+# Set aside meta data till the end to save memory and add data back at the end.
+sampleMetaData <- distinct(dplyr::select(frags, uniqueSample, refGenome.id, vectorFastaFile, flags))
 
 
 frags <- rbindlist(lapply(split(frags, frags$uniqueSample), function(x){
    o <-  unlist(stringr::str_split(x$uniqueSample[1], '~'))
    x$trial = o[1]; x$subject = o[2]; x$sample = o[3]; x$replicate = o[4]
    x
- }))
+ })) %>% dplyr::select(-refGenome.id, -vectorFastaFile, -flags)
    
-
-
-
 
 # Look at ITR/LTR remnants on the subject level, order by UMI counts, and assign
 # identifiers to each so they can be standardized separately.
@@ -389,38 +388,47 @@ if(nrow(multiHitFrags) > 0 & opt$buildStdFragments_createMultiHitClusters){
   multiHitFrags$fragWidth = multiHitFrags$fragEnd - multiHitFrags$fragStart + 1
   
   # For each read, create a from -> to data frame and capture the width of the read. 
-  multiHitNet_replicates <- bind_rows(lapply(split(multiHitFrags, multiHitFrags$readID), function(x){
+  multiHitNet_replicates <- rbindlist(lapply(split(multiHitFrags, multiHitFrags$readID), function(x){
     if(n_distinct(x$posid) == 1) return(tibble()) # Cases of break point only variation.
     node_pairs <- RcppAlgos::comboGeneral(unique(x$posid), 2)
-    tibble(trial = x[1,]$trial, subject = x[1,]$subject, sample = x[1,]$sample, 
+    data.table(trial = x[1,]$trial, subject = x[1,]$subject, sample = x[1,]$sample, 
            replicate = x[1,]$replicate, from = node_pairs[,1], to = node_pairs[,2], width = x[1,]$fragWidth, readID = x[1,]$readID)
   }))
   
   # Build networks for each sample.
   write(c(paste(now(), '   Building mulit-hit clusters.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  multiHitClusters <- bind_rows(lapply(split(multiHitNet_replicates, paste(multiHitNet_replicates$trial, multiHitNet_replicates$subject, multiHitNet_replicates$sample)), function(x){
+  
+  o <- split(multiHitNet_replicates, paste(multiHitNet_replicates$trial, multiHitNet_replicates$subject, multiHitNet_replicates$sample))
+
+  multiHitNet_replicates$n <- group_by(multiHitNet_replicates, trial, subject, sample) %>% group_indices
+  d <- tibble(n = 1:max(multiHitNet_replicates$n), n2 = ntile(1:max(n), opt$buildStdFragments_CPUs))
+  multiHitNet_replicates <- left_join(multiHitNet_replicates, d, by = 'n')
+  
+  multiHitClusters <- rbindlist(parLapply(cluster, split(multiHitNet_replicates, multiHitNet_replicates$n2), function(x){
+    library(igraph)
+    library(data.table)
     
     # Create a local copy of read-level multiHitFrags data frame specific to this sample.
-    multiHitFrags <- subset(multiHitFrags, trial = x$trial[1], subject = x$trial[1], sample = x$sample[1])
+    # multiHitFrags <- subset(multiHitFrags, trial = x$trial[1], subject = x$trial[1], sample = x$sample[1])
     
     # Build a graph with the posid nodes and read edges.
-    g <- igraph::simplify(graph_from_data_frame(dplyr::select(x, from, to), directed=FALSE, vertices=tibble(name = unique(c(x$from, x$to)))))
+    g <- igraph::simplify(graph_from_data_frame(dplyr::select(x, from, to), directed=FALSE, vertices=data.table(name = unique(c(x$from, x$to)))))
     
     # Separate out individual graphs.
-    o <- tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], clusters = lapply(igraph::decompose(g), function(x) igraph::V(x)$name))
+    o <- data.table(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], clusters = lapply(igraph::decompose(g), function(x) igraph::V(x)$name))
     
     # Create cluster ids.
     o$clusterID <- paste0('MHC.', 1:nrow(o))
     
-    bind_rows(lapply(split(o, o$clusterID), function(y){
+    rbindlist(lapply(split(o, o$clusterID), function(y){
       
       # Subset the larger multiHitFrag read data frame to focus on nodes in this graph.
       a <- subset(x, from %in% unlist(y$clusters) | to %in% unlist(y$clusters))
       
       # Determine node specific values.
-      b <- bind_rows(lapply(unique(c(a$to, a$from)), function(b){
+      b <- rbindlist(lapply(unique(c(a$to, a$from)), function(b){
         a2 <- subset(a, to == b | from == b)
-        tibble(node = b[1], reads = n_distinct(a2$readID), breaks = n_distinct(a2$width))
+        data.table(node = b[1], reads = n_distinct(a2$readID), breaks = n_distinct(a2$width))
       }))
       
       y$nodes <- n_distinct(unlist(y$clusters))
@@ -459,6 +467,10 @@ t <- length(o)
 i <- 1
 
 write(c(paste(now(), '   Bundling fragment reads into fragment records.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
+stopCluster(cluster)
+
+# save.image('~/buildStdFragsDev.RData')
 
 f <- bind_rows(lapply(o, function(x){
   message(i, '/', t); i <<- i + 1
@@ -504,8 +516,6 @@ z <- group_by(a, fragID) %>%
             
 f <- bind_rows(f, z)
 
-stopCluster(cluster)
-
 
 # Clear out the tmp/ directory.
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
@@ -543,7 +553,7 @@ f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x
                  o <- dplyr::arrange(subset(b, randomLinkerSeq.adriftReads == i), desc(reads))
                  o$percentReads <- (o$reads / sum(o$reads))*100
 
-                 browser()
+                 # browser()
                  if(o[1,]$percentReads < opt$buildStdFragments_UMI_conflict_minPercentReads){
                    o$msg <- 'All fragments rejected'
                    o$percentReads <- sprintf("%.2f%%", o$percentReads)
@@ -565,7 +575,9 @@ f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x
        x
      }))
 
-f2 <- select(f2, -uniqueSample, -n, -fragID, -fragID2, -readID, -leaderSeq.anchorReads)
+f2 <- dplyr::select(f2, -n, -fragID, -fragID2, -readID, -leaderSeq.anchorReads)
+f2 <- left_join(f2, sampleMetaData, by = 'uniqueSample') %>% dplyr::select(-uniqueSample)
+
 saveRDS(f2, file.path(opt$outputDir, opt$buildStdFragments_outputDir, opt$buildStdFragments_outputFile))
 
 q(save = 'no', status = 0, runLast = FALSE) 

@@ -2,10 +2,10 @@ library(dplyr)
 library(stringr)
 library(RMySQL)
 
-sampleSheet <- '/home/ubuntu/projects/ViiV_HIV/data/220509_MN01490_0078_A000H3W5V5/SampleSheet.csv'
-outputFile  <- '/home/ubuntu/projects/ViiV_HIV/data/220509_MN01490_0078_A000H3W5V5/sampleData.tsv'
+sampleSheet <- '/home/ubuntu/projects/CD4zeta/data/SampleSheet.csv'
+outputFile  <- '/home/ubuntu/projects/CD4zeta/samplData.tsv'
 refGenome.id <- 'hg38'
-trialID <- 'ViiV'
+trialID <- 'CD4zeta'
 
 f <- readLines(sampleSheet)
 s <- read.csv(textConnection(f[(which(grepl('\\[metaData\\]', f))+1):length(f)]), header = TRUE)
@@ -28,8 +28,8 @@ r <- tibble(trial = trialID,
             index1.seq = s$bcSeq,
             refGenome.id = refGenome.id,
             adriftRead.linker.seq = s$linkerSequence,
-            leaderSeqHMM = 'vector_HIV_89.6.hmm', 
-            vectorFastaFile = 'vector_HIV_89.6.fa',
+            leaderSeqHMM = 'cd4Zeta.hmm', 
+            vectorFastaFile = 'vector_ZETA.fa',
             flags = 'IN_u5')
             
 write.table(r, file = outputFile, sep='\t', col.names = TRUE, row.names = FALSE, quote = FALSE)
