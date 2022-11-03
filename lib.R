@@ -396,55 +396,7 @@ golayCorrection <- function(x){
   r
 }
 
-
 blast2rearangements_worker <-  function(b){
-    library(dplyr)
-    library(IRanges)
-    library(data.table)
-    
-    rbindlist(lapply(split(b, b$qname), function(b2){
-      # Bin start and end positions to help mitigate sequencing and aligner error.
-      # Binned positions are shifted to the lower end of 3 NT intervals.
-      breaks <- seq(1, max(b2$qstart), by = 3)
-      b2$qstart_binned <- as.integer(as.character(cut(b2$qstart, breaks = c(breaks, Inf), include.lowest = TRUE, labels = breaks)))
-      
-      # Binned end positions are shifted to the upper end of 3 NT intervals.
-      breaks <- seq(min(b2$qend), max(b2$qend), by = 3)
-      b2$qend_binned <- as.integer(as.character(cut(b2$qend, breaks = c(breaks, Inf), include.lowest = TRUE, labels = breaks, right = FALSE)))
-      
-      # Sort BLAST results by query start position and evalue (low to high).
-      b2 <- arrange(b2, qstart_binned, evalue)
-      b2$strand <- ifelse(b2$send < b2$sstart, '-', '+')
-      
-      # Alignment to the negative strand will result in the subject end to come before the start.
-      # Switch it back so that they are sequential.
-      b2$sstart2 <- ifelse(b2$sstart > b2$send, b2$send, b2$sstart)
-      b2$send2   <- ifelse(b2$sstart > b2$send, b2$sstart, b2$send)
-      
-      # Create IRanges
-      ir <- IRanges(start = b2$qstart_binned, end = b2$qend_binned)
-      if(length(ir) == 0) return(data.frame())
-      
-      # Name the ranges with the binned query positions followed by the actual subject positions.
-      names(ir) <- paste0(b2$qstart, '..', b2$qend, '[', b2$sstart2, b2$strand, b2$send2, ']')
-      
-      o <- ir[1]
-      invisible(lapply(split(ir, 1:length(ir)), function(a){
-        if(all(! countOverlaps(o, a, minoverlap = 2) > 0)){
-          o <<- c(o, a)
-        }
-      }))
-      
-      if(length(o) == 0) return(data.frame())
-      
-      r <- paste0(unique(names(o)), collapse = ';')
-      
-      data.frame(qname = b2$qname[1], rearrangement = r)
-    }))
-}
-
-
-blast2rearangements_worker2 <-  function(b){
   library(dplyr)
   library(IRanges)
   library(data.table)
@@ -483,18 +435,6 @@ blast2rearangements_worker2 <-  function(b){
 }
 
 
-
-
-blast2rearangements <- function(x, CPUs = 20){
-  library(data.table)
-  
-  if(nrow(x) == 0) return(data.frame())
-
-  cluster <- parallel::makeCluster(CPUs)
-  r <- bind_rows(parallel::parLapply(cluster, split(x, x$n), blast2rearangements_worker))
-  parallel::stopCluster(cluster)
-  r
-}
 
 
 captureLTRseqsLentiHMM <- function(reads, hmm){
@@ -554,14 +494,14 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
 }
 
 
-blastReads <- function(reads){
+blastReads <- function(reads, wordSize = 6, evalue = 10){
   library(Biostrings)
   library(dplyr)
 
   f <- tmpFile()
   writeXStringSet(reads,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
   
-  system(paste0(opt$command_blastn, ' -word_size 6 -evalue 10 -outfmt 6 -query ',
+  system(paste0(opt$command_blastn, ' -word_size ', wordSize, ' -evalue ', evalue,' -outfmt 6 -query ',
                 file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
                 file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'),
                 ' -num_threads 1 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),

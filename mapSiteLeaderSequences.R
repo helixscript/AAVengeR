@@ -8,9 +8,6 @@ configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
 
-# Min. space between blast hits allowed. Larger gaps will be filled with [x].
-opt$mapSiteLeaderSequences_minAllowableGap <- 5
-
 source(file.path(opt$softwareDir, 'lib.R'))
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
@@ -23,6 +20,8 @@ dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir))
 dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'))
 
 sites$s <- paste(sites$subject, sites$sample)
+
+cluster <- makeCluster(opt$mapSiteLeaderSequences_CPUs)
 
 m <- bind_rows(lapply(split(sites, sites$vectorFastaFile), function(x){
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'), full.names = TRUE)))
@@ -64,11 +63,17 @@ m <- bind_rows(lapply(split(sites, sites$vectorFastaFile), function(x){
           dplyr::filter(b, pident >= opt$mapSiteLeaderSequences_minAlignmentPercentID, alignmentLength >= opt$mapSiteLeaderSequences_minAlignmentLength)
        }))
   
-  r <- blast2rearangements(b, minAlignmentLength = opt$prepReads_mapLeaderSeqsMinAlignmentLength  , 
-                           minPercentID = opt$mapSiteLeaderSequences_minAlignmentPercentID, CPUs = opt$mapSiteLeaderSequences_CPUs)
+  # New
+  b$i <- group_by(b, qname) %>% group_indices() 
+  o <- tibble(i2 = 1:n_distinct(b$i))
+  o$n <- ntile(1:nrow(o), opt$prepReads_CPUs)
+  b <- left_join(b, o, by = c('i' = 'i2'))
+  r <- rbindlist(parallel::parLapply(cluster, split(b, b$n), blast2rearangements_worker))
   
   left_join(tibble(qname = names(reads), leaderSeq = as.character(reads)), dplyr::rename(r, repLeaderSeqMap = rearrangement), by = 'qname')
 }))
+
+stopCluster(cluster)
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 

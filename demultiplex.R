@@ -209,7 +209,7 @@ reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
   f3 <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.randomAdriftReadIDs'), full.names = TRUE)
   if(length(f1) == 0 | length(f2) == 0 | length(f1) != length(f2)) return()
 
-  write(paste0(now(), '   Colating reads for ', x), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(paste0(now(), '    Colating reads for ', x), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
   anchorReads <- Reduce('append', lapply(f1, readDNAStringSet))
   adriftReads <- Reduce('append', lapply(f2, readDNAStringSet))

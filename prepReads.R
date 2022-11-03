@@ -83,10 +83,15 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
 
 stopCluster(cluster)
 
+# Should already be handled.
+reads <- reads[nchar(reads$anchorReadSeq2) >= opt$prepReads_minAnchorReadLength,]
+reads <- reads[nchar(reads$adriftReadSeq2) >= opt$prepReads_minAdriftReadLength,]
+
 reads$anchorReadSeq <- NULL
 reads$adriftReadSeq <- NULL
 reads <- dplyr::rename(reads, anchorReadSeq = anchorReadSeq2, adriftReadSeq = adriftReadSeq2)
 
+saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'reads_anchorOverReading_adriftLinker_trimmed.rds'))
 
 reads$i <- group_by(reads, uniqueSample, anchorReadSeq, adriftReadSeq) %>% group_indices() 
 reads <- group_by(reads, i) %>% mutate(n = n()) %>% ungroup()
@@ -126,6 +131,7 @@ if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVe
             waitForFile(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd.nin'))
             
             rbindlist(parLapply(cluster, split(x, ntile(1:nrow(x), opt$prepReads_CPUs)), function(y){
+            #rbindlist(lapply(split(x, ntile(1:nrow(x), opt$prepReads_CPUs)), function(y){
               library(Biostrings)
               library(data.table)
               library(dplyr)
@@ -144,6 +150,8 @@ if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVe
                     b1$source <- 'anchor'
                     b1$alignmentLength <- b1$qend - b1$qstart + 1
                     b1 <- dplyr::filter(b1, pident >= opt$prepReads_vectorAlignmentTest_minPercentID, alignmentLength >= floor(opt$prepReads_vectorAlignmentTestLength * (opt$prepReads_vectorAlignmentTest_minPercentCoverage/100)), gapopen <= 1)
+                    
+                    if(nrow(b1) > 0) b1 <- left_join(b1, data.table(qname = names(s), testSeq = as.character(s)), by = 'qname')
                 }
               }
               
@@ -157,6 +165,7 @@ if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVe
                   b2$source <- 'adrift'
                   b2$alignmentLength <- b2$qend - b2$qstart + 1
                   b2 <- dplyr::filter(b2, pident >= opt$prepReads_vectorAlignmentTest_minPercentID, alignmentLength >= floor(opt$prepReads_vectorAlignmentTestLength * (opt$prepReads_vectorAlignmentTest_minPercentCoverage/100)), gapopen <= 1)
+                  if(nrow(b2) > 0) b2 <- left_join(b2, data.table(qname = names(s), testSeq = as.character(s)), by = 'qname')
                 }
               }
               
@@ -181,20 +190,16 @@ if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVe
 
 saveRDS(vectorHits, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorHits.rds'))
 
-# save.image('~/prepReadsDev1.RData')
-
 nReadsPreFilter <- n_distinct(reads$readID)
 reads <- subset(reads, ! readID %in% vectorHits$qname)
 nReadsPostFilter <- n_distinct(reads$readID)
 write(c(paste0(now(), '    ', sprintf("%.2f%%", 100 - (nReadsPostFilter/nReadsPreFilter)*100), ' unique reads removed because they aligned to the vector.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-
 write(c(paste(now(), '   Aligning full length anchor reads to the vector sequence.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 if(! 'leaderSeqHMM' %in% names(samples)){
     # Now align the full anchor reads to the vector excluding those in vectorHits.
-    write(c(paste0(now(), '    ', sprintf("%.2f%%", 100 - (nReadsPostFilter/nReadsPreFilter)*100), ' unique reads removed because they aligned to the vector.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  
+   
     vectorHits2 <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
       invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
     
@@ -212,8 +217,8 @@ if(! 'leaderSeqHMM' %in% names(samples)){
         b <- data.table(blastReads(s))
         if(nrow(b) > 0){
           b$alignmentLength <- b$qend - b$qstart + 1
-          b <- subset(b, pident >= opt$prepReads_minAlignmentPercentID & 
-                         alignmentLength >= opt$prepReads_minAlignmentLength &
+          b <- subset(b, pident >= opt$prepReads_mapLeaderSeqsMinPercentID & 
+                         alignmentLength >= opt$prepReads_mapLeaderSeqsMinAlignmentLength &
                          gapopen <= 1)
         }
         
@@ -223,76 +228,86 @@ if(! 'leaderSeqHMM' %in% names(samples)){
     
     write(c(paste(now(), '   Creating read maps from local alignments to the vector file.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
     
-    # Limit reads to those with hits to the vector since we expect the start of anchor reads to begin with vector sequences.
-    #
-    # (!) Why are any reads removed here?
-    
-    nReadsPreFilter <- n_distinct(reads$readID)
-    reads <- subset(reads, readID %in% vectorHits2$qname)
-    nReadsPostFilter <- n_distinct(reads$readID)
-    write(c(paste0(now(), '    ', sprintf("%.2f%%", 100 - (nReadsPostFilter/nReadsPreFilter)*100), ' unique reads removed because no pieces aligned to the vector.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-    
     # Split reads into CPU chunks without dividing blast results for a read between chunks.
+    # Splitting vector is n.
     vectorHits2$i <- group_by(vectorHits2, qname) %>% group_indices() 
-    o <- tibble(n = 1:n_distinct(vectorHits2$i))
-    o$i2 <- ntile(1:nrow(o), opt$prepReads_CPUs)
-    vectorHits2 <- left_join(vectorHits2, o, by = c('i' = 'n'))
+    o <- tibble(i2 = 1:n_distinct(vectorHits2$i))
+    o$n <- ntile(1:nrow(o), opt$prepReads_CPUs)
+    vectorHits2 <- left_join(vectorHits2, o, by = c('i' = 'i2'))
     
-    m <- rbindlist(parLapply(cluster, split(vectorHits2, vectorHits2$i2), function(b){
-           library(data.table)
-           library(dplyr)
+    parallel::stopCluster(cluster)
+    
+    if(! opt$prepReads_buildReadMaps_blastReconstruction){
       
-           if(! opt$prepReads_buildReadMaps_blastReconstruction){
-             b2 <- filter(b, qstart <= opt$prepReads_buildReadMaps_minMapStartPostion) %>%
-                          group_by(qname) %>% 
-                          slice_min(evalue, n = 1) %>% 
-                          dplyr::slice(1) %>% 
-                          ungroup()
-        
-              mappings <- data.table(id = b2$qname, leaderMapping.qStart = 1, leaderMapping.qEnd = b2$qend,
-                                 leaderMapping.sStart = NA, leaderMapping.sEnd = NA)
-           } else {
-             library(GenomicRanges)
-          
-             mappings <- rbindlist(lapply(split(b, b$qname), function(a){
-               g <- makeGRangesFromDataFrame(a, ignore.strand = TRUE, seqnames.field = 'sseqid',  start.field = 'qstart', end.field = 'qend')
-               if(length(g) == 0) return(tibble())
-               g <- GenomicRanges::reduce(g, min.gapwidth = 4, ignore.strand = TRUE) # Allow merging if ranges separated by <= 3 NTs.
-               g <- g[start(g) <= opt$prepReads_buildReadMaps_minMapStartPostion]
-               if(length(g) == 0) return(tibble())
-               g <- g[width(g) == max(width(g))][1]
-               return(data.table(id = a$qname[1], leaderMapping.qStart = 1, leaderMapping.qEnd = end(g),
-                            leaderMapping.sStart = NA, leaderMapping.sEnd = NA))
-            }))
-           }
+      b2 <- dplyr::filter(vectorHits2, qstart <= opt$prepReads_buildReadMaps_minMapStartPostion) %>%
+            dplyr::group_by(qname) %>% 
+            dplyr::slice_min(evalue, n = 1) %>% 
+            dplyr::slice(1) %>% 
+            dplyr::ungroup()
       
-       mappings
-    }))
+      m <- data.table(id = b2$qname, leaderMapping.qStart = 1, leaderMapping.qEnd = b2$qend, leaderSeqMap = NA)
+      
+    } else {
+      cluster <- parallel::makeCluster(opt$prepReads_CPUs)
+      o <- rbindlist(parallel::parLapply(cluster, split(vectorHits2, vectorHits2$n), blast2rearangements_worker))
+      parallel::stopCluster(cluster)
+      
+      o$endPos <- unlist(lapply(stringr::str_extract_all(o$rearrangement, '\\.\\.\\d+'), function(x){
+                    x <- sub('\\.\\.', '', x)
+                    as.integer(x[length(x)])
+                   }))
+      
+      m <- data.table(id = o$qname, leaderMapping.qStart = 1, leaderMapping.qEnd = o$endPos, leaderSeqMap = o$rearrangement)
+    }
     
 } else {
   write(c(paste(now(), '   Using leader sequence HMM to define mappings.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
+  parallel::stopCluster(cluster)
+  
   hmmResults <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
-    seqs <- DNAStringSet(x$anchorReadSeq)
-    names(seqs) <- x$readID
-    captureLTRseqsLentiHMM(seqs, subset(samples, uniqueSample == x$uniqueSample[1])$leaderSeqHMM)
-  }))
+                  seqs <- DNAStringSet(x$anchorReadSeq)
+                  names(seqs) <- x$readID
+                  captureLTRseqsLentiHMM(seqs, subset(samples, uniqueSample == x$uniqueSample[1])$leaderSeqHMM)
+                }))
  
- if(nrow(hmmResults) > 0){
-   m <- tibble(id = hmmResults$id, leaderMapping.qStart = 1, leaderMapping.qEnd = nchar(hmmResults$LTRseq), 
-                      leaderMapping.sStart = NA, leaderMapping.sEnd = NA)
- } else {
-   write(c(paste(now(), "   Error - no reads matched the HMMs.")), file = file.path(opt$outputDir, 'log'), append = TRUE)
-   q(save = 'no', status = 1, runLast = FALSE) 
- }
+  if(nrow(hmmResults) > 0){
+    m <- tibble(id = hmmResults$id, leaderMapping.qStart = 1, leaderMapping.qEnd = nchar(hmmResults$LTRseq), leaderSeqMap = NA)
+  } else {
+    write(c(paste(now(), "   Error - no reads matched the HMMs.")), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
 }
 
-stopCluster(cluster)
+# If anchorRead.startSeq was included in the sample data file then reads must of had a decent match to this sequence.
+# If reads are missing from the mapping object, use this sequence for the mapping.
+
+if('anchorRead.startSeq' %in% names(samples)){
+  a <- subset(reads, readID %in% m$id)
+  b <- subset(reads, ! readID %in% m$id)
+  
+  if(nrow(b) > 0){
+    write(c(paste(now(), '   Some reads failed to create a leader sequence map; using anchorRead.startSeq sequences from sample data for missing entries.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    
+    d <- distinct(dplyr::select(samples, uniqueSample, anchorRead.startSeq))
+    m2 <- tibble(id = b$readID, leaderMapping.qStart = 1, uniqueSample = b$uniqueSample) %>% left_join(d, by = 'uniqueSample')
+    m2$leaderMapping.qEnd <- nchar(m2$anchorRead.startSeq)
+    m2$leaderSeqMap <- paste0('1..', m2$leaderMapping.qEnd, '[00+00]')
+    m2 <- dplyr::select(m2, -uniqueSample, -anchorRead.startSeq)
+    m <- bind_rows(m, m2)
+  }
+}
+
 
 reads <- subset(reads, readID %in% m$id)
 reads <- left_join(reads, dplyr::select(m, id, leaderMapping.qStart, leaderMapping.qEnd), by = c('readID' = 'id'))
 reads$leaderSeq = substr(reads$anchorReadSeq, 1, reads$leaderMapping.qEnd)
 
+saveRDS(m, file.path(opt$outputDir, opt$prepReads_outputDir, 'leaderSeqMaps.rds'), compress = FALSE)
+
+save.image(file.path(opt$outputDir, opt$prepReads_outputDir, 'here.RData'))
+
+write(c(paste(now(), '   Removing indentified leader sequences from anchor reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 reads$anchorReadSeq2 <- substr(reads$anchorReadSeq, reads$leaderMapping.qEnd+1, nchar(reads$anchorReadSeq))
 reads <- dplyr::select(reads, -leaderMapping.qStart, -leaderMapping.qEnd, -anchorReadSeq)
@@ -301,11 +316,16 @@ reads <- dplyr::rename(reads, anchorReadSeq = anchorReadSeq2)
 reads <- dplyr::filter(reads, nchar(anchorReadSeq) >= opt$prepReads_minAnchorReadLength)
 
 # Create 15 NT adapter sequences. 
+write(c(paste(now(), '   Creating adrift read over-reading trim sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 reads$adriftReadTrimSeq <- as.character(reverseComplement(DNAStringSet(substr(reads$leaderSeq, nchar(reads$leaderSeq)-14, nchar(reads$leaderSeq)))))
 
-
+closeAllConnections()
 cluster <- makeCluster(opt$prepReads_CPUs)
 clusterExport(cluster, c('opt'))
+
+write(c(paste(now(), '   Triming adrift read over-reading.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
+# Column `adriftReadTrimeq` doesn't exist.
 
 reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nrow(reads), opt$prepReads_CPUs)), function(x){
   source(file.path(opt$softwareDir, 'lib.R'))
@@ -323,6 +343,8 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
     system(paste0(opt$command_cutadapt, ' -e 0.15 -a ', y$adriftReadTrimSeq[1], ' --overlap 2 ',
                   f, ' > ', paste0(f, '.cutAdapt')), ignore.stderr = TRUE)
     
+    waitForFile(paste0(f, '.cutAdapt'))
+    
     t <- readDNAStringSet(paste0(f, '.cutAdapt'))
     invisible(file.remove(f, paste0(f, '.cutAdapt')))
     t <- t[width(t) >= opt$prepReads_minAdriftReadLength]
@@ -338,6 +360,8 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
 }))
 
 stopCluster(cluster)
+
+write(c(paste(now(), '   Removing adrift reads which are too short after over-read trimming.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 reads <- dplyr::select(reads, -adriftReadSeq) %>% 
          dplyr::rename(adriftReadSeq = adriftReadSeq2) %>%

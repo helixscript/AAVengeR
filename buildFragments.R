@@ -65,7 +65,7 @@ o <- group_by(r, randomLinkerSeq) %>%
        ungroup() %>%
        filter(nSamples > 1)
 
-write(c(paste(now(), paste0(sprintf("%.2f%%", (n_distinct(o$randomLinkerSeq)/n_distinct(r$randomLinkerSeq))*100), ' random ids seen across two or more samples'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), paste0('   ', sprintf("%.2f%%", (n_distinct(o$randomLinkerSeq)/n_distinct(r$randomLinkerSeq))*100), ' random ids seen across two or more samples'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
 
 # Need to remove ids without enough reads to resolve...

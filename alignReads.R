@@ -61,7 +61,7 @@ anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   s$cut <- cut(nchar(s$seq), c(-Inf, seq(0, max(nchar(s$seq)), by = 10), Inf), labels = FALSE)
   s <- group_by(s, cut) %>% mutate(n = ntile(1:n(), opt$alignReads_CPUs)) %>% ungroup()
   
-  write(c(paste0(now(), '   Aligning ', nrow(s), ' anchor reads against ', x$refGenome[1], '.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(c(paste0(now(), '    Aligning ', nrow(s), ' anchor reads against ', x$refGenome[1], '.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
   dir <- file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1')
   invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome[1], dir))
