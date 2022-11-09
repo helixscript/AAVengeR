@@ -54,14 +54,11 @@ sites <- bind_rows(lapply(unique(sites$refGenome), function(x){
   }
 })) 
 
-#select(sites, -chromosome, -strand, -position, -refGenome, -uniqueSample)
+sites <- dplyr::relocate(sites, repeat_name, repeat_class, .after = posid) %>% 
+         dplyr::select(-chromosome, -strand, -position)
 
-sites2 <- bind_cols(sites[,1:which(names(sites) == 'posid')],
-                    sites[,(length(sites)-1):length(sites)],
-                    sites[,(which(names(sites) == 'posid')+1):(length(sites)-5)])
-
-saveRDS(sites2, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, opt$annotateRepeats_outputFile))
-openxlsx::write.xlsx(arrange(sites2, desc(fragments)), file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.xlsx'))
+saveRDS(sites, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, opt$annotateRepeats_outputFile))
+openxlsx::write.xlsx(arrange(sites, desc(fragments)), file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.xlsx'))
 
 
 

@@ -19,6 +19,7 @@ subset(frags, fragEnd >= (135628506-10) & fragEnd <= (135628506+10))
 
 
 buildFragments_min_num_alignments_for_multiHit  -- consider 500
+chrIII 51517
 
 
 chrXII+514047   tctgcgcgctcgctcgctcactgaggc   

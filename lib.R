@@ -592,8 +592,8 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
     x1 <- tibble()
     x2 <- tibble()
     
-    if(any(! is.na(x$exon))) x1 <- x[! is.na(x$exon),]
-    if(any(is.na(x$exon)))   x2 <- x[is.na(x$exon),]
+    if(any(! is.na(x$exon))) x1 <- x[! is.na(x$exon),]  # Exon hits
+    if(any(is.na(x$exon)))   x2 <- x[is.na(x$exon),]    # Non-exon hits
     
     if(nrow(x2) > 0){
       r <- GenomicRanges::makeGRangesFromDataFrame(x2, 
@@ -602,7 +602,7 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
                                                    end.field = 'position')
     
       o <- suppressWarnings(GenomicRanges::distanceToNearest(r, genes, select='all', ignore.strand=TRUE))
-    
+      
       if(length(queryHits(o)) > 0){
         for(i in unique(queryHits(o))){
           x2[i,]$nearestGene <- paste0(unique(genes[subjectHits(o[queryHits(o) == i]),]$name2), collapse = ', ')
@@ -610,8 +610,9 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
           x2[i,]$nearestGeneDist <- unique(mcols(o[queryHits(o) == i])$distance) # Always single?
           x2[i,]$beforeNearestGene <- ifelse(x2[i,]$position < min(start(genes[subjectHits(o[queryHits(o) == i])])), TRUE, FALSE)
         }
-        
       }
+      
+      x2 <- x2[! is.na(x2$nearestGene),]
       
       if(any(x2$nearestGeneDist == 0)) x2[which(x2$nearestGeneDist == 0),]$beforeNearestGene <- NA
     }

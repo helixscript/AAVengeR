@@ -2,6 +2,7 @@ library(ShortRead)
 library(dplyr)
 library(stringr)
 library(parallel)
+library(data.table)
 options(stringsAsFactors = FALSE)
 
 configFile <- commandArgs(trailingOnly=TRUE)
@@ -23,7 +24,7 @@ sites$s <- paste(sites$subject, sites$sample)
 
 cluster <- makeCluster(opt$mapSiteLeaderSequences_CPUs)
 
-m <- bind_rows(lapply(split(sites, sites$vectorFastaFile), function(x){
+m <- rbindlist(lapply(split(sites, sites$vectorFastaFile), function(x){
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'), full.names = TRUE)))
   
   system(paste0(opt$command_makeblastdb, ' -in ', file.path(opt$softwareDir, 'data', 'vectors', x$vectorFastaFile[1]), 
@@ -104,5 +105,8 @@ sites$repLeaderSeqMap <- unlist(lapply(split(sites, 1:nrow(sites)), function(x){
   
   gsub(';;', ';', paste0(o, collapse = ';'))
 }))
+
+sites <- dplyr::relocate(sites, repLeaderSeqMap, .after = 'repLeaderSeq')
+sites$repLeaderSeqLength <- NULL
 
 saveRDS(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, opt$mapSiteLeaderSequences_outputFile))

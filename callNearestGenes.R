@@ -56,8 +56,12 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
           posids <- x$posid
           posids <- unique(sub('\\.\\d+$', '', posids))
           
+          message('Calling nearestGene(), genes: ', length(genes), ', exons: ', length(exons))
+          
           n <- nearestGene(posids, genes, exons, CPUs = opt$callNearestGenes_CPUs)
  
+          message('nearestGene() done')
+          
           n$posid2 <- paste0(n$chromosome, n$strand, n$position)
           n <- n[!duplicated(n$posid2),]
           x$posid2 <- sub('\\.\\d+', '', x$posid)
@@ -67,8 +71,7 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
           
           x <- left_join(x, n, by = 'posid2') %>% select(-posid2)
           
-          # Move joined result to after the posid column.
-          bind_cols(x[,c(1:which(names(x) == 'posid'))], x[,c(len:(len+5))], x[,c((which(names(x) == 'posid')+1):(len-1))])
+          dplyr::relocate(x, names(n)[! grepl('posid', names(n))], .after = 'repLeaderSeq')
        })))
 
 saveRDS(sites, file.path(opt$outputDir, opt$callNearestGenes_outputDir, opt$callNearestGenes_outputFile))

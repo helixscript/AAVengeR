@@ -305,7 +305,7 @@ reads$leaderSeq = substr(reads$anchorReadSeq, 1, reads$leaderMapping.qEnd)
 
 saveRDS(m, file.path(opt$outputDir, opt$prepReads_outputDir, 'leaderSeqMaps.rds'), compress = FALSE)
 
-save.image(file.path(opt$outputDir, opt$prepReads_outputDir, 'here.RData'))
+### save.image(file.path(opt$outputDir, opt$prepReads_outputDir, 'here.RData'))
 
 write(c(paste(now(), '   Removing indentified leader sequences from anchor reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 

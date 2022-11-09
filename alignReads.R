@@ -78,10 +78,14 @@ anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   # Files need to be removed otherwise the join below will keep joining files from previous genomes.
   invisible(file.remove(list.files(dir, full.names = TRUE)))
   
-  # Use the unique sequences to map alignments back to sequences 
-  b <- left_join(b, distinct(dplyr::select(s, id, seq)), by = c('qName' = 'id'))
-  x2 <- dplyr::select(x, uniqueSample, readID, refGenome, anchorReadSeq) %>% dplyr::filter(anchorReadSeq %in% b$seq)
-  left_join(x2, b, by = c('anchorReadSeq' = 'seq')) %>% dplyr::select(-anchorReadSeq, -qName)
+  if(nrow(b) > 0){
+    # Use the unique sequences to map alignments back to sequences 
+    b <- left_join(b, distinct(dplyr::select(s, id, seq)), by = c('qName' = 'id'))
+    x2 <- dplyr::select(x, uniqueSample, readID, refGenome, anchorReadSeq) %>% dplyr::filter(anchorReadSeq %in% b$seq)
+    b <- left_join(x2, b, by = c('anchorReadSeq' = 'seq')) %>% dplyr::select(-anchorReadSeq, -qName)
+  } 
+  
+  b
 }))
 
 # save.image('~/alignReadsDev.RData')
@@ -123,9 +127,13 @@ adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   invisible(file.remove(list.files(dir, full.names = TRUE)))
   
   # Use the unique sequences to map alignments back to sequences 
-  b <- left_join(b, distinct(dplyr::select(s, id, seq)), by = c('qName' = 'id'))
-  x2 <- dplyr::select(x, uniqueSample, readID, refGenome, adriftReadSeq) %>% dplyr::filter(adriftReadSeq %in% b$seq)
-  left_join(x2, b, by = c('adriftReadSeq' = 'seq')) %>% dplyr::select(-adriftReadSeq, -qName)
+  if(nrow(b) > 0){
+    b <- left_join(b, distinct(dplyr::select(s, id, seq)), by = c('qName' = 'id'))
+    x2 <- dplyr::select(x, uniqueSample, readID, refGenome, adriftReadSeq) %>% dplyr::filter(adriftReadSeq %in% b$seq)
+    b <- left_join(x2, b, by = c('adriftReadSeq' = 'seq')) %>% dplyr::select(-adriftReadSeq, -qName)
+  } 
+  
+  b
 }))
 
 # Select adrift reads where the ends align to the genome.

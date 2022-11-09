@@ -76,11 +76,18 @@ frags <- rbindlist(lapply(split(frags, frags$uniqueSample), function(x){
 
 write(c(paste(now(), '   Categorizing leader sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject)), function(x){
+
+# TEMP !!!!!!
+frags$leaderSeq.anchorReads <- sub('^TNC', 'TCC', frags$leaderSeq.anchorReads)
+# TEMP !!!!!!
+
+
+### frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject)), function(x){
+frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$sample)), function(x){
   
   d <- group_by(x, leaderSeq.anchorReads) %>% 
-       summarise(reads = n(), UMIs = n_distinct(randomLinkerSeq.adriftReads)) %>%
-       arrange(desc(UMIs)) %>%
+       summarise(reads = n(), UMIs = n_distinct(randomLinkerSeq.adriftReads), leaderSeqLength = nchar(leaderSeq.anchorReads[1])) %>%
+       arrange(desc(UMIs), leaderSeqLength) %>%
        mutate(leaderSeqGroup = NA)
   
   g <- 1
