@@ -138,6 +138,90 @@ anchorReadAlignments <- data.table(anchorReadAlignments)
 adriftReadAlignments <- data.table(adriftReadAlignments)
 
 
+
+# Identify read pairs where both mates have many alignments that may cause the system 
+# to run out of memory during anchor and adrift read joins.
+
+a <- as.data.frame(table(anchorReadAlignments$readID.anchorReads))
+names(a) <- c('readID', 'anchorReadAlnFreq')
+b <- as.data.frame(table(adriftReadAlignments$readID.adriftReads))
+names(b) <- c('readID', 'adriftReadAlnFreq')
+tab <- left_join(a, b, by = 'readID')
+
+tab$anchorReadAlnFreq <- ifelse(tab$anchorReadAlnFreq > opt$buildFragments_maxReadAlignments, 1, 0)
+tab$adriftReadAlnFreq <- ifelse(tab$adriftReadAlnFreq > opt$buildFragments_maxReadAlignments, 1, 0)
+tab$s <- rowSums(tab[ , c(2,3)], na.rm=TRUE)
+
+# Find read pairs where both anchor and adrift mates have more than opt$buildFragments_maxReadAlignments alignments.
+z <- as.character(tab[tab$s == 2,]$readID)
+
+# For read pairs where both mates have too many alignments, randomly select anchor reads and associated adrift mates 
+# that have the potential to form rational fragments.
+
+write(paste0(now(), '    Building rational fragments from alignment data.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
+if(length(z) > 0){
+  write(c(paste0(now(), '    ', length(z), ' reads pairs have more than ', opt$buildFragments_maxReadAlignments, ' alignments for both mates.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(c(paste0(now(), '    For each reach read, ', opt$buildFragments_maxReadAlignments, ' alignments will be randomly selected.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(c(paste0(now(), '    Adrift alignments that have the potential to form rational fragments with the selected anchor reads will be selected as well.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  
+  a1 <- subset(anchorReadAlignments, ! readID.anchorReads %in% z)
+  b1 <- subset(adriftReadAlignments, ! readID.adriftReads %in% z)
+  
+  a2 <- subset(anchorReadAlignments, readID.anchorReads %in% z)
+  b2 <- subset(adriftReadAlignments, readID.adriftReads %in% z)
+  
+  o <- lapply(split(a2, a2$readID.anchorReads), function(x){
+          set.seed(1)
+          x <- dplyr::sample_n(x, opt$buildFragments_maxReadAlignments)
+          y <- subset(b2, readID.adriftReads %in% x$readID.anchorReads)  # find corresponding sampled ids in adrift reads.
+          
+          expand <- 1000
+          y.pos <- tibble()
+          y.neg <- tibble()
+          
+          if(nrow(y)){
+             xpos <- subset(x, strand.anchorReads == '+')
+             xneg <- subset(x, strand.anchorReads == '-')
+          
+             if(nrow(xpos) > 0){
+                y$start <- y$tEnd.adriftReads - expand
+                y$end   <- y$tEnd.adriftReads + expand
+                y$start <- ifelse(y$start < 1, 1, y$start)
+               
+                z <- subset(y, strand.adriftReads == '-')
+                g1 <- GenomicRanges::makeGRangesFromDataFrame(xpos, seqnames.field = 'tName.anchorReads', start.field = 'tStart.anchorReads', end.field = 'tStart.anchorReads', strand.field = 'strand.anchorReads')
+                g2 <- GenomicRanges::makeGRangesFromDataFrame(z, seqnames.field = 'tName.adriftReads', start.field = 'start', end.field = 'end', strand.field = 'strand.adriftReads')
+                o <- suppressWarnings(GenomicRanges::findOverlaps(g1, g2, ignore.strand = TRUE))
+                if(length(o) > 0) y.pos <- z[subjectHits(o),]
+             }
+             
+             if(nrow(xneg) > 0){
+               y$start <- y$tStart.adriftReads - expand
+               y$end   <- y$tStart.adriftReads + expand
+               y$start <- ifelse(y$start < 1, 1, y$start)
+               
+               z <- subset(y, strand.adriftReads == '+')
+               g1 <- GenomicRanges::makeGRangesFromDataFrame(xneg, seqnames.field = 'tName.anchorReads', start.field = 'tStart.anchorReads', end.field = 'tStart.anchorReads', strand.field = 'strand.anchorReads')
+               g2 <- GenomicRanges::makeGRangesFromDataFrame(z, seqnames.field = 'tName.adriftReads', start.field = 'start', end.field = 'end', strand.field = 'strand.adriftReads')
+               o <- suppressWarnings(GenomicRanges::findOverlaps(g1, g2, ignore.strand = TRUE))
+               if(length(o) > 0) y.neg <- z[subjectHits(o),]
+             }
+          }
+          
+          y2 <- bind_rows(y.pos, y.neg)
+          list(x, y2)
+  }) 
+  
+  a3 <- bind_rows(lapply(o, '[[', 1))
+  b3 <- bind_rows(lapply(o, '[[', 2))
+  
+  anchorReadAlignments <- bind_rows(a1, a3)
+  adriftReadAlignments <- bind_rows(b1, b3)
+}
+
+
+
 # (dev) parallelize this and use rbindlist
 # Large memory usage here.
 # %in% slow -- consider dplyr group indicies solution.
@@ -150,6 +234,8 @@ o <- lapply(id_groups, function(id_group){
 rm(anchorReadAlignments, adriftReadAlignments)
 gc()
 
+counter <- 1
+total <- length(o)
 
 frags <- bind_rows(lapply(o, function(z){
   a <- z[[1]]
@@ -157,7 +243,8 @@ frags <- bind_rows(lapply(o, function(z){
   
   if(nrow(a) == 0 | nrow(b) == 0) return(data.frame())
   
-  # Consider using data.table nomenclature for joins.
+  write(paste0(now(), '    ', counter, '/', total, ': ', nrow(a), ' anchorRead alignments, ', nrow(b), ' adriftRead_alignments.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  counter <<- counter + 1
   
   # Join adrift reads alignments to anchor read alignments to create potential read pairs.
   frags <- left_join(a, b, by = c('readID.anchorReads' = 'readID.adriftReads')) %>% tidyr::drop_na()

@@ -146,9 +146,9 @@ anchorReadAlignments$leaderSeq.anchorReads <- NULL
 
 gc()
 
-# Convert from tibble to data.table for increased subsetting efficiency. 
-anchorReadAlignments <- data.table(anchorReadAlignments)
-adriftReadAlignments <- data.table(adriftReadAlignments)
+
+anchorReadAlignments <- as_tibble(anchorReadAlignments)
+adriftReadAlignments <- as_tibble(adriftReadAlignments)
 
 # save.image('~/bindMe.RData')
 
@@ -156,28 +156,32 @@ adriftReadAlignments <- data.table(adriftReadAlignments)
 
 counter <- 1
 
-o <- lapply(id_groups, function(id_group){
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
+
+for(id_group in id_groups[35:39]){
   message(counter, '/', length(id_groups)); counter <<- counter + 1
   
-  a <- anchorReadAlignments[readID.anchorReads %in% id_group]
-  b <- adriftReadAlignments[readID.adriftReads %in% id_group]
+  a <- dplyr::filter(anchorReadAlignments, readID.anchorReads %in% id_group)
+  b <- dplyr::filter(adriftReadAlignments, readID.adriftReads %in% id_group)
   
-  if(nrow(a) == 0 | nrow(b) == 0) return(data.frame())
+  if(nrow(a) == 0 | nrow(b) == 0) next
   
-  # Consider using data.table nomenclature for joins.
   
   # Join adrift reads alignments to anchor read alignments to create potential read pairs.
   frags <- left_join(a, b, by = c('readID.anchorReads' = 'readID.adriftReads')) %>% tidyr::drop_na()
   
+  rm(id_group, a, b)
+  gc()
+  
   # Remove combinations not found on the same chromosome. 
   i <- which(frags$tName.anchorReads != frags$tName.adriftReads)
   if(length(i) > 0) frags <- frags[-i,]
-  if(nrow(frags) == 0) return(data.frame())
+  if(nrow(frags) == 0) next
   
   # Remove combinations which have the same strand since fragment reads are expected to have opposite strands.
   i <- which(frags$strand.anchorReads == frags$strand.adriftReads)
   if(length(i) > 0) frags <- frags[-i,]
-  if(nrow(frags) == 0) return(data.frame())
+  if(nrow(frags) == 0) next
   
   # Determine the start and end of fragments based on their alignment strands
   # and perform some sanity tests then filter on fragment size. 
@@ -193,8 +197,11 @@ o <- lapply(id_groups, function(id_group){
                 fragWidth >= opt$buildFragments_minFragLength) %>%
                 mutate(uniqueSample = uniqueSample.anchorReads, readID = readID.anchorReads) %>%
                 select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd)
-   data.table(r)
-})
+   
+  saveRDS(r, file = file.path(opt$outputDir, 'tmp', tmpFile()))
+  rm(i, r, frags)
+  gc()
+}
 
 
 rm(id_groups, anchorReadAlignments, adriftReadAlignments)
