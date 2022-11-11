@@ -185,9 +185,8 @@ if(length(z) > 0){
              xneg <- subset(x, strand.anchorReads == '-')
           
              if(nrow(xpos) > 0){
-                y$start <- y$tEnd.adriftReads - expand
-                y$end   <- y$tEnd.adriftReads + expand
-                y$start <- ifelse(y$start < 1, 1, y$start)
+                y$start <- y$tEnd.adriftReads - opt$buildFragments_maxFragLength
+                y$end   <- y$tEnd.adriftReads
                
                 z <- subset(y, strand.adriftReads == '-')
                 g1 <- GenomicRanges::makeGRangesFromDataFrame(xpos, seqnames.field = 'tName.anchorReads', start.field = 'tStart.anchorReads', end.field = 'tStart.anchorReads', strand.field = 'strand.anchorReads')
@@ -197,9 +196,8 @@ if(length(z) > 0){
              }
              
              if(nrow(xneg) > 0){
-               y$start <- y$tStart.adriftReads - expand
-               y$end   <- y$tStart.adriftReads + expand
-               y$start <- ifelse(y$start < 1, 1, y$start)
+               y$start <- y$tStart.adriftReads
+               y$end   <- y$tStart.adriftReads + opt$buildFragments_maxFragLength
                
                z <- subset(y, strand.adriftReads == '+')
                g1 <- GenomicRanges::makeGRangesFromDataFrame(xneg, seqnames.field = 'tName.anchorReads', start.field = 'tStart.anchorReads', end.field = 'tStart.anchorReads', strand.field = 'strand.anchorReads')

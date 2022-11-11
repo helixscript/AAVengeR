@@ -17,6 +17,7 @@ source(file.path(opt$softwareDir, 'lib.R'))
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir))
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))
 
+write(c(paste(now(), '   Reading in demultiplexed reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 reads <-  readRDS(file.path(opt$outputDir, opt$prepReads_readsTable))
 
 samples <- loadSamples()
@@ -47,6 +48,8 @@ cluster <- makeCluster(opt$prepReads_CPUs)
 clusterExport(cluster, c('samples', 'tmpFile', 'waitForFile', 'opt', 'lpe', 'blastReads'))
 
 # Trim anchor read over-reading and trim off adrift read linkers.
+write(c(paste(now(), '   Trimming anchor read over-reading.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nrow(reads), opt$prepReads_CPUs)), function(x){
            source(file.path(opt$softwareDir, 'lib.R'))
            library(dplyr)
@@ -99,6 +102,8 @@ reads <- group_by(reads, i) %>% mutate(n = n()) %>% ungroup()
 a <- subset(reads, n == 1)
 b <- subset(reads, n > 1)
 
+write(c(paste(now(), '   Removing duplicate read pairs.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 c <- rbindlist(lapply(split(b, b$i), function(x){
        data.table(id = x[1,]$readID, n = nrow(x) - 1, id2 = x[2:nrow(x),]$readID)
      }))
@@ -106,6 +111,8 @@ c <- rbindlist(lapply(split(b, b$i), function(x){
 saveRDS(c, file.path(opt$outputDir, opt$prepReads_outputDir, 'duplicateReads.rds'))
 
 reads <- data.table(bind_rows(a, subset(b, ! readID %in% c$id2)) %>% dplyr::select(-i, -n))
+
+saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'uniqueReadPairs.rds'))
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 rm(a, b, c)
@@ -122,6 +129,8 @@ clusterExport(cluster, c('samples', 'tmpFile', 'waitForFile', 'opt', 'lpe', 'bla
 # Align the ends of anchor reads to the vector to identify vector reads which should be removed.
 
 if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVectorHits){
+  
+  write(c(paste(now(), '   Aligning ends of reads to vector sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
   vectorHits <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
             invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
@@ -199,7 +208,9 @@ write(c(paste(now(), '   Aligning full length anchor reads to the vector sequenc
 
 if(! 'leaderSeqHMM' %in% names(samples)){
     # Now align the full anchor reads to the vector excluding those in vectorHits.
-   
+  
+    write(c(paste(now(), '   Aligning full anchor reads to vector sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  
     vectorHits2 <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
       invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
     
@@ -305,8 +316,6 @@ reads$leaderSeq = substr(reads$anchorReadSeq, 1, reads$leaderMapping.qEnd)
 
 saveRDS(m, file.path(opt$outputDir, opt$prepReads_outputDir, 'leaderSeqMaps.rds'), compress = FALSE)
 
-### save.image(file.path(opt$outputDir, opt$prepReads_outputDir, 'here.RData'))
-
 write(c(paste(now(), '   Removing indentified leader sequences from anchor reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 reads$anchorReadSeq2 <- substr(reads$anchorReadSeq, reads$leaderMapping.qEnd+1, nchar(reads$anchorReadSeq))
@@ -324,8 +333,6 @@ cluster <- makeCluster(opt$prepReads_CPUs)
 clusterExport(cluster, c('opt'))
 
 write(c(paste(now(), '   Triming adrift read over-reading.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-
-# Column `adriftReadTrimeq` doesn't exist.
 
 reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nrow(reads), opt$prepReads_CPUs)), function(x){
   source(file.path(opt$softwareDir, 'lib.R'))
