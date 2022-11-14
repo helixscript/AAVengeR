@@ -14,6 +14,13 @@ source(file.path(opt$softwareDir, 'lib.R'))
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 sites <- readRDS(file.path(opt$outputDir, opt$mapSiteLeaderSequences_inputFile))
+
+if(! opt$mapSiteLeaderSequences_addAfter %in% names(sites)){
+  write(c(paste(now(), paste0('   Error - ', opt$mapSiteLeaderSequences_addAfter, ' is not a column in your input data frame.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+
 sites$repLeaderSeqLength <- NULL
 sites$repLeaderSeqMap <- NULL
 
@@ -106,7 +113,7 @@ sites$repLeaderSeqMap <- unlist(lapply(split(sites, 1:nrow(sites)), function(x){
   gsub(';;', ';', paste0(o, collapse = ';'))
 }))
 
-sites <- dplyr::relocate(sites, repLeaderSeqMap, .after = 'repLeaderSeq')
+sites <- dplyr::relocate(sites, repLeaderSeqMap, .after = opt$mapSiteLeaderSequences_addAfter)
 sites$repLeaderSeqLength <- NULL
 
 saveRDS(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, opt$mapSiteLeaderSequences_outputFile))

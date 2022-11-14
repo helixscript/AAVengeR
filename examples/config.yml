@@ -1,6 +1,5 @@
-
-outputDir:         /home/ubuntu/projects/K33K7/output
-sampleConfigFile:  /home/ubuntu/projects/K33K7/data/sampleData.tsv
+outputDir:         /home/ubuntu/projects/example
+sampleConfigFile:  /home/ubuntu/projects/sampleData.tsv
 
 modules:
    - demultiplex
@@ -9,20 +8,20 @@ modules:
    - buildFragments
    - buildStdFragments
    - buildSites
-#   - predictPCRartifacts
-#   - annotateRepeats
+#   - annotateRepeats   
 #   - callNearestGenes
 #   - callNearestGenesFiltered
+#   - predictPCRartifacts
 #   - mapSiteLeaderSequences
 
 # Processing parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
-demultiplex_CPUs: 30
+demultiplex_CPUs: 25
 demultiplex_outputDir: demultiplex
-demultiplex_anchorReadsFile: /home/ubuntu/projects/K33K7/data/Undetermined_S0_R2_001.fastq.gz
-demultiplex_adriftReadsFile: /home/ubuntu/projects/K33K7/data/Undetermined_S0_R1_001.fastq.gz
-demultiplex_index1ReadsFile: /home/ubuntu/projects/K33K7/data/Undetermined_S0_I1_001.fastq.gz
+demultiplex_anchorReadsFile: /home/ubuntu/projects/Spark/RGT20973202_BWK23/data/RGT20973202__BWK23.Undetermined_S0_R2_001.fastq.gz
+demultiplex_adriftReadsFile: /home/ubuntu/projects/Spark/RGT20973202_BWK23/data/RGT20973202__BWK23.Undetermined_S0_R1_001.fastq.gz
+demultiplex_index1ReadsFile: /home/ubuntu/projects/Spark/RGT20973202_BWK23/data/RGT20973202__BWK23.Undetermined_S0_I1_001.fastq.gz
 demultiplex_RC_I1_barcodes: FALSE
 demultiplex_RC_I1_barcodes_auto: TRUE # Will override demultiplex_RC_I1_barcodes
 demultiplex_qualtrim_code: '5'
@@ -36,7 +35,7 @@ demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1
 demultiplex_anchorRead.startSeq.maxMisMatch: 1
 demultiplex_useAdriftReadUniqueLinkers: TRUE
 
-prepReads_CPUs: 30
+prepReads_CPUs: 25
 prepReads_outputDir: prepReads
 prepReads_readsTable:  demultiplex/reads.rds
 prepReads_excludeAnchorReadVectorHits: TRUE
@@ -55,7 +54,7 @@ prepReads_mapLeaderSeqsMinPercentID: 90
 prepReads_buildReadMaps_blastReconstruction: TRUE
 prepReads_buildReadMaps_minMapStartPostion: 5
 
-alignReads_CPUs: 30
+alignReads_CPUs: 25
 alignReads_outputDir: alignReads
 alignReads_inputFile: prepReads/reads.rds
 alignReads_anchorReadAlignmentsOutputFile: anchorReadAlignments.rds
@@ -69,20 +68,19 @@ alignReads_genomeAlignment_anchorReadEnd_maxUnaligned: 3  # Max number of NTs at
 alignReads_genomeAlignment_adriftReadEnd_maxUnaligned: 10 # Max number of NTs at the end of adrift reads not aligning to the genome. 
 alignReads_genomeAlignment_adriftReadMaxStart: 3
 
-buildFragments_CPUs: 30
+buildFragments_CPUs: 25
 buildFragments_outputDir: buildFragments
 buildFragments_outputFile: fragments.rds
 buildFragments_duplicateReadFile: prepReads/duplicateReads.rds
 buildFragments_anchorReadsAlignmentFile: alignReads/anchorReadAlignments.rds
 buildFragments_adriftReadsAlignmentFile: alignReads/adriftReadAlignments.rds
-buildFragments_idGroup_size: 1000
-buildFragments_maxReadAlignments: 1000
+buildFragments_idGroup_size: 2000
 buildFragments_minFragLength: 20
 buildFragments_maxFragLength: 2500
 buildFragments_randomLinkerID_minReadCountToSegreagate: 10
 buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90
 
-buildStdFragments_CPUs: 30
+buildStdFragments_CPUs: 25
 buildStdFragments_minReadsPerFrag: 1
 buildStdFragments_createMultiHitClusters: FALSE
 buildStdFragments_inputFiles: buildFragments/fragments.rds
@@ -97,23 +95,26 @@ buildSites_inputFile: buildStdFragments/stdFragments.rds
 buildSites_outputDir: buildSites
 buildSites_outputFile: sites.rds
 
-annotateRepeats_CPUs: 30
+annotateRepeats_CPUs: 25
 annotateRepeats_inputFile: mapSiteLeaderSequences/sites.rds
 annotateRepeats_outputDir: annotateRepeats
 annotateRepeats_outputFile: sites.rds
+annotateRepeats_addAfter: posid
 
-predictPCRartifacts_CPUs: 30
+predictPCRartifacts_CPUs: 25
 predictPCRartifacts_inputFile: annotateRepeats/sites.rds
 predictPCRartifacts_outputDir: predictPCRartifacts
 predictPCRartifacts_outputFile: sites.rds
+predictPCRartifacts_addAfter: nRepsObs
 predictPCRartifacts_adjacentSeqLength: 15
 predictPCRartifacts_minAlignmentLength: 12
 predictPCRartifacts_minPercentSeqID: 80
 
-callNearestGenes_CPUs: 30
+callNearestGenes_CPUs: 25
 callNearestGenes_inputFile: callNearestGenesFiltered/sites.rds
 callNearestGenes_outputDir: callNearestGenes
 callNearestGenes_outputFile: sites.rds
+callNearestGenes_addAfter: nRepsObs
 callNearestGenes_TU_position: either
 callNearestGenes_boundaries:
   hg38:
@@ -122,16 +123,19 @@ callNearestGenes_boundaries:
   sacCer3:
         TUs:   sacCer3.TUs.rds
         exons: sacCer3.exons.rds
+  canFam3:
+        TUs:   canFam3.humanXeno.TUs.rds
+        exons: canFam3.humanXeno.exons.rds
   macFas5:
         TUs:   macFas5.humanXeno.TUs.rds
         exons: macFas5.humanXeno.exons.rds
 
-
-callNearestGenesFiltered_CPUs: 30
+callNearestGenesFiltered_CPUs: 25
 callNearestGenesFiltered_columnPrefix: oncoGenes
 callNearestGenesFiltered_inputFile: buildSites/sites.rds
 callNearestGenesFiltered_outputDir: callNearestGenesFiltered
 callNearestGenesFiltered_outputFile: sites.rds
+callNearestGenesFiltered_addAfter: nRepsObs
 callNearestGenesFiltered_TU_position: either
 callNearestGenesFiltered_boundaries:
   hg38:
@@ -142,15 +146,19 @@ callNearestGenesFiltered_boundaries:
         TUs:   sacCer3.TUs.rds
         exons: sacCer3.exons.rds
         filter: hg38.Bushman.oncoGeneList.rds
+  canFam3:
+        TUs: canFam3.humanXeno.TUs.rds
+        exons: canFam3.humanXeno.exons.rds
+        filter: hg38.Bushman.oncoGeneList.rds
   macFas5:
         TUs:   macFas5.humanXeno.TUs.rds
         exons: macFas5.humanXeno.exons.rds
         filter: hg38.Bushman.oncoGeneList.rds
-
-
-mapSiteLeaderSequences_CPUs: 30
+        
+mapSiteLeaderSequences_CPUs: 25
 mapSiteLeaderSequences_outputDir: mapSiteLeaderSequences
 mapSiteLeaderSequences_inputFile: callNearestGenes/sites.rds
+mapSiteLeaderSequences_addAfter: repLeaderSeq
 mapSiteLeaderSequences_minAllowableGap: 5                   # Min. space between blast hits allowed. Larger gaps will be filled with [x].
 mapSiteLeaderSequences_alignmentChunkSize: 5000
 mapSiteLeaderSequences_minAlignmentPercentID: 90

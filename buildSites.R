@@ -118,7 +118,7 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
     # Shift positions to reflect duplication caused by integrase.
     if(nrow(b)){
       b1 <- subset(b, strand == '+')
-      browser()
+      # browser()
       if(nrow(b1) > 0) b1$posid <- unlist(lapply(strsplit(b1$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2])+2, '.', x[3])))
 
       b2 <- subset(b, strand == '-')
@@ -160,7 +160,7 @@ counter <- 1
 total <- length(o)
 
 sites <- bind_rows(lapply(o, function(x){
-  ### if(counter == 4797) browser()
+  # browser()
   message(counter, ' / ', total); counter <<- counter + 1
   
   if(nrow(x) == 1){
@@ -240,6 +240,8 @@ tbl2 <- bind_rows(lapply(1:nrow(tbl1), function(x){
   }
   
   k$nRepsObs <- sum(! is.na(unlist(x[, which(grepl('\\-repLeaderSeq', names(x)))])))
+  # browser()
+  
   bind_cols(x[,1:5], k, x[,6:length(x)])
 }))
 

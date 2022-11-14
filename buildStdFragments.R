@@ -81,9 +81,7 @@ write(c(paste(now(), '   Categorizing leader sequences.')), file = file.path(opt
 frags$leaderSeq.anchorReads <- sub('^TNC', 'TCC', frags$leaderSeq.anchorReads)
 # TEMP !!!!!!
 
-
-### frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject)), function(x){
-frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$sample)), function(x){
+frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject)), function(x){
   
   d <- group_by(x, leaderSeq.anchorReads) %>% 
        summarise(reads = n(), UMIs = n_distinct(randomLinkerSeq.adriftReads), leaderSeqLength = nchar(leaderSeq.anchorReads[1])) %>%
@@ -95,13 +93,17 @@ frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$s
   invisible(lapply(1:nrow(d), function(i){
     if(! is.na(d[i,]$leaderSeqGroup)) return()
     
-    maxEditDist <- round(nchar(as.character(d[i,]$leaderSeq.anchorReads))/opt$buildStdFragments_categorize_anchorReadRemnants_stepSize) + 1
+    # browser()
+    
+    maxEditDist <- round(nchar(as.character(d[i,]$leaderSeq.anchorReads))/opt$buildStdFragments_categorize_anchorReadRemnants_stepSize)
     
     d[i,]$leaderSeqGroup <<- paste0(x$trial[1], '~', x$subject[1], '~', g)
     
+    # Retrieve all other leader sequences for which a leader seq group has not been assigned.
     o <- d[is.na(d$leaderSeqGroup),]
     if(nrow(o) == 0) return()
     
+    # Calculate the edit distances between current leader seq and other leader seqs.
     dist <- stringdist::stringdist(d[i,]$leaderSeq.anchorReads, o$leaderSeq.anchorReads)
     
     k <- which(dist <= maxEditDist)
@@ -173,6 +175,7 @@ g <- data.frame(g)
 frags$orgFragStart <- frags$fragStart
 frags$orgFragEnd   <- frags$fragEnd
 
+
 # Join the standardized start/stop positions to the fragments data frame.
 frags <- left_join(frags, select(g, start, end, fragID), by = 'fragID')
 rm(g)
@@ -188,7 +191,8 @@ frags$posid <- paste0(frags$chromosome, frags$strand,
                       ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd),
                       '.', stringr::str_extract(frags$leaderSeqGroup, '\\d+$'))
 
-# Create position ids including the leader sequence grouping ids.
+
+# Update fragment ids with standardized positions.
 frags$fragID <- paste0(frags$trial, ':', frags$subject, ':', frags$sample, ':', frags$replicate, ':',
                        frags$chromosome, ':', frags$strand, ':', frags$fragStart, ':', frags$fragEnd, ':', 
                        frags$leaderSeqGroup, ':', frags$randomLinkerSeq.adriftReads)
@@ -216,6 +220,7 @@ if(nrow(f2) > 0){
   
   write(c(paste(now(), '   Standardizing sonic break postions within UMI / replicate groupings.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
+  # Create splitting vector.
   o <- split(f2, f2$s2)
   i <- ntile(1:length(o), opt$buildStdFragments_CPUs)
   f2 <- bind_rows(lapply(1:length(o), function(x){
@@ -310,6 +315,7 @@ a2 <- rbindlist(lapply(split(a, a$readID), function(x){
           }))
 
 frags <- bind_rows(a2, b)
+
 
 # Identify reads which map to more than position id and define these as multi-hit reads.
 
@@ -453,9 +459,7 @@ if(nrow(multiHitFrags) > 0 & opt$buildStdFragments_createMultiHitClusters){
   saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))
 }
 
-# Frags are still read level. frags is set classes as a data frame because
-# tibbles refuse to store single character vectors as lists needed for read ID lists
-# in fragment records.
+# Frags are still read level. Switch frags to a data frame because tibbles refuse to store single character vectors as lists.
 frags <- data.frame(frags)
 fragsRemoved <- tibble()
 
@@ -469,6 +473,7 @@ fragsRemoved <- tibble()
 frags <- group_by(frags, fragID) %>% mutate(i = n()) %>% ungroup()
 a <- subset(frags, i == 1)
 b <- subset(frags, i > 1)
+
 o <- split(b, b$fragID)
 t <- length(o)
 i <- 1
@@ -476,8 +481,6 @@ i <- 1
 write(c(paste(now(), '   Bundling fragment reads into fragment records.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 stopCluster(cluster)
-
-# save.image('~/buildStdFragsDev.RData')
 
 f <- bind_rows(lapply(o, function(x){
   message(i, '/', t); i <<- i + 1
@@ -507,21 +510,22 @@ f <- bind_rows(lapply(o, function(x){
 }))
 
 
-a$reads = a$n + 1
-a$repLeaderSeq = a$leaderSeq.anchorReads
-a$maxLeaderSeqDist = 0
-a$readIDs <- as.list(a$readID)
+# Set values for fragments with single reads.
+# a$reads = a$n + 1
+# a$repLeaderSeq = a$leaderSeq.anchorReads
+# a$maxLeaderSeqDist = 0
+# a$readIDs <- as.list(a$readID)
 
-z <- group_by(a, fragID) %>%
-     mutate(reads = n+1, 
-            repLeaderSeq = leaderSeq.anchorReads[1], 
-            maxLeaderSeqDist = 0,
-            readIDs = list(readID),
-            leaderSeqs = list(leaderSeq.anchorReads[1])) %>%
-    dplyr::slice(1) %>%
-    ungroup()
+a2 <- dplyr::group_by(a, fragID) %>%
+      dplyr::mutate(reads = n+1, 
+                   repLeaderSeq = leaderSeq.anchorReads[1], 
+                   maxLeaderSeqDist = 0,
+                   readIDs = list(readID),
+                   leaderSeqs = list(leaderSeq.anchorReads[1])) %>%
+      dplyr::slice(1) %>%
+      dplyr::ungroup()
             
-f <- bind_rows(f, z)
+f <- bind_rows(f, a2)
 
 
 # Clear out the tmp/ directory.

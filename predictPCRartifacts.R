@@ -13,6 +13,13 @@ dir.create(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir))
 
 sites <- readRDS(file.path(opt$outputDir, opt$predictPCRartifacts_inputFile))
 
+
+if(! opt$predictPCRartifacts_addAfter %in% names(sites)){
+  write(c(paste(now(), paste0('   Error - ', opt$predictPCRartifacts_addAfter, ' is not a column in your input data frame.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+
 sites$uniqueSite <- paste0(sites$trial, '~', sites$subject, '~', sites$sample, '~', sites$posid)
 
 o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
@@ -120,7 +127,7 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
   r
 }))
   
-sites <- left_join(sites, o2, by = 'uniqueSite')  %>% relocate(neighboringSeq, pcrArtifactAlnLength, pcrArtifactPercentSeqID, .after = posid)
+sites <- left_join(sites, o2, by = 'uniqueSite')  %>% relocate(neighboringSeq, pcrArtifactAlnLength, pcrArtifactPercentSeqID, .after = opt$predictPCRartifacts_addAfter)
 
 saveRDS(sites, file = file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, opt$predictPCRartifacts_outputFile))
 openxlsx::write.xlsx(sites, file = file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'sites.xlsx'))

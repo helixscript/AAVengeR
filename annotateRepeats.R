@@ -12,6 +12,11 @@ dir.create(file.path(opt$outputDir, opt$annotateRepeats_outputDir))
 
 sites <- readRDS(file.path(opt$outputDir, opt$annotateRepeats_inputFile))
 
+if(! opt$annotateRepeats_addAfter %in% names(sites)){
+  write(c(paste(now(), paste0('   Error - ', opt$annotateRepeats_addAfter, ' is not a column in your input data frame.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
 invisible(lapply(unique(sites$refGenome), function(x){
   if(! file.exists(file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x, '.repeatTable.gz')))){
     stop('Error - ', file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x, '.repeatTable.gz')), ' does not exists.')
@@ -54,7 +59,7 @@ sites <- bind_rows(lapply(unique(sites$refGenome), function(x){
   }
 })) 
 
-sites <- dplyr::relocate(sites, repeat_name, repeat_class, .after = posid) %>% 
+sites <- dplyr::relocate(sites, repeat_name, repeat_class, .after = opt$annotateRepeats_addAfter) %>% 
          dplyr::select(-chromosome, -strand, -position)
 
 saveRDS(sites, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, opt$annotateRepeats_outputFile))

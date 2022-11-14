@@ -12,6 +12,11 @@ dir.create(file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir))
 
 sites <- readRDS(file.path(opt$outputDir, opt$callNearestGenesFiltered_inputFile))
 
+if(! opt$callNearestGenesFiltered_addAfter %in% names(sites)){
+  write(c(paste(now(), paste0('   Error - ', opt$callNearestGenesFiltered_addAfter, ' is not a column in your input data frame.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
 sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
 
            if(! x$refGenome[1] %in% names(opt$callNearestGenesFiltered_boundaries)){
@@ -82,7 +87,7 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
           
           x <- left_join(x, n, by = 'posid2') %>% select(-posid2)
           
-          dplyr::relocate(x, names(n)[! grepl('posid', names(n))], .after = 'repLeaderSeq')
+          dplyr::relocate(x, names(n)[! grepl('posid', names(n))], .after = opt$callNearestGenesFiltered_addAfter)
        })))
 
 saveRDS(sites, file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir, opt$callNearestGenesFiltered_outputFile))
