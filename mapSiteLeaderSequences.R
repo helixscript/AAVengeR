@@ -117,3 +117,6 @@ sites <- dplyr::relocate(sites, repLeaderSeqMap, .after = opt$mapSiteLeaderSeque
 sites$repLeaderSeqLength <- NULL
 
 saveRDS(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, opt$mapSiteLeaderSequences_outputFile))
+openxlsx::write.xlsx(sites, file = paste0(sub('\\.\\S+$', '', opt$mapSiteLeaderSequences_outputFile), '.xlsx'))
+
+q(save = 'no', status = 0, runLast = FALSE) 

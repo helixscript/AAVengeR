@@ -91,6 +91,6 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
        })))
 
 saveRDS(sites, file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir, opt$callNearestGenesFiltered_outputFile))
-openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir, 'sites.xlsx'))
+openxlsx::write.xlsx(sites, file = paste0(sub('\\.\\S+$', '', opt$callNearestGenesFiltered_outputFile), '.xlsx'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

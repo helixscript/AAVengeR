@@ -63,8 +63,7 @@ sites <- dplyr::relocate(sites, repeat_name, repeat_class, .after = opt$annotate
          dplyr::select(-chromosome, -strand, -position)
 
 saveRDS(sites, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, opt$annotateRepeats_outputFile))
-openxlsx::write.xlsx(arrange(sites, desc(fragments)), file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.xlsx'))
-
+openxlsx::write.xlsx(sites, file = paste0(sub('\\.\\S+$', '', opt$annotateRepeats_outputFile), '.xlsx'))
 
 
 if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))){

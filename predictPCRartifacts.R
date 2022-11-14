@@ -130,6 +130,6 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
 sites <- left_join(sites, o2, by = 'uniqueSite')  %>% relocate(neighboringSeq, pcrArtifactAlnLength, pcrArtifactPercentSeqID, .after = opt$predictPCRartifacts_addAfter)
 
 saveRDS(sites, file = file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, opt$predictPCRartifacts_outputFile))
-openxlsx::write.xlsx(sites, file = file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'sites.xlsx'))
+openxlsx::write.xlsx(sites, file = paste0(sub('\\.\\S+$', '', opt$predictPCRartifacts_outputFile), '.xlsx'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
