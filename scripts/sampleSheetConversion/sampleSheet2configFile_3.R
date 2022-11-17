@@ -2,13 +2,15 @@ library(dplyr)
 library(stringr)
 library(RMySQL)
 
-sampleSheet <- '/home/ubuntu/projects/Persaud/201123_M03249_0121_000000000-D6KV5/data/SampleSheet.csv'
-outputFile  <- '/home/ubuntu/projects/Persaud/201123_M03249_0121_000000000-D6KV5/data/sampleData.tsv'
+sampleSheet <- '/home/ubuntu/projects/Persaud/220121_M03249_0237_000000000-G9N8H/data/SampleSheet.csv'
+outputFile  <- '/home/ubuntu/projects/Persaud/220121_M03249_0237_000000000-G9N8H/data/sampleData.tsv'
 refGenome.id <- 'hg38'
 trialID <- 'Persaud'
 
 f <- readLines(sampleSheet)
 s <- read.csv(textConnection(f[(which(grepl('\\[metaData\\]', f))+1):length(f)]), header = TRUE)
+
+if('Sampleme' %in% names(s)) s$SampleName <- s$Sampleme
 
 
 invisible(sapply(dbListConnections(MySQL()), dbDisconnect))
@@ -19,8 +21,12 @@ dbDisconnect(dbConn)
 samples <- sub('\\-\\d+$', '', s$SampleName)
 reps <- as.integer(sub('\\-', '', stringr::str_extract(samples, '\\-\\d+')))
 flags <- ifelse(grepl('u5', samples, ignore.case = TRUE), 'IN_u5', 'IN_u3')
+
 samples <- stringr::str_extract(samples, 'GTSP\\d+')
+samples <- ifelse(is.na(samples), sub('\\-\\S+$', '', s$SampleName), samples)
+
 subjects <- gtsp[match(samples, gtsp$SpecimenAccNum),]$Patient
+subjects <- ifelse(is.na(subjects), samples, subjects)
 
 r <- tibble(trial = trialID,
             subject = subjects,
@@ -34,8 +40,3 @@ r <- tibble(trial = trialID,
             flags = flags)
             
 write.table(r, file = outputFile, sep='\t', col.names = TRUE, row.names = FALSE, quote = FALSE)
-
-
-
-
-

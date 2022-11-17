@@ -64,7 +64,7 @@ if(opt$demultiplex_percentReadDataToUse < 100){
 if(opt$demultiplex_RC_I1_barcodes_auto){
   write(c(paste(now(), '   Determining if I1 barcodes should be switched to RC.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   r <- determine_RC_I1()
-  write(paste(now(), '   Setting demultiplex_RC_I1_barcodes to ', r), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(paste(now(), '   Setting demultiplex_RC_I1_barcodes to', r), file = file.path(opt$outputDir, 'log'), append = TRUE)
   opt$demultiplex_RC_I1_barcodes <- r
 }
 
