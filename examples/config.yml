@@ -13,6 +13,7 @@ modules:
 #   - callNearestGenesFiltered
 #   - predictPCRartifacts
 #   - mapSiteLeaderSequences
+#   - buildAAVremnantPlots
 
 # Processing parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
@@ -111,6 +112,14 @@ predictPCRartifacts_adjacentSeqLength: 15
 predictPCRartifacts_minAlignmentLength: 12
 predictPCRartifacts_minPercentSeqID: 80
 
+buildAAVremnantPlots_inputFile: mapSiteLeaderSequences/sites.rds
+buildAAVremnantPlots_outputDir: buildAAVremnantPlots
+buildAAVremnantPlots_ITRlength: 123             # Length of ITR sequence.
+buildAAVremnantPlots_ITRseqStart: 5             # Position at which sequencing begins.
+buildAAVremnantPlots_NTbinSize: 3               # Number of NTs in each binned bar plot column
+buildAAVremnantPlots_ITRdumbellTip1: 51         # Position of first dumbbell tip from start of ITR.
+buildAAVremnantPlots_ITRdumbellTip2: 73         # Position of second dumbbell tip from start of ITR.
+buildAAVremnantPlots_plotOutputWidthInches: 10  # Width of outputted pdf and png images.
 
 callNearestGenes_CPUs: 15
 callNearestGenes_inputFile: callNearestGenesFiltered/sites.rds
