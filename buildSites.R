@@ -247,7 +247,8 @@ tbl2 <- bind_rows(lapply(1:nrow(tbl1), function(x){
 
 if(any(is.infinite(tbl2$maxLeaderSeqDist))) tbl2[is.infinite(tbl2$maxLeaderSeqDist),]$maxLeaderSeqDist <- NA
 
-saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, opt$buildSites_outputFile))
+saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'))
+readr::write_csv(arrange(tbl2, desc(fragments)), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.csv'))
 openxlsx::write.xlsx(arrange(tbl2, desc(fragments)), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

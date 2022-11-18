@@ -62,8 +62,9 @@ sites <- bind_rows(lapply(unique(sites$refGenome), function(x){
 sites <- dplyr::relocate(sites, repeat_name, repeat_class, .after = opt$annotateRepeats_addAfter) %>% 
          dplyr::select(-chromosome, -strand, -position)
 
-saveRDS(sites, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, opt$annotateRepeats_outputFile))
-openxlsx::write.xlsx(sites, file = paste0(sub('\\.\\S+$', '', opt$annotateRepeats_outputFile), '.xlsx'))
+saveRDS(sites, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.rds'))
+openxlsx::write.xlsx(sites, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.xlsx'))
+readr::write_csv(sites, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.csv'))
 
 
 if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))){
@@ -121,7 +122,8 @@ if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiH
   
  o2 <- bind_cols(o[,1:3], o[,14:16], o[,5:13], o[,4]) %>% arrange(desc(reads))
  saveRDS(o2, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.rds'))
- openxlsx::write.xlsx(o2, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'mhcs.xlsx'))
+ readr::write_csv(o2, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.csv'))
+ openxlsx::write.xlsx(o2, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.xlsx'))
 }
 
 q(save = 'no', status = 0, runLast = FALSE) 

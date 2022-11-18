@@ -39,27 +39,6 @@ if(! file.exists(opt$demultiplex_index1ReadsFile)){
   q(save = 'no', status = 1, runLast = FALSE) 
 } 
 
-if(! 'demultiplex_percentReadDataToUse' %in% names(opt)) opt$demultiplex_percentReadDataToUse <- 100
-
-if(opt$demultiplex_percentReadDataToUse < 100){
-  write(c(paste0(now(), '   Reading in a subset of the data (', opt$demultiplex_percentReadDataToUse, '%)')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  R1 <- readFastq(opt$demultiplex_adriftReadsFile)
-  set.seed(opt$demultiplex_percentReadDataToUseRandomSeed)
-  i <- sample(1:length(R1), floor(length(R1) * (opt$demultiplex_percentReadDataToUse/100)))
-  writeFastq(R1[i], file.path(opt$outputDir, opt$demultiplex_outputDir, 'R1.fastq.gz'), compress = TRUE)
-  opt$demultiplex_adriftReadsFile <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'R1.fastq.gz')
-  rm(R1); gc()
-  
-  R2 <- readFastq(opt$demultiplex_anchorReadsFile)
-  writeFastq(R2[i], file.path(opt$outputDir, opt$demultiplex_outputDir, 'R2.fastq.gz'), compress = TRUE)
-  opt$demultiplex_anchorReadsFile <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'R2.fastq.gz')
-  rm(R2); gc()
-  
-  I1 <- readFastq(opt$demultiplex_index1ReadsFile)
-  writeFastq(I1[i], file.path(opt$outputDir, opt$demultiplex_outputDir, 'I1.fastq.gz'), compress = TRUE)
-  opt$demultiplex_index1ReadsFile <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'I1.fastq.gz')
-  rm(I1); gc()
-}
 
 if(opt$demultiplex_RC_I1_barcodes_auto){
   write(c(paste(now(), '   Determining if I1 barcodes should be switched to RC.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
@@ -256,13 +235,9 @@ write(paste(now(), '   Finalizing logs.'), file = file.path(opt$outputDir, 'log'
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), recursive = TRUE))
 write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))
 
-if(opt$demultiplex_percentReadDataToUse < 100){
-  invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'R1.fastq.gz')))
-  invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'R2.fastq.gz')))
-  invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'I1.fastq.gz')))
-}
-
 write(paste(now(), '   Writing outputs.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = FALSE)
+readr::write_csv(reads,  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.csv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

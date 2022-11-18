@@ -296,7 +296,8 @@ write(c(paste(now(), '   Adding sample details to fragment data.')), file = file
 samples <- loadSamples()
 frags <- left_join(frags, distinct(select(samples, uniqueSample, refGenome.id, vectorFastaFile, flags)), by = 'uniqueSample')
 
-saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, opt$buildFragments_outputFile))
+saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.rds'))
+readr::write_csv(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.csv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
 

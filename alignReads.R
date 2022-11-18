@@ -172,8 +172,8 @@ anchorReadAlignments$leaderSeq <- paste0(anchorReadAlignments$leaderSeq, substr(
 anchorReadAlignments <- dplyr::select(anchorReadAlignments, -anchorReadSeq)
 
 # Save anchor and adrift read alignments.
-saveRDS(dplyr::distinct(anchorReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_anchorReadAlignmentsOutputFile))  
-saveRDS(dplyr::distinct(adriftReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, opt$alignReads_adriftReadAlignmentsOutputFile)) 
+saveRDS(dplyr::distinct(anchorReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'anchorReadAlignments.rds'))  
+saveRDS(dplyr::distinct(adriftReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'adriftReadAlignments.rds')) 
 
 unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), recursive = TRUE)
 unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'), recursive = TRUE)

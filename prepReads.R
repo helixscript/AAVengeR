@@ -377,5 +377,6 @@ reads <- dplyr::select(reads, -adriftReadSeq) %>%
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds'), compress = FALSE)
+readr::write_csv(reads,  file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.csv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

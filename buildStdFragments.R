@@ -78,7 +78,7 @@ write(c(paste(now(), '   Categorizing leader sequences.')), file = file.path(opt
 
 
 # TEMP !!!!!!
-frags$leaderSeq.anchorReads <- sub('^TNC', 'TCC', frags$leaderSeq.anchorReads)
+# frags$leaderSeq.anchorReads <- sub('^TNC', 'TCC', frags$leaderSeq.anchorReads)
 # TEMP !!!!!!
 
 frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject)), function(x){
@@ -447,16 +447,17 @@ if(nrow(multiHitFrags) > 0 & opt$buildStdFragments_createMultiHitClusters){
       y$nodes <- n_distinct(unlist(y$clusters))
       y$reads <- n_distinct(a$readID)
       y$abund <- n_distinct(a$width)
-      y$maxNodeReads <- max(b$reads)
-      y$minNodeReads <- min(b$reads)
-      y$avgNodeReads <- mean(b$reads)
-      y$nodeMostReads <- paste0(b[b$reads == max(b$reads),]$node, collapse = ',')
+      y$maxNodeReads   <- max(b$reads)
+      y$minNodeReads   <- min(b$reads)
+      y$avgNodeReads   <- mean(b$reads)
+      y$nodeMostReads  <- paste0(b[b$reads == max(b$reads),]$node, collapse = ',')
       y$nodeMostBreaks <- paste0(b[b$breaks == max(b$breaks),]$node, collapse = ',')
       y
     }))
   }))
   
   saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))
+  readr::write_csv(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.csv.gz'))
 }
 
 # Frags are still read level. Switch frags to a data frame because tibbles refuse to store single character vectors as lists.
@@ -511,11 +512,6 @@ f <- bind_rows(lapply(o, function(x){
 
 
 # Set values for fragments with single reads.
-# a$reads = a$n + 1
-# a$repLeaderSeq = a$leaderSeq.anchorReads
-# a$maxLeaderSeqDist = 0
-# a$readIDs <- as.list(a$readID)
-
 a2 <- dplyr::group_by(a, fragID) %>%
       dplyr::mutate(reads = n+1, 
                    repLeaderSeq = leaderSeq.anchorReads[1], 
@@ -564,7 +560,6 @@ f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x
                  o <- dplyr::arrange(subset(b, randomLinkerSeq.adriftReads == i), desc(reads))
                  o$percentReads <- (o$reads / sum(o$reads))*100
 
-                 # browser()
                  if(o[1,]$percentReads < opt$buildStdFragments_UMI_conflict_minPercentReads){
                    o$msg <- 'All fragments rejected'
                    o$percentReads <- sprintf("%.2f%%", o$percentReads)
@@ -577,6 +572,7 @@ f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x
                    readr::write_tsv(dplyr::select(o[2:nrow(o),], trial, subject, sample, replicate, readID, randomLinkerSeq.adriftReads, posid, percentReads, msg), 
                                     file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'randomIDexcludedReads', paste0('duplicate_UMIs_withinSample~', x$trial[1], '~', x$subject[1], '~', x$sample[1], '.tsv')))
                  }
+                 
                  o[1,]
                }))
        
@@ -589,6 +585,7 @@ f2 <- bind_rows(lapply(split(f, paste(f$trial, f$subject, f$sample)), function(x
 f2 <- dplyr::select(f2, -n, -fragID, -fragID2, -readID, -leaderSeq.anchorReads)
 f2 <- left_join(f2, sampleMetaData, by = 'uniqueSample') %>% dplyr::select(-uniqueSample)
 
-saveRDS(f2, file.path(opt$outputDir, opt$buildStdFragments_outputDir, opt$buildStdFragments_outputFile))
+saveRDS(f2, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'))
+readr::write_csv(f2, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.csv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
