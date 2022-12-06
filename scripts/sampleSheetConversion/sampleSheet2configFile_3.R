@@ -2,10 +2,10 @@ library(dplyr)
 library(stringr)
 library(RMySQL)
 
-sampleSheet <- '/home/ubuntu/projects/Persaud/220121_M03249_0237_000000000-G9N8H/data/SampleSheet.csv'
-outputFile  <- '/home/ubuntu/projects/Persaud/220121_M03249_0237_000000000-G9N8H/data/sampleData.tsv'
+sampleSheet <- '/home/ubuntu/projects/Lichterfeld/data/SampleSheet.csv'
+outputFile  <- '/home/ubuntu/projects/Lichterfeld/data/sampleData.tsv'
 refGenome.id <- 'hg38'
-trialID <- 'Persaud'
+trialID <- 'Lichterfeld'
 
 f <- readLines(sampleSheet)
 s <- read.csv(textConnection(f[(which(grepl('\\[metaData\\]', f))+1):length(f)]), header = TRUE)
@@ -17,6 +17,8 @@ invisible(sapply(dbListConnections(MySQL()), dbDisconnect))
 dbConn  <- dbConnect(MySQL(), group='specimen_management')
 gtsp <- dbGetQuery(dbConn, 'select * from gtsp')
 dbDisconnect(dbConn)
+
+# s$SampleName <- sub('20221121\\-', '20221121_', s$SampleName)
 
 samples <- sub('\\-\\d+$', '', s$SampleName)
 reps <- as.integer(sub('\\-', '', stringr::str_extract(samples, '\\-\\d+')))
@@ -35,8 +37,8 @@ r <- tibble(trial = trialID,
             index1.seq = s$barcode,
             refGenome.id = refGenome.id,
             adriftRead.linker.seq = s$linker,
-            leaderSeqHMM = ifelse(flags == 'IN_u5', 'u5_100.hmm', 'u3_100_rc.hmm'), 
-            vectorFastaFile = 'HIV-1_reference.fasta',
+            leaderSeqHMM = ifelse(flags == 'IN_u5', 'HIV1_1-100_U5.hmm', 'HIV1_1-100_U3_RC.hmm'), 
+            vectorFastaFile = 'HXB2.fasta',
             flags = flags)
             
 write.table(r, file = outputFile, sep='\t', col.names = TRUE, row.names = FALSE, quote = FALSE)

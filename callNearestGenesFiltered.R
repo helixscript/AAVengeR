@@ -44,7 +44,6 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
              q(save = 'no', status = 1, runLast = FALSE) 
            }
   
-  
            genes <- readRDS(file.path(opt$softwareDir, 'data', 'genomeAnnotations', opt$callNearestGenesFiltered_boundaries[[x$refGenome[1]]][['TUs']]))
            exons <- readRDS(file.path(opt$softwareDir, 'data', 'genomeAnnotations', opt$callNearestGenesFiltered_boundaries[[x$refGenome[1]]][['exons']]))
   

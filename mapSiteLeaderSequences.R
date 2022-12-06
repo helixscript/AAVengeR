@@ -53,7 +53,7 @@ m <- rbindlist(lapply(split(sites, sites$vectorFastaFile), function(x){
  
          writeXStringSet(a,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
     
-         system(paste0(opt$command_blastn, ' -word_size 4 -evalue 50 -outfmt 6 -query ',
+         system(paste0(opt$command_blastn, ' -dust no -soft_masking false -word_size 4 -evalue 50 -outfmt 6 -query ',
                   file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
                   file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs', 'd'),
                   ' -num_threads 1 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),

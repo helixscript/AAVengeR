@@ -176,6 +176,8 @@ sites <- bind_rows(lapply(o, function(x){
     
     r <- representativeSeq(s)
     
+    ### if(max(stringdist::stringdistmatrix(s)) > 10) browser()
+    
     return(dplyr::mutate(x, fragments = n_distinct(x$randomLinkerSeq.adriftReads), fragmentWidths = n_distinct(x$fragWidth), reads = sum(reads), repLeaderSeq = r[[2]], 
                          maxLeaderSeqDist = max(stringdist::stringdistmatrix(s))) %>%
            dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile) %>%
@@ -234,6 +236,8 @@ tbl2 <- bind_rows(lapply(1:nrow(tbl1), function(x){
     }
     
     r <- representativeSeq(s)
+    
+    ### if(max(stringdist::stringdistmatrix(s)) > 10) browser()
     
     k <- tibble(fragments = n_distinct(f$randomLinkerSeq.adriftReads), fragmentWidths = n_distinct(f$fragWidth), reads = sum(f$reads), 
                 maxLeaderSeqDist = max(stringdist::stringdistmatrix(s)), repLeaderSeq = r[[2]])

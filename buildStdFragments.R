@@ -150,6 +150,7 @@ g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s
        library(dplyr)
        library(GenomicRanges)
        source(file.path(opt$softwareDir, 'lib.R'))
+       source(file.path(opt$softwareDir, 'stdPos.lib.R'))
   
        x$intSiteRefined <- FALSE
   
@@ -233,6 +234,7 @@ if(nrow(f2) > 0){
           library(dplyr) 
           library(GenomicRanges)
           source(file.path(opt$softwareDir, 'lib.R'))
+          source(file.path(opt$softwareDir, 'stdPos.lib.R'))
       
           g <- GenomicRanges::makeGRangesFromDataFrame(x, keep.extra.columns = TRUE)
 

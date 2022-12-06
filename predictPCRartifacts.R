@@ -27,6 +27,8 @@ o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
        g <- import(rtracklayer::TwoBitFile(file.path(opt$softwareDir, 'data', 'blatDBs', paste0(x$refGenome[1], '.2bit'))))
        
        r <- bind_rows(lapply(x$uniqueSite, function(x2){
+             message(x2)
+
              us <- x2
              o <- unlist(strsplit(x2, '~'))
              x2 <- o[length(o)]
@@ -36,6 +38,10 @@ o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
              
              o[2] <- sub('\\.\\d+$', '', o[2])
              pos <- as.integer(o[2])
+             
+             if(! o[1] %in% names(g)) return(tibble(uniqueSite = us, strand = strand, 
+                                                    downGenome = paste0(rep('N', opt$predictPCRartifacts_adjacentSeqLength), collapse = ''), 
+                                                    upGenome = paste0(rep('N', opt$predictPCRartifacts_adjacentSeqLength), collapse = '')))
              
              if(strand == '-'){
                i1 <- pos - opt$predictPCRartifacts_adjacentSeqLength + 1
@@ -72,10 +78,13 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs'), full.names = TRUE)))
   system(paste0(opt$command_makeblastdb, ' -in ', vectorFastaFile, ' -dbtype nucl -out ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
 
+  #browser()
+  
   cluster <- makeCluster(opt$predictPCRartifacts_CPUs)
   clusterExport(cluster, c('opt'))
   
   r <- bind_rows(parLapply(cluster, split(a, 1:nrow(a)), function(x){
+  #r <- bind_rows(lapply(split(a, 1:nrow(a)), function(x){
          library(dplyr)
          library(Biostrings)
          source(file.path(opt$softwareDir, 'lib.R'))
@@ -95,13 +104,17 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
          
          write(c('>seq', seq), file = file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', f), append = FALSE)
     
-         system(paste0(opt$command_blastn, ' -word_size 6 -evalue 10 -outfmt 6 -query ',
+         #if(x$posid == 'chr11-112293416') browser()
+         
+         system(paste0(opt$command_blastn, ' -dust no -soft_masking false -word_size 6 -evalue 10 -outfmt 6 -query ',
                        file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', f), ' -db ',
                        file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', 'd'),
                        ' -out ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f, '.blast'))), ignore.stdout = TRUE, ignore.stderr = TRUE)
     
          if(file.info(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f, '.blast')))$size > 0){
            b <- read.table(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f, '.blast')), sep = '\t', header = FALSE)
+           
+           
            
            if(file.exists(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', f))) file.remove(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', f))
            if(file.exists(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f, '.blast')))) file.remove(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f, '.blast')))
