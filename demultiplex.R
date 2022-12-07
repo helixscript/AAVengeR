@@ -39,7 +39,6 @@ if(! file.exists(opt$demultiplex_index1ReadsFile)){
   q(save = 'no', status = 1, runLast = FALSE) 
 } 
 
-
 if(opt$demultiplex_RC_I1_barcodes_auto){
   write(c(paste(now(), '   Determining if I1 barcodes should be switched to RC.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   r <- determine_RC_I1()
@@ -180,8 +179,6 @@ invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'
 # Collate chunked reads and write out sample read files.
 write(paste(now(), '   Colating data files.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-save.image('~/demultiplexDev.RData')
-
 reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
   f1 <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.anchorReads'), full.names = TRUE)
   f2 <- list.files(file.path(opt$outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.adriftReads'), full.names = TRUE)
@@ -205,8 +202,12 @@ reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
              vectorFastaFile = r$vectorFastaFile, refGenome = r$refGenome.id, flags = r$flags)
 }))
 
-write(paste(now(), '   Clearing tmp files.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+if(nrow(reads) == 0){
+  write(c(paste(now(), '   Error - no reads were demultiplexed for any sample.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
 
+write(paste(now(), '   Clearing tmp files.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 # Collect all the logs from the different computational nodes and create a single report.
@@ -216,7 +217,6 @@ logReport <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$demultiple
   read.table(f, header = TRUE, sep = '\t')
 }))
 
-write(paste(now(), '   Building final log.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 logReport <- bind_rows(lapply(split(logReport, logReport$sample), function(x){
   o <- data.frame(lapply(2:length(x), function(y){
     if(all(is.na(x[,y]))){
@@ -231,7 +231,6 @@ logReport <- bind_rows(lapply(split(logReport, logReport$sample), function(x){
 })) %>% dplyr::arrange(demultiplexedReads)
 
 
-write(paste(now(), '   Finalizing logs.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), recursive = TRUE))
 write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))
 

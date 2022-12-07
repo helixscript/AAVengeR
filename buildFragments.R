@@ -8,7 +8,6 @@ library(Biostrings)
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
-
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
@@ -109,7 +108,7 @@ adriftReadAlignments <- subset(adriftReadAlignments, readID %in% r$readID)
 anchorReadAlignments <- subset(anchorReadAlignments, readID %in% r$readID)
   
 adriftReadAlignments <- left_join(adriftReadAlignments, distinct(dplyr::select(r, readID, randomLinkerSeq)), by = 'readID')
-rm(r, randomIDs)
+rm(r)
 gc()
 
 

@@ -1,8 +1,6 @@
 library(lubridate)
-library(ShortRead)
 library(dplyr)
 library(parallel)
-library(readr)
 library(data.table)
 options(stringsAsFactors = FALSE)
 
