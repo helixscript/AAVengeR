@@ -84,7 +84,7 @@ if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiH
     
     bind_rows(lapply(1:nrow(s), function(x){
       x <- s[x,]
-      nodes <- unlist(x$clusters)
+      nodes <- unlist(x$posids)
     
       a <- strsplit(nodes, '[\\+\\-]')
       d <- tibble(chromosome = unlist(lapply(a, '[', 1)),
@@ -120,10 +120,9 @@ if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiH
     
  }))
   
- o2 <- bind_cols(o[,1:3], o[,14:16], o[,5:13], o[,4]) %>% arrange(desc(reads))
- saveRDS(o2, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.rds'))
- readr::write_csv(o2, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.csv'))
- openxlsx::write.xlsx(o2, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.xlsx'))
+ saveRDS(o, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.rds'))
+ readr::write_csv(o, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.csv'))
+ openxlsx::write.xlsx(o, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.xlsx'))
 }
 
 q(save = 'no', status = 0, runLast = FALSE) 
