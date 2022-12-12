@@ -1,3 +1,10 @@
+# John K. Everett PhD
+# AAVengeR/prepReads.R
+#
+# This module prepares reads for alignment to a reference genome by removing duplicate
+# read pairs, trimming adapter sequences, removing reads with high sequence homology to 
+# the vector and selecting anchor reads with the expected leader sequences. 
+
 library(ShortRead)
 library(dplyr)
 library(parallel)
@@ -63,7 +70,7 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
              Biostrings::writeXStringSet(o, f)
          
             # Use cut adapt to trim anchor read over-reading.
-            system(paste0(opt$command_cutadapt, ' -e 0.15 -a ', y$adriftReadTrimSeq[1], ' --overlap 2 ',
+            system(paste0(file.path(opt$softwareDir, 'bin', 'cutadapt'), ' -e 0.15 -a ', y$adriftReadTrimSeq[1], ' --overlap 2 ',
                        f, ' > ', paste0(f, '.cutAdapt')), ignore.stderr = TRUE)
          
             t <- readDNAStringSet(paste0(f, '.cutAdapt'))
@@ -94,7 +101,7 @@ reads$anchorReadSeq <- NULL
 reads$adriftReadSeq <- NULL
 reads <- dplyr::rename(reads, anchorReadSeq = anchorReadSeq2, adriftReadSeq = adriftReadSeq2)
 
-saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'reads_anchorOverReading_adriftLinker_trimmed.rds'))
+# saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'reads_anchorOverReading_adriftLinker_trimmed.rds'))
 
 reads$i <- group_by(reads, uniqueSample, anchorReadSeq, adriftReadSeq) %>% group_indices() 
 reads <- group_by(reads, i) %>% mutate(n = n()) %>% ungroup()
@@ -347,7 +354,7 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
     Biostrings::writeXStringSet(o, f)
     
     # Use cut adapt to trim anchor read over-reading.
-    system(paste0(opt$command_cutadapt, ' -e 0.15 -a ', y$adriftReadTrimSeq[1], ' --overlap 2 ',
+    system(paste0(file.path(opt$softwareDir, 'bin', 'cutadapt'), ' -e 0.15 -a ', y$adriftReadTrimSeq[1], ' --overlap 2 ',
                   f, ' > ', paste0(f, '.cutAdapt')), ignore.stderr = TRUE)
     
     waitForFile(paste0(f, '.cutAdapt'))

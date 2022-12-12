@@ -1,9 +1,16 @@
+# John K. Everett PhD
+# AAVengeR/demultipex.R
+#
+# This module demultiplexes paired-end reads based on barcode sequences found
+# in the sampleData configuration file pointed to by the AAVengeR configuration file.
+
 library(ShortRead)
 library(readr)
 library(parallel)
 library(lubridate)
 library(dplyr)
 library(data.table)
+
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
@@ -66,7 +73,7 @@ if(opt$demultiplex_correctGolayIndexReads){
 }
 
 
-# Quality trim virus reads and break reads.
+# Quality trim anchor and adrift reads.
 write(paste(now(), '   Trimming anchor and adrift reads.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 invisible(parLapply(cluster,     
                     list(c(opt$demultiplex_adriftReadsFile,  opt$demultiplex_sequenceChunkSize, 'adriftReads',  file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks')),
@@ -77,6 +84,7 @@ invisible(parLapply(cluster,
                       qualTrimReads(x[[1]], x[[2]], x[[3]], x[[4]])
                     }))
 
+# Sync reads since some may have been removed during quality trimming.
 write(paste(now(), '   Syncing anchor and adrift reads post-trimming.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 adriftReads <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), pattern = 'adriftReads', full.names = TRUE), function(x) shortRead2DNAstringSet(readFastq(x))))
 anchorReads <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), pattern = 'anchorReads', full.names = TRUE), function(x) shortRead2DNAstringSet(readFastq(x))))

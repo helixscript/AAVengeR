@@ -244,7 +244,7 @@ representativeSeq <- function(s, percentReads = 95){
   
   outputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.representativeSeq.muscle'))
 
-  system(paste(opt$command_muscle, '-quiet -maxiters 1 -diags -in ', inputFile, ' -out ', outputFile))
+  system(paste(file.path(opt$softwareDir, 'bin', 'muscle'), '-quiet -maxiters 1 -diags -in ', inputFile, ' -out ', outputFile))
   
   if(! file.exists(outputFile)) waitForFile(outputFile)
 
@@ -357,7 +357,7 @@ golayCorrection <- function(x){
   f <- file.path(opt$outputDir, 'tmp', paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') )
   writeFasta(x, file = f)
   
-  system(paste(opt$command_python2, file.path(opt$softwareDir, 'bin', 'golayCorrection', 'processGolay.py'), f))
+  system(paste('python2', file.path(opt$softwareDir, 'bin', 'golayCorrection', 'processGolay.py'), f))
   file.remove(f)
   
   corrected <- readFasta(paste0(f, '.corrected'))
@@ -427,7 +427,7 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
   
   writeXStringSet(subseq(reads, opt$prepReads_HMMsearchReadStartPos, opt$prepReads_HMMsearchReadEndPos), outputFile)
   # score 5
-  comm <- paste0(opt$command.hmmsearch, ' --max --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
+  comm <- paste0(file.path(opt$softwareDir, 'bin', 'hmmsearch'), ' --max --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
   system(comm)
 
   r <- readLines(paste0(outputFile, '.domTbl'))
@@ -483,7 +483,7 @@ blastReads <- function(reads, wordSize = 6, evalue = 10){
   f <- tmpFile()
   writeXStringSet(reads,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
   
-  system(paste0(opt$command_blastn, ' -dust no -soft_masking false -word_size ', wordSize, ' -evalue ', evalue,' -outfmt 6 -query ',
+  system(paste0(file.path(opt$softwareDir, 'bin', 'blastn'), ' -dust no -soft_masking false -word_size ', wordSize, ' -evalue ', evalue,' -outfmt 6 -query ',
                 file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
                 file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'),
                 ' -num_threads 1 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),
@@ -509,7 +509,7 @@ blatReads <- function(reads, minIdentity=90, stepSize = 11, tileSize = 11){
   f <- tmpFile()
   writeXStringSet(reads,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
   
-  system(paste0(opt$command_blat, ' ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'), ' ', 
+  system(paste0(file.path(opt$softwareDir, 'bin', 'blat'), ' ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'), ' ', 
                 file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' ',
                 file.path(opt$outputDir, 'tmp', paste0(f, '.psl')), ' -minIdentity=', minIdentity, 
                 ' -stepSize=', stepSize, ' -tileSize=', tileSize, ' -out=psl -noHead -minScore=0'),
