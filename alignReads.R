@@ -42,7 +42,7 @@ blat <- function(y, ref, dir){
   
   db <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(ref, '.2bit'))
   
-  system(paste0(opt$command_blat, ' ', db, ' ', f, ' ', paste0(f, '.psl'), 
+  system(paste0(file.path(opt$softwareDir, 'bin', 'blat'), ' ', db, ' ', f, ' ', paste0(f, '.psl'), 
                 ' -tileSize=', opt$alignReads_genomeAlignment_blatTileSize, 
                 ' -stepSize=', opt$alignReads_genomeAlignment_blatStepSize, 
                 ' -repMatch=', opt$alignReads_genomeAlignment_repMatch,
@@ -86,7 +86,9 @@ anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   b
 }))
 
-# save.image('~/alignReadsDev.RData')
+write(c(paste0(now(), '    ', sprintf("%.2f%%", (n_distinct(anchorReadAlignments$readID)/n_distinct(reads$readID))*100), 
+               ' of prepped anchor reads aligned to the reference genome.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 
 
 # Select anchor reads where the ends align to the genome.
@@ -97,8 +99,16 @@ if(sum(i) == 0){
   q(save = 'no', status = 1, runLast = FALSE)
 }
 
+alignedReadIDsBeforeFilter <- n_distinct(anchorReadAlignments$readID)
 anchorReadAlignments <- anchorReadAlignments[i,]
 
+write(c(paste0(now(), '    ', sprintf("%.2f%%", (1 - n_distinct(anchorReadAlignments$readID) / alignedReadIDsBeforeFilter)*100), 
+               ' of anchor reads removed because their alignments ended more than ',
+               opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned,
+               ' NTs from the end of reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
+
+# Subset reads to those with good anchor read alignments.
 reads <- subset(reads, readID %in% anchorReadAlignments$readID)
 
 adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
@@ -118,7 +128,7 @@ adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
     if(nrow(b) == 0) return(data.table())
     
     dplyr::filter(b, alignmentPercentID >= opt$alignReads_genomeAlignment_minPercentID, tNumInsert <= 1, 
-                  qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= opt$alignReads_genomeAlignment_adriftReadMaxStart) %>%
+                  qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= opt$alignReads_genomeAlignment_adriftRead_maxStartPos) %>%
       dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
   }))
   
@@ -142,18 +152,32 @@ if(sum(i) == 0){
   q(save = 'no', status = 1, runLast = FALSE)
 }
 
+
+alignedReadIDsBeforeFilter <- n_distinct(adriftReadAlignments$readID)
 adriftReadAlignments <- adriftReadAlignments[i,]
+
+write(c(paste0(now(), '    ', sprintf("%.2f%%", (1 - n_distinct(adriftReadAlignments$readID) / alignedReadIDsBeforeFilter)*100), 
+               ' of anchor reads removed because their alignments ended more than ',
+               opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned,
+               ' NTs from the end of reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 
 # Select adrift reads with alignments that start at the beginning of reads.
-i <- adriftReadAlignments$qStart <= opt$alignReads_genomeAlignment_adriftReadMaxStart
+i <- adriftReadAlignments$qStart <= opt$alignReads_genomeAlignment_adriftRead_maxStartPos
 
 if(sum(i) == 0){
-  write(c(paste(lubridate::now(), 'Error - no adrift read alignments remain after alignReads_genomeAlignment_adriftReadMaxStart filter.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(c(paste(lubridate::now(), 'Error - no adrift read alignments remain after alignReads_genomeAlignment_adriftRead_maxStartPos filter.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE)
 }
 
+alignedReadIDsBeforeFilter <- n_distinct(adriftReadAlignments$readID)
 adriftReadAlignments <- adriftReadAlignments[i,]
+
+
+write(c(paste0(now(), '    ', sprintf("%.2f%%", (1 - n_distinct(adriftReadAlignments$readID) / alignedReadIDsBeforeFilter)*100), 
+               ' of anchor reads removed because their alignments ended more than ',
+               opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned,
+               ' NTs from the end of reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 
 # Find the intersection between retained anchor and adrift reads and limit read pairs to pairs

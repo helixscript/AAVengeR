@@ -1,6 +1,6 @@
 library(GenomicRanges)
 library(dplyr)
-source('../lib.R')
+source('../stdPos.lib.R')
 
 o <- makeGRangesFromDataFrame(data.frame(
        seqnames = 'chr1', 

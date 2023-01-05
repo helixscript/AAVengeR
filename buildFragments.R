@@ -65,9 +65,6 @@ o <- group_by(r, randomLinkerSeq) %>%
        filter(nSamples > 1)
 
 write(c(paste(now(), paste0('   ', sprintf("%.2f%%", (n_distinct(o$randomLinkerSeq)/n_distinct(r$randomLinkerSeq))*100), ' random ids seen across two or more samples'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  
-
-# Need to remove ids without enough reads to resolve...
 
 randomIDsNoIssue   <- dplyr::filter(r, ! randomLinkerSeq %in% o$randomLinkerSeq)
 
@@ -206,9 +203,9 @@ if(length(z) > 0){
              }
           }
           
-          y2 <- bind_rows(y.pos, y.neg)
+          y2 <- bind_rows(y.pos, y.neg) %>% select(-start, -end)
           list(x, y2)
-  }) 
+  })
   
   a3 <- bind_rows(lapply(o, '[[', 1))
   b3 <- bind_rows(lapply(o, '[[', 2))
@@ -218,6 +215,7 @@ if(length(z) > 0){
 }
 
 
+# ! adriftReadAlignments has start and end columns
 
 # (dev) parallelize this and use rbindlist
 # Large memory usage here.
@@ -350,7 +348,7 @@ q(save = 'no', status = 0, runLast = FALSE)
 #                             x$dataLabel[1], x$compDate[1], list(serialize(dplyr::select(x, -uniqueSample, -refGenome.id, -dataLabel, -compDate), NULL))))
 #     
 #     if(r == 0){
-#         write(c(paste(now(), 'Errror -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+#         write(c(paste(now(), 'Error -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 #         q(save = 'no', status = 1, runLast = FALSE) 
 #       }
 #   }))

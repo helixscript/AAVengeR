@@ -1,4 +1,4 @@
-# John K. Everett PhD
+# John K. Everett, PhD
 # AAVengeR/demultipex.R
 #
 # This module demultiplexes paired-end reads based on barcode sequences found

@@ -83,9 +83,10 @@ write(c(paste(now(), '   Categorizing leader sequences.')), file = file.path(opt
 
 frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject)), function(x){
   
-  d <- group_by(x, leaderSeq.anchorReads) %>% 
-       summarise(reads = n(), UMIs = n_distinct(randomLinkerSeq.adriftReads), leaderSeqLength = nchar(leaderSeq.anchorReads[1])) %>%
-       arrange(desc(UMIs), leaderSeqLength) %>%
+  d <- mutate(x, width = fragEnd - fragStart + 1) %>%
+       group_by(leaderSeq.anchorReads) %>% 
+       summarise(reads = n(), widths = n_distinct(width), leaderSeqLength = nchar(leaderSeq.anchorReads[1])) %>%
+       arrange(desc(widths), desc(reads), leaderSeqLength) %>%
        mutate(leaderSeqGroup = NA)
   
   g <- 1
@@ -93,7 +94,9 @@ frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject)), funct
   invisible(lapply(1:nrow(d), function(i){
     if(! is.na(d[i,]$leaderSeqGroup)) return()
     
-    maxEditDist <- round(nchar(as.character(d[i,]$leaderSeq.anchorReads))/opt$buildStdFragments_categorize_anchorReadRemnants_stepSize)
+    #if(x$subject[1] == 'pLinus' & d[i,]$leaderSeq.anchorReads == 'AACCCCTAGTGATGGA') browser()
+    
+    maxEditDist <- ceiling(nchar(as.character(d[i,]$leaderSeq.anchorReads))/opt$buildStdFragments_categorize_anchorReadRemnants_stepSize) + 1
     
     d[i,]$leaderSeqGroup <<- paste0(x$trial[1], '~', x$subject[1], '~', g)
     

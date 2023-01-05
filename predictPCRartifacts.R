@@ -76,7 +76,7 @@ dir.create(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs'))
 o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
   vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', a$vectorFastaFile[1])
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs'), full.names = TRUE)))
-  system(paste0(opt$command_makeblastdb, ' -in ', vectorFastaFile, ' -dbtype nucl -out ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
+  system(paste0(file.path(opt$softwareDir, 'bin', 'makeblastdb'), ' -in ', vectorFastaFile, ' -dbtype nucl -out ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
 
   #browser()
   
@@ -106,7 +106,7 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
     
          #if(x$posid == 'chr11-112293416') browser()
          
-         system(paste0(opt$command_blastn, ' -dust no -soft_masking false -word_size 6 -evalue 10 -outfmt 6 -query ',
+         system(paste0(file.path(opt$softwareDir, 'bin', 'blastn'), ' -dust no -soft_masking false -word_size 6 -evalue 10 -outfmt 6 -query ',
                        file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', f), ' -db ',
                        file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', 'd'),
                        ' -out ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f, '.blast'))), ignore.stdout = TRUE, ignore.stderr = TRUE)

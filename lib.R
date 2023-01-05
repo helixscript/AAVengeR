@@ -380,43 +380,72 @@ golayCorrection <- function(x){
   r
 }
 
+
 blast2rearangements_worker <-  function(b){
-  library(dplyr)
   library(IRanges)
+  library(dplyr)
   library(data.table)
   
-  rbindlist(lapply(split(b, b$qname), function(b2){
-    
-    # Sort BLAST results by query start position and evalue (low to high).
-    b2 <- arrange(b2, qstart, evalue)
-    b2$strand <- ifelse(b2$send < b2$sstart, '-', '+')
+  data.table::rbindlist(lapply(split(b, b$qname), function(b2){
     
     # Alignment to the negative strand will result in the subject end to come before the start.
     # Switch it back so that they are sequential.
+    b2 <- arrange(b2, qstart, evalue)
     b2$sstart2 <- ifelse(b2$sstart > b2$send, b2$send, b2$sstart)
     b2$send2   <- ifelse(b2$sstart > b2$send, b2$sstart, b2$send)
     
-    # Create IRanges
+
     ir <- IRanges(start = b2$qstart, end = b2$qend)
-    if(length(ir) == 0) return(data.frame())
+    if(length(ir) == 0) return(data.table())
     
-    # Name the ranges with the binned query positions followed by the actual subject positions.
-    names(ir) <- paste0(b2$qstart, '..', b2$qend, '[', b2$sstart2, b2$strand, b2$send2, ']')
+    r <- IRanges::reduce(ir, min.gapwidth = opt$prepReads_mapLeaderSeqsMaxGapBetweenAlignments)
+    r <- r[start(r) <= opt$prepReads_buildReadMaps_minMapStartPostion]
+    if(length(r) == 0) return(data.table())
     
-    o <- ir[1]
-    invisible(lapply(split(ir, 1:length(ir)), function(a){
-      if(all(! countOverlaps(o, a, minoverlap = 2) > 0)){
-        o <<- c(o, a)
-      }
-    }))
-    
-    if(length(o) == 0) return(data.frame())
-    
-    r <- paste0(unique(names(o)), collapse = ';')
-    
-    data.frame(qname = b2$qname[1], rearrangement = r)
+    o <- data.table(qname = b2$qname[1], end = IRanges::end(r), width = width(r))
+    o <- o[o$width == max(o$width),]
+    o[1,]
   }))
 }
+    
+
+# blast2rearangements_worker <-  function(b){
+#   library(dplyr)
+#   library(IRanges)
+#   library(data.table)
+#   
+#   rbindlist(lapply(split(b, b$qname), function(b2){
+#     
+#     # Sort BLAST results by query start position and evalue (low to high).
+#     b2 <- arrange(b2, qstart, evalue)
+#     b2$strand <- ifelse(b2$send < b2$sstart, '-', '+')
+#     
+#     # Alignment to the negative strand will result in the subject end to come before the start.
+#     # Switch it back so that they are sequential.
+#     b2$sstart2 <- ifelse(b2$sstart > b2$send, b2$send, b2$sstart)
+#     b2$send2   <- ifelse(b2$sstart > b2$send, b2$sstart, b2$send)
+#     
+#     # Create IRanges
+#     ir <- IRanges(start = b2$qstart, end = b2$qend)
+#     if(length(ir) == 0) return(data.frame())
+#     
+#     # Name the ranges with the binned query positions followed by the actual subject positions.
+#     names(ir) <- paste0(b2$qstart, '..', b2$qend, '[', b2$sstart2, b2$strand, b2$send2, ']')
+#     
+#     o <- ir[1]
+#     invisible(lapply(split(ir, 1:length(ir)), function(a){
+#       if(all(! countOverlaps(o, a, minoverlap = 2) > 0)){
+#         o <<- c(o, a)
+#       }
+#     }))
+#     
+#     if(length(o) == 0) return(data.frame())
+#     
+#     r <- paste0(unique(names(o)), collapse = ';')
+#     
+#     data.frame(qname = b2$qname[1], rearrangement = r)
+#   }))
+# }
 
 
 captureLTRseqsLentiHMM <- function(reads, hmm){

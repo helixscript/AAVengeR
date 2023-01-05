@@ -1,9 +1,10 @@
-GRANT ALL ON *.* TO 'admin'@'localhost' IDENTIFIED BY 'iAmAdmin+1' WITH GRANT OPTION
+GRANT ALL ON *.* TO 'admin'@'localhost' IDENTIFIED BY 'iAmAdmin+1' WITH GRANT OPTION;
+create database AAVengeR;
+use AAVengeR;
+CREATE TABLE fragments (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), replicate TINYINT UNSIGNED, refGenome VARCHAR(25), vectorFastaFile VARCHAR(100), flags VARCHAR(25), data LONGBLOB);
+Alter Table fragments ADD PRIMARY KEY(trial, subject, sample, replicate);
 
-CREATE TABLE fragments (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), 
-replicate TINYINT UNSIGNED, refGenome VARCHAR(25), dataLabel VARCHAR(100), compDate DATE, data LONGBLOB);
-
-
+~/.my.cnf
 [AAVengeR]
 user=admin
 password=iAmAdmin+1
@@ -11,15 +12,9 @@ host=localhost
 port=3306
 database=AAVengeR
 
-
-# Missing Jones site
-subset(frags, fragEnd >= (135628506-10) & fragEnd <= (135628506+10))
+chmod 600 .my.cnf
 
 
-
-
-buildFragments_min_num_alignments_for_multiHit  -- consider 500
-chrIII 51517
 
 
 chrXII+514047   tctgcgcgctcgctcgctcactgaggc   
