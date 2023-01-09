@@ -21,6 +21,26 @@ waitForFile <- function(f, seconds = 1){
 }
 
 
+pullDBsubjectFrags <- function(dbConn, trial, subject){
+  
+  o <- dbGetQuery(dbConn, paste0("select * from fragments where trial = '", trial, "' and subject = '", subject, "'"))
+  r <- tibble()
+  
+  if(nrow(o) > 0){
+    r <- bind_rows(lapply(split(o, 1:nrow(o)), function(y){
+      f <- tmpFile()
+      writeBin(unserialize(o$data[[1]]), file.path(opt$outputDir, 'tmp', paste0(f, '.xz')))
+      system(paste0('unxz ', file.path(opt$outputDir, 'tmp', paste0(f, '.xz'))))
+      d <- readr::read_tsv(file.path(opt$outputDir, 'tmp', f))
+      invisible(file.remove(file.path(opt$outputDir, 'tmp', f)))
+      d
+    }))
+  }
+  
+  r
+}
+
+
 qualTrimReads <- function(f, chunkSize, label, ouputDir){
   
   # Create a pointer like object to the read file.
@@ -43,17 +63,10 @@ qualTrimReads <- function(f, chunkSize, label, ouputDir){
   }
 }
 
-syncReads <-function(...){
+syncReads <- function(...){
   arguments <- list(...)
-
-  # Create a list of read IDs common to all read arguments.
   n <- Reduce(base::intersect, lapply(arguments, names))
-
-  z <- lapply(arguments, function(x){
-    x <- x[names(x) %in% n]
-    ### x[order(names(x))]
-    x[match(n, names(x))]
-  })
+  lapply(arguments, function(x) x[match(n, names(x))])
 }
 
 
@@ -105,12 +118,49 @@ parse_cdhitest_output <- function (file) {
 
 
 loadSamples <- function(){
-  samples <- readr::read_tsv(opt$sampleConfigFile, col_types = readr::cols())
+  samples <- readr::read_tsv(opt$demultiplex_sampleConfigFile, col_types = readr::cols())
   
   if(nrow(samples) == 0){
     write(c(paste(lubridate::now(), 'Error - no lines of information was read from the sample configuration file.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
     q(save = 'no', status = 1, runLast = FALSE) 
   }
+  
+  
+  if('refGenome' %in% names(samples)){
+    samples$refGenome <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(unique(samples$refGenome), '.2bit'))
+    
+    if(! all(sapply(unique(samples$refGenome), file.exists))){
+      write(c(paste(now(), "Error - one or more blat database files could not be found in AAVengeR's data/blatDBs directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      q(save = 'no', status = 1, runLast = FALSE) 
+    }
+  } else {
+    samples$refGenome <- NA
+  }
+  
+  
+  
+  if('vectorFastaFile' %in% names(samples)){
+    samples$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', samples$vectorFastaFile)
+    
+    if(! all(sapply(unique(samples$vectorFastaFile), file.exists))){
+      write(c(paste(now(), "Error - one or more vector FASTA files could not be found in AAVengeR's data/vectors directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      q(save = 'no', status = 1, runLast = FALSE) 
+    }
+  } else {
+    samples$vectorFastaFile <- NA
+  }
+  
+  
+  if('leaderSeqHMM' %in% names(samples)){
+    samples$leaderSeqHMM <- file.path(opt$softwareDir, 'data', 'hmms', samples$leaderSeqHMM)
+    
+    if(! all(sapply(unique(samples$leaderSeqHMM), file.exists))){
+      write(c(paste(now(), "Error - one or more leader sequence HMM files could not be found in AAVengeR's data/hmms directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      q(save = 'no', status = 1, runLast = FALSE) 
+    }
+  }
+  
+  
 
   # Create missing columns and set to NA.
   if(! 'adriftRead.linkerBarcode.start' %in% names(samples)){
@@ -124,13 +174,13 @@ loadSamples <- function(){
   }
   
   samples <- bind_rows(lapply(split(samples, 1:nrow(samples)), function(x){
-    Ns <- stringr::str_extract(x$adriftRead.linker.seq, 'N+')
+    Ns <- stringr::str_extract(x$adriftReadLinkerSeq, 'N+')
     
     # Detecting Ns in the adrift linker and having adriftRead.linkerBarcode.start 
     # set to NA triggers the determination of positions.
     
     if(! is.na(Ns) & is.na(x$adriftRead.linkerBarcode.start)){  
-      o <- stringr::str_locate(x$adriftRead.linker.seq, Ns)
+      o <- stringr::str_locate(x$adriftReadLinkerSeq, Ns)
       x$adriftRead.linkerBarcode.start  <- 1
       x$adriftRead.linkerBarcode.end    <- o[1,1] - 1
     }
@@ -139,7 +189,7 @@ loadSamples <- function(){
     # set to NA triggers the determination of positions.
     
     if(! is.na(Ns) & is.na(x$adriftRead.linkerRandomID.start)){ 
-      o <- stringr::str_locate(x$adriftRead.linker.seq, Ns)
+      o <- stringr::str_locate(x$adriftReadLinkerSeq, Ns)
       x$adriftRead.linkerRandomID.start  <- o[1,1]
       x$adriftRead.linkerRandomID.end    <- o[1,2]
     }
@@ -147,7 +197,7 @@ loadSamples <- function(){
   }))
   
   requiredColumns <- c("trial", "subject", "sample", "replicate",  
-                       "adriftRead.linker.seq", "index1.seq", "refGenome.id", "vectorFastaFile", "flags")
+                       "adriftReadLinkerSeq", "index1Seq", "refGenome", "vectorFastaFile", "flags")
   
   if(! all(requiredColumns %in% names(samples))){
     missingCols <- paste0(requiredColumns[! requiredColumns %in% names(samples)], collapse = ', ')
@@ -225,6 +275,9 @@ parseCutadaptLog <- function(f){
 representativeSeq <- function(s, percentReads = 95){
   if(length(s) == 1 | dplyr::n_distinct(s) == 1) return(list(0, s[1]))
 
+  
+  ###browser()
+  
   k <- data.frame(table(s))
   s <- unique(s)
   
@@ -235,22 +288,24 @@ representativeSeq <- function(s, percentReads = 95){
   }
   
   # Align sequences in order to handle potential indels.
-  # Here we create and close connection so that we do not reach an open file limit when called in a loop.
   f <- tmpFile()
   inputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.fasta'))
   fileConn <- file(inputFile)
   write(paste0('>', paste0('s', 1:length(s)), '\n', s), file = fileConn)
   close(fileConn)
   
+  # Align sequences.
   outputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.representativeSeq.muscle'))
-
   system(paste(file.path(opt$softwareDir, 'bin', 'muscle'), '-quiet -maxiters 1 -diags -in ', inputFile, ' -out ', outputFile))
-  
   if(! file.exists(outputFile)) waitForFile(outputFile)
 
   # Alignments are read in with dashes.
   s <- as.character(Biostrings::readDNAStringSet(outputFile))
   
+  # Close the connection created by readDNAStringSet which are sometimes left often.
+  g <- grepl(f, showConnections(all = TRUE)[,1])
+  if(any(g)) close.connection(getConnection(which(grepl(f, g)) - 1))
+
   invisible(file.remove(c(inputFile, outputFile)))
 
   # Create an all vs. all edit distance matrix.
@@ -648,11 +703,11 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
 determine_RC_I1 <- function(){
   I1 <- as.character(ShortRead::readFastq(opt$demultiplex_index1ReadsFile)@sread)
   
-  d <- select(samples, subject, sample, replicate, index1.seq)
+  d <- select(samples, subject, sample, replicate, index1Seq)
   
   d <- dplyr::bind_rows(lapply(split(d, 1:nrow(d)), function(x){
-         x$barcodePercent <- sum(I1 %in% x$index1.seq)/length(I1) * 100
-         x$barcodePercentRC <- sum(I1 %in% as.character(Biostrings::reverseComplement(Biostrings::DNAString(x$index1.seq))))/length(I1) * 100
+         x$barcodePercent <- sum(I1 %in% x$index1Seq)/length(I1) * 100
+         x$barcodePercentRC <- sum(I1 %in% as.character(Biostrings::reverseComplement(Biostrings::DNAString(x$index1Seq))))/length(I1) * 100
          x
        }))
   

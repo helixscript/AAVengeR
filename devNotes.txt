@@ -1,8 +1,19 @@
 GRANT ALL ON *.* TO 'admin'@'localhost' IDENTIFIED BY 'iAmAdmin+1' WITH GRANT OPTION;
 create database AAVengeR;
 use AAVengeR;
-CREATE TABLE fragments (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), replicate TINYINT UNSIGNED, refGenome VARCHAR(25), vectorFastaFile VARCHAR(100), flags VARCHAR(25), data LONGBLOB);
-Alter Table fragments ADD PRIMARY KEY(trial, subject, sample, replicate);
+CREATE TABLE fragments (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), replicate TINYINT UNSIGNED, refGenome VARCHAR(50), vectorFastaFile VARCHAR(100), flags VARCHAR(50), data LONGBLOB);
+Alter Table fragments ADD PRIMARY KEY(trial, subject, sample, replicate, refGenome);
+
+
+CREATE TABLE multihits (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), refGenome VARCHAR(50), data LONGBLOB);
+Alter Table multihits ADD PRIMARY KEY(trial, subject, sample, refGenome);
+
+
+set global max_allowed_packet=2147483648; # 2GB packet max.
+
+
+
+When uploading fragment data to the database, entries with the sample trial/subject/sample/replicate/refGenome will be deleted before uploading similiar data.
 
 ~/.my.cnf
 [AAVengeR]
