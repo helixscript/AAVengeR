@@ -18,7 +18,7 @@ dbConn  <- dbConnect(MySQL(), group='specimen_management')
 gtsp <- dbGetQuery(dbConn, 'select * from gtsp')
 dbDisconnect(dbConn)
 
-# s$SampleName <- sub('20221121\\-', '20221121_', s$SampleName)
+ s$SampleName <- sub('20230107\\-', '20230107_', s$SampleName)
 
 samples <- sub('\\-\\d+$', '', s$SampleName)
 reps <- as.integer(sub('\\-', '', stringr::str_extract(samples, '\\-\\d+')))

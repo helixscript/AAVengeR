@@ -327,9 +327,9 @@ if('databaseGroup' %in% names(opt)){
     invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
     
     r <- dbExecute(con,
-              "insert into fragments values (?, ?, ?, ?, ?, ?, ?, ?)",
+              "insert into fragments values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
               params = list(x$trial[1], x$subject[1], x$sample[1], x$replicate[1], x$refGenome[1],
-                            x$vectorFastaFile[1], x$flags[1], list(serialize(tab, NULL))))
+                            x$vectorFastaFile[1], x$flags[1], list(serialize(tab, NULL)), as.character(lubridate::today())))
     
     if(r == 0){
         write(c(paste(now(), 'Error -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)

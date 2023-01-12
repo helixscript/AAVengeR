@@ -1,5 +1,6 @@
 library(dplyr)
 library(lubridate)
+library(parallel)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
@@ -10,8 +11,7 @@ dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 
 # Read in Standardized fragments.
 write(c(paste(now(), '   Reading standardized fragment data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile)) %>% 
-         dplyr::rename(refGenome = refGenome.id)
+frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile)) %>% dplyr::select(-readIDs) 
 
 samples <- distinct(tibble(trial = frags$trial, subject = frags$subject, sample = frags$sample, replicate = frags$replicate, flags = frags$flags))
 
@@ -149,42 +149,61 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
   }))
 }
 
-frags$fragWidth <- frags$fragEnd - frags$fragStart + 1
-frags$replicate <- as.integer(frags$replicate)
-
 
 write(c(paste(now(), '   Building replicate level integration sites.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-o <- split(frags, paste(frags$trial, frags$subject, frags$sample, frags$replicate, frags$posid))
-counter <- 1
-total <- length(o)
+frags$fragWidth <- frags$fragEnd - frags$fragStart + 1
+frags$replicate <- as.integer(frags$replicate)
 
-sites <- bind_rows(lapply(o, function(x){
-  # browser()
-  message(counter, ' / ', total); counter <<- counter + 1
+# Create a replicate level / posid grouping id then create another grouping id for parallel processing.
+frags <- group_by(frags, trial, subject, sample, replicate, posid) %>% 
+         mutate(g = cur_group_id()) %>%
+         ungroup()
+
+o <- split(frags, frags$g)
+i <- dplyr::ntile(1:length(o), opt$buildSites_CPUs)
+f <- mapply(function(x, y){
+       x$i <- y
+       x
+     }, o, i, SIMPLIFY = FALSE) %>% bind_rows()
+
+
+cluster <- makeCluster(opt$buildSites_CPUs)
+clusterExport(cluster, c('opt', 'frags'))
+
+sites <- bind_rows(parLapply(cluster, split(f, f$i), function(a){
+           library(dplyr)
+           source(file.path(opt$softwareDir, 'lib.R'))
   
-  if(nrow(x) == 1){
-    return(dplyr::mutate(x, fragments = n_distinct(x$randomLinkerSeq.adriftReads), fragmentWidths = n_distinct(x$fragWidth), maxLeaderSeqDist = 0) %>%
-             dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile))
-  } else {
+           bind_rows(lapply(split(a, a$g), function(x){
+
+             if(nrow(x) == 1){
+               return(dplyr::mutate(x, fragments = n_distinct(x$randomLinkerSeq), 
+                                    fragmentWidths = n_distinct(x$fragWidth), 
+                                    maxLeaderSeqDist = 0) %>%
+                      dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile))
+           } else {
+             s <- unlist(x$leaderSeqs)
+
+            if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
+              set.seed(1)
+              s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
+            }
     
-    s <- unlist(x$leaderSeqs)
-    if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
-      set.seed(1)
-      s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
-    }
+            r <- representativeSeq(s)
     
-    r <- representativeSeq(s)
-    
-    ### if(max(stringdist::stringdistmatrix(s)) > 10) browser()
-    
-    return(dplyr::mutate(x, fragments = n_distinct(x$randomLinkerSeq.adriftReads), fragmentWidths = n_distinct(x$fragWidth), reads = sum(reads), repLeaderSeq = r[[2]], 
-                         maxLeaderSeqDist = max(stringdist::stringdistmatrix(s))) %>%
-           dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile) %>%
-           dplyr::slice(1))
-  }
-}))
+            return(dplyr::mutate(x, fragments = n_distinct(x$randomLinkerSeq), 
+                                fragmentWidths = n_distinct(x$fragWidth), 
+                                reads = sum(reads), 
+                                repLeaderSeq = r[[2]], 
+                                maxLeaderSeqDist = max(stringdist::stringdistmatrix(s))) %>%
+                  dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile) %>%
+                  dplyr::slice(1))
+               }
+           }))
+         }))
   
+
 
 # Create a wide view of the replicate level sites and create NA cells 
 # for replicates where specific sites were not found.
@@ -216,40 +235,88 @@ tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sa
       bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], refGenome = x$refGenome[1], posid = x$posid[1], flags = x$flags[1], vectorFastaFile = x$vectorFastaFile[1]), o)
 }))
 
-
 write(c(paste(now(), '   Buiding sample level integration sites.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-tbl2 <- bind_rows(lapply(1:nrow(tbl1), function(x){
-  x <- tbl1[x,]
+tbl1$i <- dplyr::ntile(1:nrow(tbl1), opt$buildSites_CPUs)
 
-  f <- subset(frags, trial == x$trial & subject == x$subject & sample == x$sample & posid == x$posid)
+tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
+          library(dplyr)
+          source(file.path(opt$softwareDir, 'lib.R'))
   
-  if(nrow(f) == 1){
-    k <- tibble(fragments = n_distinct(f$randomLinkerSeq.adriftReads), fragmentWidths = n_distinct(f$fragWidth), reads = f$reads, 
-                maxLeaderSeqDist = f$maxLeaderSeqDist, repLeaderSeq = f$repLeaderSeq) 
-    
-  } else {
-    s <- unlist(f$leaderSeqs)
-    if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
-      set.seed(1)
-      s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
-    }
-    
-    r <- representativeSeq(s)
-    
-    ### if(max(stringdist::stringdistmatrix(s)) > 10) browser()
-    
-    k <- tibble(fragments = n_distinct(f$randomLinkerSeq.adriftReads), fragmentWidths = n_distinct(f$fragWidth), reads = sum(f$reads), 
-                maxLeaderSeqDist = max(stringdist::stringdistmatrix(s)), repLeaderSeq = r[[2]])
-  }
+          bind_rows(lapply(1:nrow(p), function(n){
+             x <- p[n,]
+
+             f <- subset(frags, trial == x$trial & subject == x$subject & sample == x$sample & posid == x$posid)
   
-  k$nRepsObs <- sum(! is.na(unlist(x[, which(grepl('\\-repLeaderSeq', names(x)))])))
-  # browser()
+             if(nrow(f) == 1){
+               k <- tibble(fragments = n_distinct(f$randomLinkerSeq), 
+                           fragmentWidths = n_distinct(f$fragWidth), 
+                           reads = f$reads, 
+                           maxLeaderSeqDist = f$maxLeaderSeqDist, 
+                           repLeaderSeq = f$repLeaderSeq) 
+    
+             } else {
+               s <- unlist(f$leaderSeqs)
+               
+               if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
+                 set.seed(1)
+                 s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
+               }
+    
+               r <- representativeSeq(s)
+    
+               k <- tibble(fragments = n_distinct(f$randomLinkerSeq), 
+                           fragmentWidths = n_distinct(f$fragWidth), 
+                           reads = sum(f$reads), 
+                           maxLeaderSeqDist = max(stringdist::stringdistmatrix(s)), 
+                           repLeaderSeq = r[[2]])
+             }
   
-  bind_cols(x[,1:5], k, x[,6:length(x)])
+             k$nRepsObs <- sum(! is.na(unlist(x[, which(grepl('\\-repLeaderSeq', names(x)))])))
+             
+             bind_cols(x[,1:5], k, x[,6:length(x)])
+          }))
 }))
 
 if(any(is.infinite(tbl2$maxLeaderSeqDist))) tbl2[is.infinite(tbl2$maxLeaderSeqDist),]$maxLeaderSeqDist <- NA
+tbl2$i <- NULL
+
+
+
+if('databaseGroup' %in% names(opt)){
+  library(RMariaDB)
+  
+  con <- dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+  
+  invisible(lapply(split(tbl2, paste(tbl2$trial, tbl2$subject, tbl2$sample, tbl2$refGenome)), function(x){
+    dbExecute(con, paste0("delete from sites where trial='", x$trial[1], "' and subject='", x$subject[1],
+                          "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
+    
+    f <- tmpFile()
+    readr::write_tsv(dplyr::select(x, -trial, -subject, -sample, -refGenome), file.path(opt$outputDir, 'tmp', f))
+    system(paste0('xz ', file.path(opt$outputDir, 'tmp', f)))
+    
+    fp <- file.path(opt$outputDir, 'tmp', paste0(f, '.xz'))
+    
+    tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
+    
+    invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+    
+    r <- dbExecute(con,
+                   "insert into sites values (?, ?, ?, ?, ?, ?, ?, ?)",
+                   params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1],
+                                 x$vectorFastaFile[1], x$flags[1], list(serialize(tab, NULL)), as.character(lubridate::today())))
+    
+    if(r == 0){
+      write(c(paste(now(), 'Error -- could not upload sites data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      q(save = 'no', status = 1, runLast = FALSE)
+    } else {
+      write(c(paste(now(), '   Uploaded sites data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    }
+  }))
+  
+  dbDisconnect(con)
+}
 
 saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'))
 readr::write_csv(arrange(tbl2, desc(fragments)), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.csv'))

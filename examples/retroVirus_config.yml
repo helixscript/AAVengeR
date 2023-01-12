@@ -1,0 +1,171 @@
+Rscript:           /usr/bin/Rscript                                             # [file path] Path to Rscript interpreter associated with the version of R inteded to be used for the analysis.
+softwareDir:       /home/ubuntu/AAVengeR                                        # [file path] Path to AAVengeR software directory.
+outputDir:         output                                                       # [file path] Path to the output directory which will be created if it does not exists.
+databaseGroup:     AAVengeR
+
+modules:
+   - demultiplex                                                                # [module name]
+   - prepReads                                                                  # [module name]
+   - alignReads                                                                 # [module name] 
+   - buildFragments                                                             # [module name]
+   - buildStdFragments                                                          # [module name]
+   - buildSites                                                                 # [module name]
+   - annotateRepeats                                                            # [module name]
+   - callNearestGenes                                                           # [module name]
+   - callNearestGenesFiltered                                                   # [module name]
+
+# Processing parameters.
+#~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
+
+demultiplex_CPUs: 15                                                            # [integer]   Number of CPUs to use for demultiplexing.
+demultiplex_outputDir: demultiplex                                              # [character] Demultiplexing ouput directory name that will be created in the output directory.
+demultiplex_anchorReadsFile: data/combined_R2.fastq.gz                          # [file path] Anchor read FASTQ path.
+demultiplex_adriftReadsFile: data/combined_R1.fastq.gz                          # [file path] Adrift read FASTQ path.
+demultiplex_index1ReadsFile: data/combined_I1.fastq.gz                          # [file path] I1 barcode read FASTQ path.
+demultiplex_sampleConfigFile:  data/sampleData.tsv                              # [file path] Path to sample data file.
+demultiplex_RC_I1_barcodes: FALSE                                               # [boolean]   Use the reverse compliment of I1 barcode sequences found in [sampleConfigFile].
+demultiplex_RC_I1_barcodes_auto: TRUE                                           # [boolean]   Attempt to automatically determine best setting for demultiplex_RC_I1_barcodes. Will override [demultiplex_RC_I1_barcodes].
+demultiplex_qualtrim_code: '0'                                                  # [character] ASCII Q-score threshold to fail sliding window read quality trimming.
+demultiplex_qualtrim_halfWidth: 5                                               # [integer]   Half width of sliding window used to evaluate base call scores.
+demultiplex_qualtrim_events: 2                                                  # [integer]   Number of events within a sliding that need to fall below the min. score to trigger trimming.
+demultiplex_qualtrim_minLength: 50                                              # [integer]   Minimum length of anchor and adrift reads post quality trimming.
+demultiplex_correctGolayIndexReads: TRUE                                        # [boolean]   Correct Golay barcodes using Golay alogrithm. Requires Python2 and numPy module installed.
+demultiplex_sequenceChunkSize: 100000                                           # [integer]   Chunk size to use when breaking sequencing data into chunks for parallel processing.
+demultiplex_index1ReadMaxMismatch: 1                                            # [integer]   Max. number of mismatches allowed in I1 barcodes.
+demultiplex_useAdriftReadUniqueLinkers: TRUE                                    # [boolean]   Use unique adrift read linker sequences when demultiplexing.
+demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1                               # [integer]   (evaluated if demultiplex_useAdriftReadUniqueLinkers = TRUE) Max. number of mismatches allowed in R1 unique linker sequences.
+demultiplex_anchorReadStartSeq.maxMisMatch: 1                                   # [integer]   (evaluated if anchorRead.startSeq column provided in sampleData file) Max. number of mismatches allowed in anchor read start sequences.
+
+prepReads_CPUs: 15                                                              # [integer]   Number of CPUs to use when preparing reads for alignment to a reference genome.
+prepReads_outputDir: prepReads                                                  # [character] prepReads ouput directory name that will be created in the output directory.
+prepReads_readsTable:  demultiplex/reads.rds                                    # [file path relative to output path] Path to input reads data object created by demultiplex.R.
+prepReads_excludeAnchorReadVectorHits: TRUE                                     # [boolean]   Exclude anchor reads whoes ends align strongly to the vector sequence.
+prepReads_excludeAdriftReadVectorHits: FALSE                                    # [boolean]   Exclude adrift reads whoes ends align strongly to the vector sequence.
+prepReads_vectorAlignmentTestLength: 25                                         # [integer]   Length of NTs to from ends of reads to align to vectors to test for vector alignments.
+prepReads_vectorAlignmentTest_minPercentCoverage: 90                            # [float]     Min. percent of {prepReads_vectorAlignmentTestLength} required for a vector test alignment to be considered. 
+prepReads_vectorAlignmentTest_minPercentID: 90                                  # [float]     Min. percent seq id required for a vector test alignment to be considered. 
+prepReads_HMMsearchReadStartPos: 1                                              # [integer]   (evaluated if leaderSeqHMM is a column in the sampleDetails file) Read start position of region to be evaluated by HMM. 
+prepReads_HMMsearchReadEndPos:  16                                              # [integer]   (evaluated if leaderSeqHMM is a column in the sampleDetails file) Read end position of region to be evaluated by HMM. 
+prepReads_HMMmaxStartPos: 3                                                     # [integer]   (evaluated if leaderSeqHMM is a column in the sampleDetails file) Max position on anchor read that a HMM hit can begin.
+prepReads_HMMminFullBitScore: 5                                                 # [float]     (evaluated if leaderSeqHMM is a column in the sampleDetails file) Min. HMM score for a leader sequence to be considered. 
+prepReads_minAnchorReadLength: 25                                               # [integer]   Min. length of anchor read post trim. Shorter reads would likely not align well to reference genomes.
+prepReads_minAdriftReadLength: 25                                               # [integer]   Min. length of adrift read post trim. Shorter reads would likely not align well to reference genomes.
+prepReads_buildReadMaps_blastReconstruction: TRUE                               # [boolean]   (evaluated if leaderSeqHMM is NOT a column in the sampleDetails file) Use local alignments or reads to vector sequences to build leader sequence models. 
+prepReads_mapLeaderSeqsMinAlignmentLength: 15                                   # [integer]   (evaluated if leaderSeqHMM is NOT a column in the sampleDetails file and prepReads_buildReadMaps_blastReconstruction = TRUE) min. length of local alignment to vector used when building leader seq models.
+prepReads_mapLeaderSeqsMinPercentID: 95                                         # [float]     (if prepReads_buildReadMaps_blastReconstruction = TRUE) min. % seq id of local alignment to vector used when building leader seq models.
+prepReads_mapLeaderSeqsMaxGapBetweenAlignments: 5                               # [integer]   The max. distanct between local alignments to vector sequences that can be merged into single repLeader sequences.
+prepReads_buildReadMaps_minMapStartPostion: 5                                   # [integer]   (if prepReads_buildReadMaps_blastReconstruction = FALSE) Use the best alignment begining at a position <= this value as the leader seque model.
+
+alignReads_CPUs: 15                                                             # [integer]   Number of CPUs to use when aligning reads to a reference genome.
+alignReads_outputDir: alignReads                                                # [character] alignReads ouput directory name that will be created in the output directory.
+alignReads_inputFile: prepReads/reads.rds                                       # [file path relative to output path] Path to input reads RDS file.
+alignReads_genomeAlignment_anchorRead_maxStartPos: 3                            # [integer]   Max. start position along trimmed anchor reads that an alignment can begin. (!) Set to a small value such as 3 when using HMMs, large value such as 250 for AAV analyses.
+alignReads_genomeAlignment_adriftRead_maxStartPos: 3                            # [integer]   Max. start position along trimmed adrift reads that an alignment can begin.
+alignReads_genomeAlignment_minPercentID: 98                                     # [float]     Min. % seq id required to accept an alignment to the reference genome.
+alignReads_genomeAlignment_blatStepSize: 9                                      # [integer]   BLAT step size parameter. BLAT default 9.
+alignReads_genomeAlignment_blatTileSize: 11                                     # [integer]   BLAT tile size parameter. BLAT default 11.
+alignReads_genomeAlignment_repMatch: 3000                                       # [integer]   BLAT repMatch parameter. Number of times a tile needs to be seen before masking.
+alignReads_genomeAlignment_anchorReadEnd_maxUnaligned: 5                        # [integer]   Max. number of NTs at the end of anchor reads not aligning to the genome.
+alignReads_genomeAlignment_adriftReadEnd_maxUnaligned: 10                       # [integer]   Max. number of NTs at the end of adrift reads not aligning to the genome.
+                                                                                #             This value should be generous for AAV analysis, eg. 10, since ITR remnants can not always be fully modeled
+                                                                                #             and trimmed before aligning to genomes. Unlaligned NTs may arise from over-reading into poorly ITR remnants.
+
+buildFragments_CPUs: 15                                                         # [integer]   Number of CPUs to use when generating initial fragments.
+buildFragments_outputDir: buildFragments                                        # [character] buildFragments ouput directory name that will be created in the output directory.
+buildFragments_duplicateReadFile: prepReads/duplicateReads.rds                  # [file path relative to output path] (optional) Path to input duplicate reads RDS file.
+buildFragments_anchorReadsAlignmentFile: alignReads/anchorReadAlignments.rds    # [file path relative to output path] Path to anchor reads alignment data RDS file.
+buildFragments_adriftReadsAlignmentFile: alignReads/adriftReadAlignments.rds    # [file path relative to output path] Path to adrift reads alignment data RDS file.
+buildFragments_idGroup_size: 1000                                               # [integer]  Number of read ids to group into initial fragments at one time. Grouping prevents overloading join functions.
+buildFragments_maxReadAlignments: 1000                                          # [integer]  Max. number of alignments allowed for a given sequencing read. If both the anchor and adrift read in a pair exceed this value, the software will subsample alignments.
+buildFragments_minFragLength: 20                                                # [integer]  Min. length allowed for a fragment.
+buildFragments_maxFragLength: 2500                                              # [integer]  Max. length allowed for a fragment.
+buildFragments_randomLinkerID_minReadCountToSegreagate: 10                      # [integer]  When testing random linker ids for sample crossover, only consider resolving crossovers if a random id was seen this many times.
+buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90                # [integer]  When testing random linker ids for sample crossover, a single sample must have this majority percentage for a correction to occur.
+
+buildStdFragments_CPUs: 15                                                      # [integer]   Number of CPUs to use when generating standardized fragments.
+buildStdFragments_autoPullTrialSamples: TRUE                                    # [boolean]   Automatically pull additional trial samples from the database to co-standardize with data found in buildStdFragments_inputFile.
+buildStdFragments_minReadsPerFrag: 1                                            # [integer]   Min. number of reads required to accept a standardized fragment. 
+buildStdFragments_createMultiHitClusters: TRUE                                  # [boolean]   Create networks of sites for reads that align well to multiple locations in a reference genome.
+buildStdFragments_inputFile: buildFragments/fragments.rds                       # [file path relative to output path] Path to initial fragment RDS file (ouput of buildFragments module).
+# buildStdFragments_trialSubjectList: Sabatino;pM50|Sabatino;pLinus             # [string]    delimited string containing trial and subject names of records to pull from the database: trialA;subjectA|trialB;subjectB.
+buildStdFragments_outputDir: buildStdFragments                                  # [character] buildStdFragments ouput directory name that will be created in the output directory.
+buildStdFragments_representativeSeqCalc_maxReads: 1000                          # [integer]   When determining representative leader sequences for fragments, subsample leader sequences for fragments that have more than this many candidates.
+buildStdFragments_representativeSeqCalc_CPUs: 5                                 # [integer]   Number of CPUs to use for each calculation when determining representative leader sequences for fragments.
+buildStdFragments_categorize_anchorReadRemnants_stepSize: 10                    # [float]     When assigning leader sequences to subject specific groups, the inclusion edit distance is calculated as (length of the seed sequence / this value) + 1 rounded up.
+buildStdFragments_UMI_conflict_minPercentReads: 75                              # [float]     When a random id is seen more than once within a sample, it is considered a PCR artifact and the fragment that contains this percentage or more of the reads is retained.
+                                                                                #             All fragments associated with the duplicated random id are removed if no fragment meets this percentage read threshold.  
+
+buildSites_CPUs: 15
+buildSites_inputFile: buildStdFragments/stdFragments.rds
+buildSites_outputDir: buildSites
+
+annotateRepeats_CPUs: 15
+annotateRepeats_inputFile: buildSites/sites.rds
+annotateRepeats_outputDir: annotateRepeats
+annotateRepeats_addAfter: posid
+
+predictPCRartifacts_CPUs: 15
+predictPCRartifacts_inputFile: callNearestGenesFiltered/sites.rds
+predictPCRartifacts_outputDir: predictPCRartifacts
+predictPCRartifacts_outputFile: sites.rds
+predictPCRartifacts_addAfter: nRepsObs
+predictPCRartifacts_adjacentSeqLength: 15
+predictPCRartifacts_minAlignmentLength: 12
+predictPCRartifacts_minPercentSeqID: 90
+
+callNearestGenes_CPUs: 15
+callNearestGenes_inputFile: annotateRepeats/sites.rds
+callNearestGenes_outputDir: callNearestGenes
+callNearestGenes_outputFile: sites.rds
+callNearestGenes_addAfter: nRepsObs
+callNearestGenes_TU_position: either
+callNearestGenes_boundaries:
+  hg38:
+    TUs:   hg38.TUs.rds
+    exons: hg38.exons.rds
+  sacCer3:
+        TUs:   sacCer3.TUs.rds
+        exons: sacCer3.exons.rds
+  canFam3:
+        TUs:   canFam3.humanXeno.TUs.rds
+        exons: canFam3.humanXeno.exons.rds
+  macFas5:
+        TUs:   macFas5.humanXeno.TUs.rds
+        exons: macFas5.humanXeno.exons.rds
+
+
+callNearestGenesFiltered_CPUs: 15
+callNearestGenesFiltered_columnPrefix: oncoGenes
+callNearestGenesFiltered_inputFile: callNearestGenes/sites.rds
+callNearestGenesFiltered_outputDir: callNearestGenesFiltered
+callNearestGenesFiltered_outputFile: sites.rds
+callNearestGenesFiltered_addAfter: nRepsObs
+callNearestGenesFiltered_TU_position: either
+callNearestGenesFiltered_boundaries:
+  hg38:
+    TUs:   hg38.TUs.rds
+    exons: hg38.exons.rds
+    filter: hg38.Bushman.oncoGeneList.rds
+  sacCer3:
+        TUs:   sacCer3.TUs.rds
+        exons: sacCer3.exons.rds
+        filter: hg38.Bushman.oncoGeneList.rds
+  canFam3:
+        TUs: canFam3.humanXeno.TUs.rds
+        exons: canFam3.humanXeno.exons.rds
+        filter: hg38.Bushman.oncoGeneList.rds
+  macFas5:
+        TUs:   macFas5.humanXeno.TUs.rds
+        exons: macFas5.humanXeno.exons.rds
+        filter: hg38.Bushman.oncoGeneList.rds
+
+
+mapSiteLeaderSequences_CPUs: 15
+mapSiteLeaderSequences_outputDir: mapSiteLeaderSequences
+mapSiteLeaderSequences_inputFile: callNearestGenes/sites.rds
+mapSiteLeaderSequences_addAfter: repLeaderSeq
+mapSiteLeaderSequences_minAllowableGap: 5                                       # Min. space between blast hits allowed. Larger gaps will be filled with [x].
+mapSiteLeaderSequences_alignmentChunkSize: 5000
+mapSiteLeaderSequences_minAlignmentPercentID: 90
+mapSiteLeaderSequences_minAlignmentLength: 15
+mapSiteLeaderSequences_outputFile: sites.rds

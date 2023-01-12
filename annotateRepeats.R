@@ -12,6 +12,8 @@ dir.create(file.path(opt$outputDir, opt$annotateRepeats_outputDir))
 
 sites <- readRDS(file.path(opt$outputDir, opt$annotateRepeats_inputFile))
 
+sites$refGenome <- sub('\\.2bit$', '', sites$refGenome)
+
 if(! opt$annotateRepeats_addAfter %in% names(sites)){
   write(c(paste(now(), paste0('   Error - ', opt$annotateRepeats_addAfter, ' is not a column in your input data frame.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE) 

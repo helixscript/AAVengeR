@@ -18,18 +18,9 @@ dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'))
 dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'))
 
 
-# Load sample data and check to see if all requested blat DBs are available.
-write(c(paste(now(), '   Reading sample data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-samples <- loadSamples()
-
-if(! all(file.exists(file.path(opt$softwareDir, 'data', 'blatDBs', paste0(unique(samples$refGenome.id), '.2bit'))))){
-  write(c(paste(now(), 'Errror -- all reference genomes are not available.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
-
 # Create a CPU cluster.
 cluster <- makeCluster(opt$alignReads_CPUs)
-clusterExport(cluster, c('opt', 'samples', 'tmpFile'))
+clusterExport(cluster, c('opt', 'tmpFile'))
 
 write(c(paste(now(), '   Reading in prepped reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
@@ -40,9 +31,7 @@ blat <- function(y, ref, dir){
   f <- file.path(dir, tmpFile())
   write(paste0('>', y$id, '\n', y$seq), f)
   
-  db <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(ref, '.2bit'))
-  
-  system(paste0(file.path(opt$softwareDir, 'bin', 'blat'), ' ', db, ' ', f, ' ', paste0(f, '.psl'), 
+  system(paste0(file.path(opt$softwareDir, 'bin', 'blat'), ' ', ref, ' ', f, ' ', paste0(f, '.psl'), 
                 ' -tileSize=', opt$alignReads_genomeAlignment_blatTileSize, 
                 ' -stepSize=', opt$alignReads_genomeAlignment_blatStepSize, 
                 ' -repMatch=', opt$alignReads_genomeAlignment_repMatch,
@@ -189,6 +178,14 @@ i <- base::intersect(anchorReadAlignments$readID, adriftReadAlignments$readID)
 anchorReadAlignments <- anchorReadAlignments[anchorReadAlignments$readID %in% i,]
 adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$readID %in% i,]
 
+
+# Add refGenome, vector, and flags.
+
+
+anchorReadAlignments <- left_join(anchorReadAlignments, distinct(select(reads, readID, vectorFastaFile, flags)), by = 'readID')
+
+
+# Expand predicted leaderSeq sequences by extending with delayed alignment sequences. 
 anchorReadAlignments <- left_join(anchorReadAlignments, select(reads, readID, anchorReadSeq, leaderSeq), by = 'readID')
 anchorReadAlignments$leaderSeq <- paste0(anchorReadAlignments$leaderSeq, substr(anchorReadAlignments$anchorReadSeq, 1, anchorReadAlignments$qStart))
 anchorReadAlignments <- dplyr::select(anchorReadAlignments, -anchorReadSeq)

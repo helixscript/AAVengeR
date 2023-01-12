@@ -11,7 +11,6 @@ library(lubridate)
 library(dplyr)
 library(data.table)
 
-
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
@@ -23,7 +22,7 @@ dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
 dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'))
 dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'))
 
-if(! file.exists(opt$sampleConfigFile)){
+if(! file.exists(opt$demultiplex_sampleConfigFile)){
   write(c(paste(now(), '   Error - the sample configuration file could not be found')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE) 
 }
@@ -54,7 +53,7 @@ if(opt$demultiplex_RC_I1_barcodes_auto){
 }
 
 # Reverse compliment index1 sequences if requested.
-if(opt$demultiplex_RC_I1_barcodes) samples$index1.seq <- as.character(reverseComplement(DNAStringSet(samples$index1.seq)))
+if(opt$demultiplex_RC_I1_barcodes) samples$index1Seq <- as.character(reverseComplement(DNAStringSet(samples$index1Seq)))
 
 write(c(paste(now(), '   Reading in index 1 sequencing data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 index1Reads <- shortRead2DNAstringSet(readFastq(opt$demultiplex_index1ReadsFile))
@@ -84,11 +83,13 @@ invisible(parLapply(cluster,
                       qualTrimReads(x[[1]], x[[2]], x[[3]], x[[4]])
                     }))
 
-# Sync reads since some may have been removed during quality trimming.
 write(paste(now(), '   Syncing anchor and adrift reads post-trimming.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
+# Collate fastq files created from sequence chunks and convert to DNAstring objects.
 adriftReads <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), pattern = 'adriftReads', full.names = TRUE), function(x) shortRead2DNAstringSet(readFastq(x))))
 anchorReads <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), pattern = 'anchorReads', full.names = TRUE), function(x) shortRead2DNAstringSet(readFastq(x))))
 
+# Sync reads since some may have been removed during quality trimming.
 reads <- syncReads(shortRead2DNAstringSet(readFastq(opt$demultiplex_index1ReadsFile)), anchorReads, adriftReads)
 index1Reads <- reads[[1]];  anchorReads  <- reads[[2]];  adriftReads  <- reads[[3]]
 
@@ -116,9 +117,9 @@ gc()
 
 
 write(paste(now(), '   Demultiplexing sequence chunks.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
-if('anchorRead.startSeq' %in% names(samples)) write(paste(now(), '   Anchor read start sequence filter enabled.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+if('anchorReadStartSeq' %in% names(samples)) write(paste(now(), '   Anchor read start sequence filter enabled.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-
+# Demultiplex samples for each sequence chunk. Demultiplexed reads will be temporarily stored in output/tmp.
 invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
 #invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
   library(ShortRead)
@@ -130,26 +131,29 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
  
   # Capture the chunk identifier.
   chunk.n <- unlist(str_match_all(f, '(\\d+)$'))[2]
+  #message('Chunk: ', chunk.n)
   
   # Loop through samples in sample data file to demultiplex and apply read specific filters.
   invisible(lapply(1:nrow(samples), function(r){
+    #message('  row: ', r)
+    
+    ### if(r == 12) browser()
     r <- samples[r,]
 
     v0 <- rep(TRUE, length(anchorReads))
-    if('anchorRead.startSeq' %in% names(r)){
-      v0 <- vcountPattern(r$anchorRead.startSeq, subseq(anchorReads, 1, nchar(r$anchorRead.startSeq)), max.mismatch = opt$demultiplex_anchorRead.startSeq.maxMisMatch) == 1
+    if('anchorReadStartSeq' %in% names(r)){
+      v0 <- vcountPattern(r$anchorReadStartSeq, subseq(anchorReads, 1, nchar(r$anchorReadStartSeq)), max.mismatch = opt$demultiplex_anchorReadStartSeq.maxMisMatch) == 1
     }
        
     # Create barcode demultiplexing vectors.
-    v1 <- vcountPattern(r$index1.seq, index1Reads, max.mismatch = opt$demultiplex_index1ReadMaxMismatch) > 0
+    v1 <- vcountPattern(r$index1Seq, index1Reads, max.mismatch = opt$demultiplex_index1ReadMaxMismatch) > 0
     
     log.report <- tibble(sample = r$uniqueSample, demultiplexedIndex1Reads = sum(v1))
     
     # Create break read linker barcode demultiplexing vector.
     v2 <- rep(TRUE, length(adriftReads))
     if(opt$demultiplex_useAdriftReadUniqueLinkers){
-      #browser()
-      testSeq <- substr(r$adriftRead.linker.seq, r$adriftRead.linkerBarcode.start, r$adriftRead.linkerBarcode.end)
+      testSeq <- substr(r$adriftReadLinkerSeq, r$adriftRead.linkerBarcode.start, r$adriftRead.linkerBarcode.end)
       v2 <- vcountPattern(testSeq, subseq(adriftReads, r$adriftRead.linkerBarcode.start, r$adriftRead.linkerBarcode.end), max.mismatch = opt$demultiplex_adriftReadLinkerBarcodeMaxMismatch) > 0
       log.report$demultiplexedLinkerReads <- sum(v2)
     } else {
@@ -202,11 +206,11 @@ reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
   closeAllConnections()
   
   r <- subset(samples, uniqueSample == x)
-  c <- substr(r$adriftRead.linker.seq, max(stringr::str_locate_all(r$adriftRead.linker.seq, 'NNN')[[1]][,2])+1, nchar(r$adriftRead.linker.seq))
+  c <- substr(r$adriftReadLinkerSeq, max(stringr::str_locate_all(r$adriftReadLinkerSeq, 'NNN')[[1]][,2])+1, nchar(r$adriftReadLinkerSeq))
   t <- as.character(reverseComplement(DNAString(substr(c, nchar(c) - 14, nchar(c)))))
 
   data.table(uniqueSample = x, readID = names(anchorReads), anchorReadSeq = as.character(anchorReads), adriftReadSeq = as.character(adriftReads), 
-             adriftReadRandomID = as.character(randomIDs), adriftReadTrimSeq = t, adriftLinkerSeqEnd = nchar(r$adriftRead.linker.seq),
+             adriftReadRandomID = as.character(randomIDs), adriftReadTrimSeq = t, adriftLinkerSeqEnd = nchar(r$adriftReadLinkerSeq),
              vectorFastaFile = r$vectorFastaFile, refGenome = r$refGenome.id, flags = r$flags)
 }))
 
@@ -244,7 +248,16 @@ write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = 
 
 write(paste(now(), '   Writing outputs.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = FALSE)
-readr::write_csv(reads,  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.csv.gz'))
+reads <- left_join(reads, select(samples, uniqueSample, refGenome), by = 'uniqueSample')
+
+if('anchorReadStartSeq' %in% names(samples)){
+  reads <- left_join(reads, select(samples, uniqueSample, anchorReadStartSeq), by = 'uniqueSample')
+}
+
+if('leaderSeqHMM' %in% names(samples)){
+  reads <- left_join(reads, select(samples, uniqueSample, leaderSeqHMM), by = 'uniqueSample')
+}
+
+saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = TRUE)
 
 q(save = 'no', status = 0, runLast = FALSE) 

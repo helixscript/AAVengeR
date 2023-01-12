@@ -274,9 +274,6 @@ parseCutadaptLog <- function(f){
 
 representativeSeq <- function(s, percentReads = 95){
   if(length(s) == 1 | dplyr::n_distinct(s) == 1) return(list(0, s[1]))
-
-  
-  ###browser()
   
   k <- data.frame(table(s))
   s <- unique(s)

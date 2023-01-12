@@ -530,7 +530,7 @@ if(nrow(multiHitFrags) > 0 & opt$buildStdFragments_createMultiHitClusters){
     multiHitClusters <- left_join(multiHitClusters, distinct(select(o, i, refGenome)) , by = 'i')
     
     invisible(lapply(split(multiHitClusters, multiHitClusters$i), function(x){
-      
+  
       dbExecute(dbConn, paste0("delete from multihits where trial='", x$trial[1], "' and subject='", x$subject[1],
                             "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
       
@@ -545,14 +545,14 @@ if(nrow(multiHitFrags) > 0 & opt$buildStdFragments_createMultiHitClusters){
       invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
       
       r <- dbExecute(dbConn,
-                     "insert into multihits values (?, ?, ?, ?, ?)",
-                     params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], list(serialize(tab, NULL))))
+                     "insert into multihits values (?, ?, ?, ?, ?, ?)",
+                     params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], list(serialize(tab, NULL)), as.character(lubridate::today())))
       
       if(r == 0){
-        write(c(paste(now(), 'Error -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+        write(c(paste(now(), 'Error -- could not upload fragment data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
         q(save = 'no', status = 1, runLast = FALSE)
       } else {
-        write(c(paste(now(), '   Uploaded multihit data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+        write(c(paste(now(), '   Uploaded multihit data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
       }
     }))
   }

@@ -1,15 +1,21 @@
-GRANT ALL ON *.* TO 'admin'@'localhost' IDENTIFIED BY 'iAmAdmin+1' WITH GRANT OPTION;
+GRANT ALL ON *.* TO 'admin'@'%' IDENTIFIED BY 'iAmAdmin+1' WITH GRANT OPTION;
 create database AAVengeR;
 use AAVengeR;
-CREATE TABLE fragments (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), replicate TINYINT UNSIGNED, refGenome VARCHAR(50), vectorFastaFile VARCHAR(100), flags VARCHAR(50), data LONGBLOB);
+CREATE TABLE fragments (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), replicate TINYINT UNSIGNED, refGenome VARCHAR(50), vectorFastaFile VARCHAR(100), flags VARCHAR(50), data LONGBLOB, compDate DATE);
 Alter Table fragments ADD PRIMARY KEY(trial, subject, sample, replicate, refGenome);
 
-
-CREATE TABLE multihits (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), refGenome VARCHAR(50), data LONGBLOB);
+CREATE TABLE multihits (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), refGenome VARCHAR(50), data LONGBLOB, compDate DATE);
 Alter Table multihits ADD PRIMARY KEY(trial, subject, sample, refGenome);
+
+CREATE TABLE sites (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), refGenome VARCHAR(50),  vectorFastaFile VARCHAR(100), flags VARCHAR(50), data LONGBLOB, compDate DATE);
+Alter Table sites ADD PRIMARY KEY(trial, subject, sample, refGenome);
+
 
 
 set global max_allowed_packet=2147483648; # 2GB packet max.
+
+# Remove this line from /etc/mysql/mariadb.conf.d/50-server.cnf
+# bind-address 127.0.0.1 
 
 
 
