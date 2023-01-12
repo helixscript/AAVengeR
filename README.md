@@ -2,10 +2,8 @@
 
 
 Many of the required data files are too large to be archived in this repository.  
-Run the commands below to update your installation.  
+Update the command below with the location of your AAVengeR installation and run it to update your installation.  
   
 ```
-wget https://microb120.med.upenn.edu/data/AAVengeR_data.tar
-tar xvf AAVengeR_data.tar
-mv AAVengeR_data data
+Rscript updateDataFolder.R  /home/ubuntu/AAVengeR
 ```
