@@ -1,4 +1,5 @@
-AAVengeR_dir <- '~/AAVengeR'
+args = commandArgs(trailingOnly=TRUE)
+AAVengeR_dir <- args[1]
 
 system(paste0('wget -q -O ', AAVengeR_dir, '/data/blastDBs.tar https://microb120.med.upenn.edu/data/AAVengeR/blatDBs.tar'))
 system(paste0('tar xf ', AAVengeR_dir, '/data/blastDBs.tar -C ', AAVengeR_dir, '/data/'))
