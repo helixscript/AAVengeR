@@ -24,7 +24,7 @@ sites$uniqueSite <- paste0(sites$trial, '~', sites$subject, '~', sites$sample, '
 
 o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
 
-       g <- import(rtracklayer::TwoBitFile(file.path(opt$softwareDir, 'data', 'blatDBs', paste0(x$refGenome[1], '.2bit'))))
+       g <- import(rtracklayer::TwoBitFile(file.path(opt$softwareDir, 'data', 'blatDBs', x$refGenome[1])))
        
        r <- bind_rows(lapply(x$uniqueSite, function(x2){
              message(x2)

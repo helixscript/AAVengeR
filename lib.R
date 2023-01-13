@@ -127,7 +127,7 @@ loadSamples <- function(){
   
   
   if('refGenome' %in% names(samples)){
-    samples$refGenome <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(unique(samples$refGenome), '.2bit'))
+    samples$refGenome <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(samples$refGenome, '.2bit'))
     
     if(! all(sapply(unique(samples$refGenome), file.exists))){
       write(c(paste(now(), "Error - one or more blat database files could not be found in AAVengeR's data/blatDBs directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
