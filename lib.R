@@ -1,15 +1,46 @@
 tmpFile <- function(){ paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') }
 
+
+checkSoftware <- function(){
+  s <- c('blastn', 'blat', 'cutadapt', 'hmmbuild', 'hmmsearch', 'mafft', 'makeblastdb', 'muscle', 'python2')
+  
+  o <- bind_rows(lapply(s, function(x){
+         r <- tryCatch({
+                system(paste0('which ', x), intern = TRUE)
+              },
+              error=function(cond) {
+                return(NA)
+              },
+              warning=function(cond) {
+                return(NA)
+              })
+           tibble(program = x, path = r)
+        }))   
+  
+        o$program <- paste0('                       ', o$program)
+        
+        write(paste0(now(),         '    Paths of expected software packages:'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+        readr::write_tsv(o, file = file.path(opt$outputDir, 'log'), append = TRUE, col_names = FALSE)
+  
+       if(any(is.na(o$path))){
+         write(c(paste(lubridate::now(), 'Error - one or more of the expected softwares are not in your search path.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+         q(save = 'no', status = 1, runLast = FALSE) 
+       } 
+}
+
+
 lpe <- function(x){
   o <- unlist(strsplit(x, '/'))
   o[length(o)]
 }
+
 
 shortRead2DNAstringSet <- function(x){
   r <- x@sread
   names(r) <- sub('\\s+.+$', '', as.character(x@id))
   r
 }
+
 
 waitForFile <- function(f, seconds = 1){
   repeat
@@ -118,13 +149,12 @@ parse_cdhitest_output <- function (file) {
 
 
 loadSamples <- function(){
-  samples <- readr::read_tsv(opt$demultiplex_sampleConfigFile, col_types = readr::cols())
+  samples <- readr::read_tsv(opt$demultiplex_sampleDataFile, col_types = readr::cols())
   
   if(nrow(samples) == 0){
     write(c(paste(lubridate::now(), 'Error - no lines of information was read from the sample configuration file.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
     q(save = 'no', status = 1, runLast = FALSE) 
   }
-  
   
   if('refGenome' %in% names(samples)){
     samples$refGenome <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(samples$refGenome, '.2bit'))
@@ -136,8 +166,6 @@ loadSamples <- function(){
   } else {
     samples$refGenome <- NA
   }
-  
-  
   
   if('vectorFastaFile' %in% names(samples)){
     samples$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', samples$vectorFastaFile)
@@ -293,7 +321,7 @@ representativeSeq <- function(s, percentReads = 95){
   
   # Align sequences.
   outputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.representativeSeq.muscle'))
-  system(paste(file.path(opt$softwareDir, 'bin', 'muscle'), '-quiet -maxiters 1 -diags -in ', inputFile, ' -out ', outputFile))
+  system(paste('muscle -quiet -maxiters 1 -diags -in ', inputFile, ' -out ', outputFile))
   if(! file.exists(outputFile)) waitForFile(outputFile)
 
   # Alignments are read in with dashes.
@@ -508,7 +536,7 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
   
   writeXStringSet(subseq(reads, opt$prepReads_HMMsearchReadStartPos, opt$prepReads_HMMsearchReadEndPos), outputFile)
   # score 5
-  comm <- paste0(file.path(opt$softwareDir, 'bin', 'hmmsearch'), ' --max --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
+  comm <- paste0('hmmsearch --max --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
   system(comm)
 
   r <- readLines(paste0(outputFile, '.domTbl'))
@@ -564,7 +592,7 @@ blastReads <- function(reads, wordSize = 6, evalue = 10){
   f <- tmpFile()
   writeXStringSet(reads,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
   
-  system(paste0(file.path(opt$softwareDir, 'bin', 'blastn'), ' -dust no -soft_masking false -word_size ', wordSize, ' -evalue ', evalue,' -outfmt 6 -query ',
+  system(paste0('blastn -dust no -soft_masking false -word_size ', wordSize, ' -evalue ', evalue,' -outfmt 6 -query ',
                 file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
                 file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'),
                 ' -num_threads 1 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),

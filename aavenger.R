@@ -1,4 +1,5 @@
 library(yaml)
+library(dplyr)
 library(lubridate)
 
 configFile = commandArgs(trailingOnly=TRUE)
@@ -13,6 +14,7 @@ if(! file.exists(configFile)){
 
 opt <- read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
+
 
 if(! dir.exists(opt$outputDir)){
   dir.create(file.path(opt$outputDir))
@@ -37,6 +39,11 @@ if(! dir.exists(file.path(opt$outputDir, 'src'))){
 }
 
 write(c(date(), floor(as.numeric(now()))), file.path(opt$outputDir, 'log'), append = FALSE)
+
+
+# Check for third party software.
+checkSoftware()
+
 
 invisible(file.copy(opt$sampleConfigFile, file.path(opt$outputDir, 'src', 'sampleData.tsv')))
 invisible(file.copy(configFile, file.path(opt$outputDir, 'src', 'config.yml')))

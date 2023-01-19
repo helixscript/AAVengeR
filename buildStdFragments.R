@@ -35,8 +35,10 @@ if('databaseGroup' %in% names(opt)){
 # Check for configuration errors.
 # ------------------------------------------------------------------------------
 if('buildStdFragments_autoPullTrialSamples' %in% names(opt) & ! 'databaseGroup' %in% names(opt)){
-  write(c(paste(now(), 'Error -- the databaseGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  q(save = 'no', status = 1, runLast = FALSE)
+  if(opt$buildStdFragments_autoPullTrialSamples){
+    write(c(paste(now(), 'Error -- the databaseGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE)
+  }
 }
 
 if('buildStdFragments_trialSubjectList' %in% names(opt) & ! 'databaseGroup' %in% names(opt)){

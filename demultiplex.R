@@ -22,7 +22,7 @@ dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
 dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'))
 dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'))
 
-if(! file.exists(opt$demultiplex_sampleConfigFile)){
+if(! file.exists(opt$demultiplex_sampleDataFile)){
   write(c(paste(now(), '   Error - the sample configuration file could not be found')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE) 
 }
@@ -211,7 +211,7 @@ reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
 
   data.table(uniqueSample = x, readID = names(anchorReads), anchorReadSeq = as.character(anchorReads), adriftReadSeq = as.character(adriftReads), 
              adriftReadRandomID = as.character(randomIDs), adriftReadTrimSeq = t, adriftLinkerSeqEnd = nchar(r$adriftReadLinkerSeq),
-             vectorFastaFile = r$vectorFastaFile, refGenome = r$refGenome.id, flags = r$flags)
+             vectorFastaFile = r$vectorFastaFile, refGenome = r$refGenome, flags = r$flags)
 }))
 
 if(nrow(reads) == 0){
@@ -248,7 +248,7 @@ write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = 
 
 write(paste(now(), '   Writing outputs.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-reads <- left_join(reads, select(samples, uniqueSample, refGenome), by = 'uniqueSample')
+### reads <- left_join(reads, select(samples, uniqueSample, refGenome), by = 'uniqueSample')
 
 if('anchorReadStartSeq' %in% names(samples)){
   reads <- left_join(reads, select(samples, uniqueSample, anchorReadStartSeq), by = 'uniqueSample')

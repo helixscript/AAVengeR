@@ -31,7 +31,7 @@ blat <- function(y, ref, dir){
   f <- file.path(dir, tmpFile())
   write(paste0('>', y$id, '\n', y$seq), f)
   
-  system(paste0(file.path(opt$softwareDir, 'bin', 'blat'), ' ', ref, ' ', f, ' ', paste0(f, '.psl'), 
+  system(paste0('blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
                 ' -tileSize=', opt$alignReads_genomeAlignment_blatTileSize, 
                 ' -stepSize=', opt$alignReads_genomeAlignment_blatStepSize, 
                 ' -repMatch=', opt$alignReads_genomeAlignment_repMatch,
@@ -55,6 +55,8 @@ anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   
   b <- rbindlist(lapply(list.files(dir, pattern = '*.psl', full.names = TRUE), function(x){
          b <- data.table(parseBLAToutput(x))
+         
+         
          if(nrow(b) == 0) return(data.table())
     
          dplyr::filter(b, alignmentPercentID >= opt$alignReads_genomeAlignment_minPercentID, tNumInsert <= 1, 

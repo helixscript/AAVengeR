@@ -50,7 +50,7 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
              Biostrings::writeXStringSet(o, f)
          
             # Use cut adapt to trim anchor read over-reading.
-            system(paste0(file.path(opt$softwareDir, 'bin', 'cutadapt'), ' -e 0.15 -a ', y$adriftReadTrimSeq[1], ' ',
+            system(paste0('cutadapt -e 0.15 -a ', y$adriftReadTrimSeq[1], ' ',
                        f, ' > ', paste0(f, '.cutAdapt')), ignore.stderr = TRUE)
          
             t <- readDNAStringSet(paste0(f, '.cutAdapt'))
@@ -139,8 +139,7 @@ if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVe
   vectorHits <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
             invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
   
-            ### system(paste0(file.path(opt$softwareDir, 'bin', 'makeblastdb'), ' -in ', file.path(opt$softwareDir, 'data', 'vectors', x$vectorFastaFile[1]), 
-            system(paste0(file.path(opt$softwareDir, 'bin', 'makeblastdb'), ' -in ', x$vectorFastaFile[1], 
+            system(paste0('makeblastdb -in ', x$vectorFastaFile[1], 
                           ' -dbtype nucl -out ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
             waitForFile(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd.nin'))
             
@@ -242,7 +241,7 @@ if(! 'leaderSeqHMM' %in% names(reads)){
     vectorHits2 <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
       invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
     
-      system(paste0(file.path(opt$softwareDir, 'bin', 'makeblastdb'), ' -in ', x$vectorFastaFile[1], ' -dbtype nucl -out ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
+      system(paste0('makeblastdb -in ', x$vectorFastaFile[1], ' -dbtype nucl -out ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
       waitForFile(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd.nin'))
     
       rbindlist(parLapply(cluster,split(x, ntile(1:nrow(x), opt$prepReads_CPUs)), function(y){
@@ -324,8 +323,6 @@ if(! 'leaderSeqHMM' %in% names(reads)){
 write(c(paste0(now(), '    Leader sequences determined for ', sprintf("%.2f%%", (n_distinct(m$id)/n_distinct(reads$readID))*100), 
               ' of unqiue read pairs.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-# (!) Fix
-
 if('anchorReadStartSeq' %in% names(reads)){
   a <- subset(reads, readID %in% m$id)
   b <- subset(reads, ! readID %in% m$id)
@@ -402,7 +399,7 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
     Biostrings::writeXStringSet(o, f)
     
     # Use cut adapt to trim anchor read over-reading.
-    system(paste0(file.path(opt$softwareDir, 'bin', 'cutadapt'), ' -e 0.15 -a ', y$adriftReadTrimSeq[1], ' ',
+    system(paste0('cutadapt -e 0.15 -a ', y$adriftReadTrimSeq[1], ' ',
                   f, ' > ', paste0(f, '.cutAdapt')), ignore.stderr = TRUE)
     
     waitForFile(paste0(f, '.cutAdapt'))
