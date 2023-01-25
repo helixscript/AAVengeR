@@ -266,6 +266,7 @@ frags <- bind_rows(lapply(o, function(z){
   
   # Determine the start and end of fragments based on their alignment strands
   # and perform some sanity tests then filter on fragment size. 
+  
   r <- mutate(frags, 
          fragStart  = ifelse(strand.anchorReads == '+', tStart.anchorReads + 1, tStart.adriftReads + 1),
          fragEnd    = ifelse(strand.anchorReads == '+', tEnd.adriftReads + 1,   tEnd.anchorReads + 1),
@@ -280,6 +281,9 @@ frags <- bind_rows(lapply(o, function(z){
                 select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads, randomLinkerSeq.adriftReads, refGenome.anchorReads, vectorFastaFile.anchorReads, flags.anchorReads)
    r
 }))
+
+# Odd blat calls can lead to duplicate alignment entries, the blat parser is likely leaving odd additional information about the alignments.
+frags <- distinct(frags)
 
 rm(o, id_groups)
 gc()

@@ -88,6 +88,10 @@ if(nrow(frags) == 0){
 if('databaseGroup' %in% names(opt)) RMariaDB::dbDisconnect(dbConn)
 
 
+# Figure out why these are not distinct...
+# Read ids may be duplicated for multi-hits.
+frags <- distinct(frags)
+
 
 # Set aside meta data till the end to save memory and add data back at the end 
 # and unpack the uniqueSample ids.
@@ -112,41 +116,78 @@ frags <- rbindlist(lapply(split(frags, frags$uniqueSample), function(x){
 
 write(c(paste(now(), '   Categorizing leader sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
+frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
+
+
+frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample, ':',  
+                       frags$replicate, ':', frags$chromosome, ':', frags$strand, ':', 
+                       frags$fragStart, ':', frags$fragEnd,    ':', frags$randomLinkerSeq)
+
+
 frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject)), function(x){
-  
-  d <- mutate(x, width = fragEnd - fragStart + 1) %>%
-       group_by(leaderSeq) %>% 
-       summarise(reads = n(), widths = n_distinct(width), leaderSeqLength = nchar(leaderSeq[1])) %>%
-       arrange(desc(widths), desc(reads), leaderSeqLength) %>%
-       mutate(leaderSeqGroup = NA)
-  
-  g <- 1
-  
-  invisible(lapply(1:nrow(d), function(i){
-    if(! is.na(d[i,]$leaderSeqGroup)) return()
-    
-    maxEditDist <- ceiling(nchar(as.character(d[i,]$leaderSeq))/opt$buildStdFragments_categorize_anchorReadRemnants_stepSize) + 1
-    
-    d[i,]$leaderSeqGroup <<- paste0(x$trial[1], '~', x$subject[1], '~', g)
-    
-    # Retrieve all other leader sequences for which a leader seq group has not been assigned.
-    o <- d[is.na(d$leaderSeqGroup),]
-    if(nrow(o) == 0) return()
-    
-    # Calculate the edit distances between current leader seq and other leader seqs.
-    dist <- stringdist::stringdist(d[i,]$leaderSeq, o$leaderSeq)
-    
-    k <- which(dist <= maxEditDist)
-    
-    if(length(k) > 0){
-      k2 <- which(d$leaderSeq %in% unique(o[k,]$leaderSeq))
-      d[k2,]$leaderSeqGroup <<- paste0(x$trial[1], '~', x$subject[1], '~', g)
-    }
-    
-    g <<- g + 1
-  }))
-  
-  left_join(x, select(distinct(d), leaderSeq, leaderSeqGroup), by = 'leaderSeq')
+           processed <- vector()
+         
+           x <- bind_rows(lapply(split(x, x$posid), function(x2){
+           
+           
+           # Find neighboring site fragments.
+           if(x2$strand[1] == '+'){
+              o <- subset(x, chromosome == x2$chromosome[1] & strand == '+' & fragStart >= x2$fragStart[1] - opt$buildStdFragments_leaderSeqGroupingDist & fragStart <= x2$fragStart[1] + opt$buildStdFragments_leaderSeqGroupingDist)
+           } else {
+              o <- subset(x, chromosome == x2$chromosome[1] & strand == '-' & fragEnd >= x2$fragEnd[1] - opt$buildStdFragments_leaderSeqGroupingDist  & fragEnd <= x2$fragEnd[1] + opt$buildStdFragments_leaderSeqGroupingDist)
+           }
+           
+           o <- filter(o, ! fragID %in% processed)
+           if(nrow(o) == 0) return(tibble())
+           
+           processed <<- c(processed, unique(o$fragID))
+           
+           if(n_distinct(o$posid) > 1){
+             
+             # There are multiple non-standardized position ids within the current one.
+             # Order their leader sequences by abundance and reads.
+      
+             d <- mutate(o, widths = abs(fragEnd - fragStart)) %>%
+                  group_by(leaderSeq) %>% 
+                  summarise(reads = n_distinct(readID), estAbund = n_distinct(widths)) %>%
+                  arrange(desc(estAbund), desc(reads)) 
+             
+             d$leaderSeqGroup <- 'none'
+             g <- 1
+
+             invisible(lapply(1:nrow(d), function(i){
+               if(! d[i,]$leaderSeqGroup == 'none') return()
+
+               maxEditDist <- ceiling(nchar(as.character(d[i,]$leaderSeq))/opt$buildStdFragments_categorize_anchorReadRemnants_stepSize)
+
+               d[i,]$leaderSeqGroup <<- paste0(x$trial[1], '~', x$subject[1], '~', g)
+
+               # Retrieve all other leader sequences for which a leader seq group has not been assigned.
+               otherFrags <- d[d$leaderSeqGroup == 'none',]
+               if(nrow(otherFrags) == 0) return()
+
+               # Calculate the edit distances between current leader seq and other leader seqs.
+               dist <- stringdist::stringdist(d[i,]$leaderSeq, otherFrags$leaderSeq)
+
+               k <- which(dist <= maxEditDist)
+
+               if(length(k) > 0){
+                 k2 <- which(d$leaderSeq %in% unique(otherFrags[k,]$leaderSeq))
+                 d[k2,]$leaderSeqGroup <<- paste0(x$trial[1], '~', x$subject[1], '~', g)
+               }
+
+               g <<- g + 1
+             }))
+             
+             o <- left_join(o, select(d, leaderSeq, leaderSeqGroup), by = 'leaderSeq')
+           } else {
+             o$leaderSeqGroup <- paste0(x$trial[1], '~', x$subject[1], '~', 1)
+           }
+           
+           o
+         }))
+         
+         x
 }))
 
 
@@ -172,6 +213,8 @@ f <- group_by(frags, fragID) %>%
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
 write(c(paste(now(), '   Standardizing integration positions within subjects.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
+# (!) Splitting on leader Seqs
 
 g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
 g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
