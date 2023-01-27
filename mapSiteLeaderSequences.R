@@ -30,11 +30,12 @@ dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs')
 sites$s <- paste(sites$subject, sites$sample)
 
 cluster <- makeCluster(opt$mapSiteLeaderSequences_CPUs)
+clusterExport(cluster, 'opt')
 
 m <- rbindlist(lapply(split(sites, sites$vectorFastaFile), function(x){
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'), full.names = TRUE)))
   
-  system(paste0(opt$command_makeblastdb, ' -in ', file.path(opt$softwareDir, 'data', 'vectors', x$vectorFastaFile[1]), 
+  system(paste0('makeblastdb -in ', file.path(opt$softwareDir, 'data', 'vectors', x$vectorFastaFile[1]), 
                 ' -dbtype nucl -out ', file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
   
   waitForFile(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs', 'd.nin'))
@@ -53,7 +54,7 @@ m <- rbindlist(lapply(split(sites, sites$vectorFastaFile), function(x){
  
          writeXStringSet(a,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
     
-         system(paste0(opt$command_blastn, ' -dust no -soft_masking false -word_size 4 -evalue 50 -outfmt 6 -query ',
+         system(paste0('blastn -dust no -soft_masking false -word_size 5 -evalue 50 -outfmt 6 -query ',
                   file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
                   file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs', 'd'),
                   ' -num_threads 1 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),
@@ -76,7 +77,7 @@ m <- rbindlist(lapply(split(sites, sites$vectorFastaFile), function(x){
   o <- tibble(i2 = 1:n_distinct(b$i))
   o$n <- ntile(1:nrow(o), opt$prepReads_CPUs)
   b <- left_join(b, o, by = c('i' = 'i2'))
-  r <- rbindlist(parallel::parLapply(cluster, split(b, b$n), blast2rearangements_worker))
+  r <- rbindlist(parallel::parLapply(cluster, split(b, b$n), blast2rearangements_worker2))
   
   left_join(tibble(qname = names(reads), leaderSeq = as.character(reads)), dplyr::rename(r, repLeaderSeqMap = rearrangement), by = 'qname')
 }))
