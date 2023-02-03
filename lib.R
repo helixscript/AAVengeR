@@ -157,9 +157,7 @@ loadSamples <- function(){
   }
   
   if('refGenome' %in% names(samples)){
-    samples$refGenome <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(samples$refGenome, '.2bit'))
-    
-    if(! all(sapply(unique(samples$refGenome), file.exists))){
+    if(! all(sapply(unique(file.path(opt$softwareDir, 'data', 'blatDBs', paste0(samples$refGenome, '.2bit'))), file.exists))){
       write(c(paste(now(), "Error - one or more blat database files could not be found in AAVengeR's data/blatDBs directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
       q(save = 'no', status = 1, runLast = FALSE) 
     }
@@ -168,9 +166,7 @@ loadSamples <- function(){
   }
   
   if('vectorFastaFile' %in% names(samples)){
-    samples$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', samples$vectorFastaFile)
-    
-    if(! all(sapply(unique(samples$vectorFastaFile), file.exists))){
+    if(! all(sapply(unique(file.path(opt$softwareDir, 'data', 'vectors', samples$vectorFastaFile)), file.exists))){
       write(c(paste(now(), "Error - one or more vector FASTA files could not be found in AAVengeR's data/vectors directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
       q(save = 'no', status = 1, runLast = FALSE) 
     }

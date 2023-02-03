@@ -23,19 +23,19 @@ sites$uniqueSite <- paste0(sites$trial, '~', sites$subject, '~', sites$sample, '
 cluster <- makeCluster(opt$predictPCRartifacts_CPUs)
 clusterExport(cluster, c('opt', 'tmpFile'))
 
+sites$refGenome <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(sites$refGenome, '.2bit'))
+sites$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', sites$vectorFastaFile)
+
 sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
   
        x$n <- ntile(1:nrow(x), opt$predictPCRartifacts_CPUs)
        
        r <- bind_rows(parLapply(cluster, split(x, x$n), function(a){
-       #r <- bind_rows(lapply(split(x, x$n), function(a){
               library(dplyr)
               library(Biostrings)
               library(rtracklayer)
          
-              if(! grepl('\\.2bit$', a$refGenome[1])) a$refGenome <- paste0(a$refGenome, '.2bit')
-              #message(file.path(opt$softwareDir, 'data', 'blatDBs', a$refGenome[1]))
-              g <- import(TwoBitFile(file.path(opt$softwareDir, 'data', 'blatDBs', a$refGenome[1])))
+              g <- import(TwoBitFile(a$refGenome[1]))
          
               bind_rows(lapply(split(a, a$uniqueSite), function(x2){
                 us <- x2$uniqueSite
@@ -102,17 +102,13 @@ sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
               }))
             }))
        
-       left_join(x, r, by = 'uniqueSite') %>%  relocate(PCRartifact1, .after = opt$predictPCRartifacts_addAfter)
+       left_join(x, r, by = 'uniqueSite') %>% relocate(PCRartifact1, .after = opt$predictPCRartifacts_addAfter)
 }))
-
-
 
 
 o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
   
-  if(! grepl('\\.2bit$', x$refGenome[1])) x$refGenome <- paste0(x$refGenome, '.2bit')
-  
-  g <- import(rtracklayer::TwoBitFile(file.path(opt$softwareDir, 'data', 'blatDBs', x$refGenome[1])))
+  g <- import(rtracklayer::TwoBitFile(x$refGenome[1]))
   
   r <- bind_rows(lapply(x$uniqueSite, function(x2){
     us <- x2
@@ -142,9 +138,9 @@ o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
 }))
 
 
-
 o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
-  vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', a$vectorFastaFile[1])
+  vectorFastaFile <- a$vectorFastaFile[1]
+  
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs'), full.names = TRUE)))
   system(paste0('makeblastdb -in ', vectorFastaFile, ' -dbtype nucl -out ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
   
@@ -152,7 +148,6 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
   clusterExport(cluster, c('opt'))
   
   r <- bind_rows(parLapply(cluster, split(a, 1:nrow(a)), function(x){
-  #r <- bind_rows(lapply(split(a, 1:nrow(a)), function(x){
     library(dplyr)
     library(Biostrings)
     library(stringr)
@@ -183,7 +178,7 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
         b <- dplyr::slice_max(b, matches, with_ties = FALSE)
         
         f2 <- tmpFile()
-        v <- readDNAStringSet(file.path(opt$softwareDir, 'data', 'vectors', x$vectorFastaFile))
+        v <- readDNAStringSet(x$vectorFastaFile)
         v <- v[names(v) == b$sseqid]
         writeXStringSet(v, file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f2, '.fasta')))
         system(paste0('makeblastdb -in ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f2, '.fasta')), ' -dbtype nucl -out ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', f2)), ignore.stderr = TRUE)
@@ -244,8 +239,13 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
   r
 }))
 
-sites <- left_join(sites, o2, by = 'uniqueSite')  %>% relocate(PCRartifact2, .after = PCRartifact1) %>% select(-uniqueSite)
+sites <- left_join(sites, o2, by = 'uniqueSite') %>% relocate(PCRartifact2, .after = PCRartifact1) %>% select(-uniqueSite)
+sites <- arrange(sites, desc(sonicLengths))
 
+sites$vectorFastaFile <- sapply(sites$vectorFastaFile, lpe)
+
+sites$refGenome <- sapply(sites$refGenome, lpe)
+sites$refGenome <- sub('\\.2bit$', '', sites$refGenome)
 
 saveRDS(sites, file = file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'sites.rds'))
 openxlsx::write.xlsx(sites, file = file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'sites.xlsx'))

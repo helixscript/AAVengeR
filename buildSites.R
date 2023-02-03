@@ -149,7 +149,6 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
   }))
 }
 
-
 write(c(paste(now(), '   Building replicate level integration sites.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 frags$fragWidth <- frags$fragEnd - frags$fragStart + 1
@@ -203,7 +202,6 @@ sites <- bind_rows(parLapply(cluster, split(f, f$i), function(a){
            }))
          }))
   
-
 
 # Create a wide view of the replicate level sites and create NA cells 
 # for replicates where specific sites were not found.
@@ -281,8 +279,6 @@ tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
 if(any(is.infinite(tbl2$maxLeaderSeqDist))) tbl2[is.infinite(tbl2$maxLeaderSeqDist),]$maxLeaderSeqDist <- NA
 tbl2$i <- NULL
 
-
-
 if('databaseGroup' %in% names(opt)){
   library(RMariaDB)
   
@@ -318,8 +314,11 @@ if('databaseGroup' %in% names(opt)){
   dbDisconnect(con)
 }
 
+tbl2 <- rename(tbl2, UMIs = fragments, sonicLengths = fragmentWidths)
+
+tbl2 <- arrange(tbl2, desc(sonicLengths))
+
 saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'))
-readr::write_csv(arrange(tbl2, desc(fragments)), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.csv'))
-openxlsx::write.xlsx(arrange(tbl2, desc(fragments)), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
+openxlsx::write.xlsx(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

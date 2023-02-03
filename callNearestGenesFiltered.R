@@ -89,7 +89,9 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
           dplyr::relocate(x, names(n)[! grepl('posid', names(n))], .after = opt$callNearestGenesFiltered_addAfter)
        })))
 
-saveRDS(sites, file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir, opt$callNearestGenesFiltered_outputFile))
-openxlsx::write.xlsx(sites, file = paste0(sub('\\.\\S+$', '', opt$callNearestGenesFiltered_outputFile), '.xlsx'))
+sites <- arrange(sites, desc(sonicLengths))
+
+saveRDS(sites, file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir, 'sites.rds'))
+openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir, 'sites.xlsx'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

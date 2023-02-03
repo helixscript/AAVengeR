@@ -132,6 +132,8 @@ clusterExport(cluster, c('tmpFile', 'waitForFile', 'opt', 'lpe', 'blastReads'))
   
 # Align the ends of anchor reads to the vector to identify vector reads which should be removed.
 
+reads$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', reads$vectorFastaFile)
+
 if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVectorHits){
   
   write(c(paste(now(), '   Aligning ends of reads to vector sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
@@ -231,11 +233,8 @@ nReadsPostFilter <- n_distinct(reads$readID)
 write(c(paste0(now(), '    ', sprintf("%.2f%%", 100 - (nReadsPostFilter/nReadsPreFilter)*100), ' unique reads removed because they aligned to the vector.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 
-# (!)
-
 if(! 'leaderSeqHMM' %in% names(reads)){
     # Now align the full anchor reads to the vector excluding those in vectorHits.
-  
     write(c(paste(now(), '   Aligning full anchor reads to vector sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   
     vectorHits2 <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
@@ -298,8 +297,6 @@ if(! 'leaderSeqHMM' %in% names(reads)){
     
 } else {
   write(c(paste(now(), '   Using leader sequence HMM to define mappings.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  
-  # (!) FIX
   
   parallel::stopCluster(cluster)
   
@@ -441,6 +438,11 @@ reads <- dplyr::select(reads, -adriftReadSeq) %>%
          dplyr::rename(adriftReadSeq = adriftReadSeq2)
 
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
+
+reads$vectorFastaFile <- sapply(reads$vectorFastaFile, lpe)
+reads$leaderSeqHMM <- sapply(reads$leaderSeqHMM, lpe)
+
+unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'), recursive = TRUE) 
 
 saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds'), compress = TRUE)
 

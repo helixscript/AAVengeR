@@ -41,6 +41,8 @@ blat <- function(y, ref, dir){
   write('done', paste0(f, '.done'))
 }
 
+reads$refGenome <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(reads$refGenome, '.2bit'))
+
 anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
   s <- data.table(seq = unique(x$anchorReadSeq))
   s$id <- paste0('s', 1:nrow(s))
@@ -191,6 +193,12 @@ anchorReadAlignments <- left_join(anchorReadAlignments, distinct(select(reads, r
 anchorReadAlignments <- left_join(anchorReadAlignments, select(reads, readID, anchorReadSeq, leaderSeq), by = 'readID')
 anchorReadAlignments$leaderSeq <- paste0(anchorReadAlignments$leaderSeq, substr(anchorReadAlignments$anchorReadSeq, 1, anchorReadAlignments$qStart))
 anchorReadAlignments <- dplyr::select(anchorReadAlignments, -anchorReadSeq)
+
+anchorReadAlignments$refGenome <- sapply(anchorReadAlignments$refGenome, lpe)
+anchorReadAlignments$refGenome <- sub('\\.2bit$', '', anchorReadAlignments$refGenome)
+
+adriftReadAlignments$refGenome <- sapply(adriftReadAlignments$refGenome, lpe)
+adriftReadAlignments$refGenome <- sub('\\.2bit$', '', adriftReadAlignments$refGenome)
 
 # Save anchor and adrift read alignments.
 saveRDS(dplyr::distinct(anchorReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'anchorReadAlignments.rds'))  

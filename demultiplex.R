@@ -120,8 +120,8 @@ write(paste(now(), '   Demultiplexing sequence chunks.'), file = file.path(opt$o
 if('anchorReadStartSeq' %in% names(samples)) write(paste(now(), '   Anchor read start sequence filter enabled.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 # Demultiplex samples for each sequence chunk. Demultiplexed reads will be temporarily stored in output/tmp.
+
 invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
-#invisible(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
   library(ShortRead)
   library(dplyr)
   library(stringr)
@@ -131,13 +131,9 @@ invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex
  
   # Capture the chunk identifier.
   chunk.n <- unlist(str_match_all(f, '(\\d+)$'))[2]
-  #message('Chunk: ', chunk.n)
   
   # Loop through samples in sample data file to demultiplex and apply read specific filters.
   invisible(lapply(1:nrow(samples), function(r){
-    #message('  row: ', r)
-    
-    ### if(r == 12) browser()
     r <- samples[r,]
 
     v0 <- rep(TRUE, length(anchorReads))
@@ -247,8 +243,6 @@ invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), rec
 write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))
 
 write(paste(now(), '   Writing outputs.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
-
-### reads <- left_join(reads, select(samples, uniqueSample, refGenome), by = 'uniqueSample')
 
 if('anchorReadStartSeq' %in% names(samples)){
   reads <- left_join(reads, select(samples, uniqueSample, anchorReadStartSeq), by = 'uniqueSample')
