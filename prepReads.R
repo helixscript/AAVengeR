@@ -128,11 +128,13 @@ vectorHits <- tibble()
 
 cluster <- makeCluster(opt$prepReads_CPUs)
 clusterExport(cluster, c('tmpFile', 'waitForFile', 'opt', 'lpe', 'blastReads'))
-
   
 # Align the ends of anchor reads to the vector to identify vector reads which should be removed.
 
 reads$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', reads$vectorFastaFile)
+
+
+# save.image('~/masking.RData')
 
 if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVectorHits){
   
@@ -141,9 +143,17 @@ if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVe
   vectorHits <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
             invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
   
-            system(paste0('makeblastdb -in ', x$vectorFastaFile[1], 
+            # Mask lowercase letters in vector file because this is the means by which users signal repeat sequences.
+            seq <- readLines(x$vectorFastaFile[1])
+            seq <- gsub('[atcg]', 'N', seq)
+            f <- tmpFile()
+            write(seq, file = file.path(opt$outputDir, 'tmp', f))
+            
+            system(paste0('makeblastdb -in ', file.path(opt$outputDir, 'tmp', f), 
                           ' -dbtype nucl -out ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
             waitForFile(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd.nin'))
+            
+            invisible(file.remove(file.path(opt$outputDir, 'tmp', f)))
             
             rbindlist(parLapply(cluster, split(x, ntile(1:nrow(x), opt$prepReads_CPUs)), function(y){
             #rbindlist(lapply(split(x, ntile(1:nrow(x), opt$prepReads_CPUs)), function(y){
@@ -240,6 +250,8 @@ if(! 'leaderSeqHMM' %in% names(reads)){
     vectorHits2 <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
       invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
     
+      # No masking here here
+      
       system(paste0('makeblastdb -in ', x$vectorFastaFile[1], ' -dbtype nucl -out ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
       waitForFile(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd.nin'))
     

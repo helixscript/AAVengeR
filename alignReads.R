@@ -201,8 +201,8 @@ adriftReadAlignments$refGenome <- sapply(adriftReadAlignments$refGenome, lpe)
 adriftReadAlignments$refGenome <- sub('\\.2bit$', '', adriftReadAlignments$refGenome)
 
 # Save anchor and adrift read alignments.
-saveRDS(dplyr::distinct(anchorReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'anchorReadAlignments.rds'))  
-saveRDS(dplyr::distinct(adriftReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'adriftReadAlignments.rds')) 
+saveRDS(dplyr::distinct(anchorReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'anchorReadAlignments.rds'), compress = FALSE)  
+saveRDS(dplyr::distinct(adriftReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'adriftReadAlignments.rds'), compress = FALSE) 
 
 unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), recursive = TRUE)
 unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'), recursive = TRUE)
