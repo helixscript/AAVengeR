@@ -10,20 +10,20 @@ modules:
    - buildFragments                                                             # [module name]
    - buildStdFragments                                                          # [module name]
    - buildSites                                                                 # [module name]
-   - predictPCRartifacts                                                        # [module name]    
+   - predictPCRartifacts                                                        # [module name]
    - annotateRepeats                                                            # [module name]
-   - callNearestGenes                                                           # [module name]
    - callNearestGenesFiltered                                                   # [module name]
-   - mapSiteLeaderSequences                                                     # [module name]  
+   - callNearestGenes                                                           # [module name]
+
 
 # Processing parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
-demultiplex_CPUs: 45                                                            # [integer]   Number of CPUs to use for demultiplexing.
+demultiplex_CPUs: 30                                                            # [integer]   Number of CPUs to use for demultiplexing.
 demultiplex_outputDir: demultiplex                                              # [character] Demultiplexing ouput directory name that will be created in the output directory.
-demultiplex_anchorReadsFile: data/Undetermined_S0_R2_001.fastq.gz               # [file path] Anchor read FASTQ path.
-demultiplex_adriftReadsFile: data/Undetermined_S0_R1_001.fastq.gz               # [file path] Adrift read FASTQ path.
-demultiplex_index1ReadsFile: data/Undetermined_S0_I1_001.fastq.gz               # [file path] I1 barcode read FASTQ path.
+demultiplex_anchorReadsFile: data/Undetermined_S0_L001_R2_001.fastq.gz          # [file path] Anchor read FASTQ path.
+demultiplex_adriftReadsFile: data/Undetermined_S0_L001_R1_001.fastq.gz          # [file path] Adrift read FASTQ path.
+demultiplex_index1ReadsFile: data/Undetermined_S0_L001_I1_001.fastq.gz          # [file path] I1 barcode read FASTQ path.
 demultiplex_sampleDataFile:  data/sampleData.tsv                                # [file path] Path to sample data file.
 demultiplex_RC_I1_barcodes: FALSE                                               # [boolean]   Use the reverse compliment of I1 barcode sequences found in [sampleConfigFile].
 demultiplex_RC_I1_barcodes_auto: TRUE                                           # [boolean]   Attempt to automatically determine best setting for demultiplex_RC_I1_barcodes. Will override [demultiplex_RC_I1_barcodes].
@@ -46,10 +46,6 @@ prepReads_excludeAdriftReadVectorHits: FALSE                                    
 prepReads_vectorAlignmentTestLength: 25                                         # [integer]   Length of NTs to from ends of reads to align to vectors to test for vector alignments.
 prepReads_vectorAlignmentTest_minPercentCoverage: 90                            # [float]     Min. percent of {prepReads_vectorAlignmentTestLength} required for a vector test alignment to be considered. 
 prepReads_vectorAlignmentTest_minPercentID: 90                                  # [float]     Min. percent seq id required for a vector test alignment to be considered. 
-prepReads_HMMsearchReadStartPos: 1                                              # [integer]   (evaluated if leaderSeqHMM is a column in the sampleDetails file) Read start position of region to be evaluated by HMM. 
-prepReads_HMMsearchReadEndPos:  55                                              # [integer]   (evaluated if leaderSeqHMM is a column in the sampleDetails file) Read end position of region to be evaluated by HMM. 
-prepReads_HMMmaxStartPos: 80                                                    # [integer]   (evaluated if leaderSeqHMM is a column in the sampleDetails file) Max position on anchor read that a HMM hit can begin.
-prepReads_HMMminFullBitScore: 10                                                # [float]     (evaluated if leaderSeqHMM is a column in the sampleDetails file) Min. HMM score for a leader sequence to be considered. 
 prepReads_minAnchorReadLength: 25                                               # [integer]   Min. length of anchor read post trim. Shorter reads would likely not align well to reference genomes.
 prepReads_minAdriftReadLength: 25                                               # [integer]   Min. length of adrift read post trim. Shorter reads would likely not align well to reference genomes.
 prepReads_buildReadMaps_blastReconstruction: TRUE                               # [boolean]   (evaluated if leaderSeqHMM is NOT a column in the sampleDetails file) Use local alignments or reads to vector sequences to build leader sequence models. 
@@ -84,11 +80,12 @@ buildFragments_maxFragLength: 2500                                              
 buildFragments_randomLinkerID_minReadCountToSegreagate: 10                      # [integer]  When testing random linker ids for sample crossover, only consider resolving crossovers if a random id was seen this many times.
 buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90                # [integer]  When testing random linker ids for sample crossover, a single sample must have this majority percentage for a correction to occur.
 
-
 buildStdFragments_CPUs: 30                                                      # [integer]   Number of CPUs to use when generating standardized fragments.
-buildStdFragments_autoPullTrialSamples: FALSE                                    # [boolean]   Automatically pull additional trial samples from the database to co-standardize with data found in buildStdFragments_inputFile.
-buildStdFragments_minReadsPerFrag: 1                                            # [integer]   Min. number of reads required to accept a standardized fragment.
+buildStdFragments_autoPullTrialSamples: FALSE                                   # [boolean]   Automatically pull additional trial samples from the database to co-standardize with data found in buildStdFragments_inputFile.
 buildStdFragments_leaderSeqGroupingDist: 5
+buildStdFragments_randomIDdupReadMult: 5
+buildStdFragments_randomIDdupAbundMult: 3
+buildStdFragments_minReadsPerFrag: 1
 buildStdFragments_createMultiHitClusters: TRUE                                  # [boolean]   Create networks of sites for reads that align well to multiple locations in a reference genome.
 buildStdFragments_inputFile: buildFragments/fragments.rds                       # [file path relative to output path] Path to initial fragment RDS file (ouput of buildFragments module).
 # buildStdFragments_trialSubjectList: Sabatino;pM50|Sabatino;pLinus             # [string]    delimited string containing trial and subject names of records to pull from the database: trialA;subjectA|trialB;subjectB.
@@ -96,14 +93,12 @@ buildStdFragments_outputDir: buildStdFragments                                  
 buildStdFragments_representativeSeqCalc_maxReads: 1000                          # [integer]   When determining representative leader sequences for fragments, subsample leader sequences for fragments that have more than this many candidates.
 buildStdFragments_representativeSeqCalc_CPUs: 5                                 # [integer]   Number of CPUs to use for each calculation when determining representative leader sequences for fragments.
 buildStdFragments_categorize_anchorReadRemnants_stepSize: 10                    # [float]     When assigning leader sequences to subject specific groups, the inclusion edit distance is calculated as (length of the seed sequence / this value) + 1 rounded up.
-buildStdFragments_UMI_conflict_minPercentReads: 75                              # [float]     When a random id is seen more than once within a sample, it is considered a PCR artifact and the fragment that contains this percentage or more of the reads is retained.
-                                                                                #             All fragments associated with the duplicated random id are removed if no fragment meets this percentage read threshold.
-                                                                               
+
 buildSites_CPUs: 30
 buildSites_inputFile: buildStdFragments/stdFragments.rds
 buildSites_outputDir: buildSites
 
-predictPCRartifacts_CPUs: 15
+predictPCRartifacts_CPUs: 30
 predictPCRartifacts_inputFile: buildSites/sites.rds
 predictPCRartifacts_outputDir: predictPCRartifacts
 predictPCRartifacts_adjacentSeqLength: 14
@@ -115,25 +110,27 @@ predictPCRartifacts_gapOpeningPenalty: 10
 predictPCRartifacts_gapExtensionPenalty: 5
 predictPCRartifacts_addAfter: posid
 
-annotateRepeats_CPUs: 15
+addSampleDetails_inputFile:  callNearestGenesFiltered/sites.rds
+addSampleDetails_detailsFile: data/sampleDetails.tsv
+addSampleDetails_addAfter: sample
+
+annotateRepeats_CPUs: 30
 annotateRepeats_inputFile: predictPCRartifacts/sites.rds
 annotateRepeats_outputDir: annotateRepeats
 annotateRepeats_addAfter: PCRartifact2
 
-mapSiteLeaderSequences_CPUs: 15
+mapSiteLeaderSequences_CPUs: 30
 mapSiteLeaderSequences_outputDir: mapSiteLeaderSequences
-mapSiteLeaderSequences_inputFile: callNearestGenesFiltered/sites.rds
+mapSiteLeaderSequences_inputFile: callNearestGenes/sites.rds
 mapSiteLeaderSequences_addAfter: repLeaderSeq
 mapSiteLeaderSequences_minAllowableGap: 5                                       # Min. space between blast hits allowed. Larger gaps will be filled with [x].
 mapSiteLeaderSequences_alignmentChunkSize: 5000
 mapSiteLeaderSequences_minAlignmentPercentID: 90
 mapSiteLeaderSequences_minAlignmentLength: 15
-mapSiteLeaderSequences_outputFile: sites.rds
 
 callNearestGenes_CPUs: 15
-callNearestGenes_inputFile: annotateRepeats/sites.rds
+callNearestGenes_inputFile: callNearestGenesFiltered/sites.rds
 callNearestGenes_outputDir: callNearestGenes
-callNearestGenes_outputFile: sites.rds
 callNearestGenes_addAfter: nRepsObs
 callNearestGenes_TU_position: either
 callNearestGenes_boundaries:
@@ -153,9 +150,8 @@ callNearestGenes_boundaries:
 
 callNearestGenesFiltered_CPUs: 15
 callNearestGenesFiltered_columnPrefix: oncoGenes
-callNearestGenesFiltered_inputFile: callNearestGenes/sites.rds
+callNearestGenesFiltered_inputFile: annotateRepeats/sites.rds
 callNearestGenesFiltered_outputDir: callNearestGenesFiltered
-callNearestGenesFiltered_outputFile: sites.rds
 callNearestGenesFiltered_addAfter: nRepsObs
 callNearestGenesFiltered_TU_position: either
 callNearestGenesFiltered_boundaries:
