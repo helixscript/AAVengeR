@@ -29,7 +29,6 @@ reads <- readRDS(file.path(opt$outputDir, opt$prepReads_readsTable))
 
 
 cluster <- makeCluster(opt$prepReads_CPUs)
-### clusterExport(cluster, c('tmpFile', 'waitForFile', 'opt', 'lpe', 'blastReads'))
 clusterExport(cluster, 'opt')
 
 # Trim anchor read over-reading with cutadapt using the RC of the common linker in adrift reads.
@@ -104,10 +103,9 @@ b <- subset(reads, n > 1)  # Duplicated read pairs.
 write(c(paste(now(), '   Removing duplicate read pairs.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 # Create a table of duplicate read pairs where one is chosen (id) to move forward and the others are logged (id2).
-# Slow, consider re-write.
-c <- rbindlist(lapply(split(b, b$i), function(x){
-       data.table(id = x[1,]$readID, n = nrow(x) - 1, id2 = x[2:nrow(x),]$readID)
-     }))
+c <- group_by(b, i) %>%
+      summarise(id = readID[1], n = n() - 1, id2 = list(readID[2:n()])) %>%
+      ungroup() %>% select(-i) %>% tidyr::unnest(id2)
 
 saveRDS(c, file.path(opt$outputDir, opt$prepReads_outputDir, 'duplicateReads.rds'))
 
@@ -313,6 +311,7 @@ if(! 'leaderSeqHMM' %in% names(reads)){
   parallel::stopCluster(cluster)
   
   hmmResults <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
+                  message(x$uniqueSample[1])
                   seqs <- DNAStringSet(x$anchorReadSeq)
                   names(seqs) <- x$readID
                   captureLTRseqsLentiHMM(seqs, x$leaderSeqHMM[1])

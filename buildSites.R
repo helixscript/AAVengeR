@@ -166,7 +166,6 @@ f <- mapply(function(x, y){
        x
      }, o, i, SIMPLIFY = FALSE) %>% bind_rows()
 
-
 cluster <- makeCluster(opt$buildSites_CPUs)
 clusterExport(cluster, c('opt', 'frags'))
 
@@ -177,12 +176,14 @@ sites <- bind_rows(parLapply(cluster, split(f, f$i), function(a){
            bind_rows(lapply(split(a, a$g), function(x){
 
              if(nrow(x) == 1){
-               return(dplyr::mutate(x, fragments = n_distinct(x$randomLinkerSeq), 
-                                    fragmentWidths = n_distinct(x$fragWidth), 
+               #browser()
+               return(dplyr::mutate(x, UMIs = n_distinct(x$randomLinkerSeq), 
+                                    sonicLengths = n_distinct(x$fragWidth), 
                                     maxLeaderSeqDist = 0) %>%
-                      dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile))
+                      dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, UMIs, sonicLengths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile))
            } else {
              s <- unlist(x$leaderSeqs)
+             #browser()
 
             if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
               set.seed(1)
@@ -191,18 +192,17 @@ sites <- bind_rows(parLapply(cluster, split(f, f$i), function(a){
     
             r <- representativeSeq(s)
     
-            return(dplyr::mutate(x, fragments = n_distinct(x$randomLinkerSeq), 
-                                fragmentWidths = n_distinct(x$fragWidth), 
+            return(dplyr::mutate(x, UMIs = n_distinct(x$randomLinkerSeq), 
+                                sonicLengths = n_distinct(x$fragWidth), 
                                 reads = sum(reads), 
                                 repLeaderSeq = r[[2]], 
                                 maxLeaderSeqDist = max(stringdist::stringdistmatrix(s))) %>%
-                  dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, fragments, fragmentWidths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile) %>%
+                  dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, UMIs, sonicLengths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile) %>%
                   dplyr::slice(1))
                }
            }))
          }))
   
-
 # Create a wide view of the replicate level sites and create NA cells 
 # for replicates where specific sites were not found.
   
@@ -212,25 +212,25 @@ maxReplicate <- max(sites$replicate)
 write(c(paste(now(), '   Creating a wide view of the replicate level integration site data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sample, sites$posid)), function(x){ 
-         o <- bind_cols(lapply(minReplicate:maxReplicate, function(r){
-           o <- subset(x, replicate == r)
+          o <- bind_cols(lapply(minReplicate:maxReplicate, function(r){
+                 o <- subset(x, replicate == r)
         
-           if(nrow(o) == 1){
-             t <- tibble(x1 = o$fragments, x2 = o$fragmentWidths, x3 = o$reads, x4 = o$repLeaderSeq)
-           } else if(nrow(o) > 1){
-             stop('Row error 1')  
-           } else {
-             t <- tibble(x1 = NA, x2 = NA, x3 = NA, x4 = NA)
-           }
-
-           names(t) <- c(paste0('rep', r, '-fragments'), 
-                         paste0('rep', r, '-fragmentWidths'), 
-                         paste0('rep', r, '-reads'), 
-                         paste0('rep', r, '-repLeaderSeq'))
-          t
-         }))
+                 if(nrow(o) == 1){
+                   t <- tibble(x1 = o$UMIs, x2 = o$sonicLengths, x3 = o$reads, x4 = o$repLeaderSeq)
+                 } else if(nrow(o) > 1){
+                   stop('Row error 1')  
+                 } else {
+                   t <- tibble(x1 = NA, x2 = NA, x3 = NA, x4 = NA)
+                 }
+           
+                 names(t) <- c(paste0('rep', r, '-UMIs'), 
+                               paste0('rep', r, '-sonicLengths'), 
+                               paste0('rep', r, '-reads'), 
+                              paste0('rep', r, '-repLeaderSeq'))
+                t
+              }))
          
-      bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], refGenome = x$refGenome[1], posid = x$posid[1], flags = x$flags[1], vectorFastaFile = x$vectorFastaFile[1]), o)
+          bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], refGenome = x$refGenome[1], posid = x$posid[1], flags = x$flags[1], vectorFastaFile = x$vectorFastaFile[1]), o)
 }))
 
 write(c(paste(now(), '   Buiding sample level integration sites.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
@@ -247,8 +247,8 @@ tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
              f <- subset(frags, trial == x$trial & subject == x$subject & sample == x$sample & posid == x$posid)
   
              if(nrow(f) == 1){
-               k <- tibble(fragments = n_distinct(f$randomLinkerSeq), 
-                           fragmentWidths = n_distinct(f$fragWidth), 
+               k <- tibble(UMIs = n_distinct(f$randomLinkerSeq), 
+                           sonicLengths = n_distinct(f$fragWidth), 
                            reads = f$reads, 
                            maxLeaderSeqDist = f$maxLeaderSeqDist, 
                            repLeaderSeq = f$repLeaderSeq) 
@@ -263,15 +263,14 @@ tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
     
                r <- representativeSeq(s)
     
-               k <- tibble(fragments = n_distinct(f$randomLinkerSeq), 
-                           fragmentWidths = n_distinct(f$fragWidth), 
+               k <- tibble(UMIs = n_distinct(f$randomLinkerSeq), 
+                           sonicLengths = n_distinct(f$fragWidth), 
                            reads = sum(f$reads), 
                            maxLeaderSeqDist = max(stringdist::stringdistmatrix(s)), 
                            repLeaderSeq = r[[2]])
              }
   
              k$nRepsObs <- sum(! is.na(unlist(x[, which(grepl('\\-repLeaderSeq', names(x)))])))
-             
              bind_cols(x[,1:5], k, x[,6:length(x)])
           }))
 }))
@@ -282,10 +281,16 @@ tbl2$i <- NULL
 if('databaseGroup' %in% names(opt)){
   library(RMariaDB)
   
-  con <- dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+  dbConn <- tryCatch({
+    dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+  },
+  error=function(cond) {
+    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
+  })
   
   invisible(lapply(split(tbl2, paste(tbl2$trial, tbl2$subject, tbl2$sample, tbl2$refGenome)), function(x){
-    dbExecute(con, paste0("delete from sites where trial='", x$trial[1], "' and subject='", x$subject[1],
+    dbExecute(dbConn, paste0("delete from sites where trial='", x$trial[1], "' and subject='", x$subject[1],
                           "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
     
     f <- tmpFile()
@@ -298,7 +303,7 @@ if('databaseGroup' %in% names(opt)){
     
     invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
     
-    r <- dbExecute(con,
+    r <- dbExecute(dbConn,
                    "insert into sites values (?, ?, ?, ?, ?, ?, ?, ?)",
                    params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1],
                                  x$vectorFastaFile[1], x$flags[1], list(serialize(tab, NULL)), as.character(lubridate::today())))
@@ -311,10 +316,8 @@ if('databaseGroup' %in% names(opt)){
     }
   }))
   
-  dbDisconnect(con)
+  dbDisconnect(dbConn)
 }
-
-tbl2 <- rename(tbl2, UMIs = fragments, sonicLengths = fragmentWidths)
 
 tbl2 <- arrange(tbl2, desc(sonicLengths))
 

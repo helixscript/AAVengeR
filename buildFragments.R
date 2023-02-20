@@ -125,7 +125,7 @@ anchorReadAlignments <- subset(anchorReadAlignments, readID %in% adriftReadAlign
 
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
 
-anchorReadAlignments <- select(anchorReadAlignments, uniqueSample, sample, readID, tName, strand, tStart, tEnd, leaderSeq, refGenome, flags, vectorFastaFile)
+anchorReadAlignments <- select(anchorReadAlignments, uniqueSample, sample, readID, tName, strand, tStart, tEnd, leaderSeq, refGenome, seqRunID, flags, vectorFastaFile)
 adriftReadAlignments <- select(adriftReadAlignments, sample, readID, tName, strand, tStart, tEnd, randomLinkerSeq)
 
 names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads')
@@ -278,7 +278,8 @@ frags <- bind_rows(lapply(o, function(z){
                 fragWidth <= opt$buildFragments_maxFragLength,
                 fragWidth >= opt$buildFragments_minFragLength) %>%
                 mutate(uniqueSample = uniqueSample.anchorReads, readID = readID.anchorReads) %>%
-                select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads, randomLinkerSeq.adriftReads, refGenome.anchorReads, vectorFastaFile.anchorReads, flags.anchorReads)
+                select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads, randomLinkerSeq.adriftReads, 
+                       refGenome.anchorReads, vectorFastaFile.anchorReads, seqRunID.anchorReads, flags.anchorReads)
    r
 }))
 
@@ -302,22 +303,27 @@ if('buildFragments_duplicateReadFile' %in% names(opt)){
   frags$n <- 0
 }
 
-frags <- dplyr::rename(frags, leaderSeq = leaderSeq.anchorReads, randomLinkerSeq = randomLinkerSeq.adriftReads, refGenome = refGenome.anchorReads, vectorFastaFile = vectorFastaFile.anchorReads, flags = flags.anchorReads)
+frags <- dplyr::rename(frags, leaderSeq = leaderSeq.anchorReads, randomLinkerSeq = randomLinkerSeq.adriftReads, refGenome = refGenome.anchorReads, 
+                              vectorFastaFile = vectorFastaFile.anchorReads, seqRunID = seqRunID.anchorReads, flags = flags.anchorReads)
 
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.rds'))
 
 
-# CREATE TABLE fragments (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), replicate TINYINT UNSIGNED, refGenome VARCHAR(50), vectorFastaFile VARCHAR(100), flags VARCHAR(50), data LONGBLOB);
-
 if('databaseGroup' %in% names(opt)){
   library(RMariaDB)
   
-  con <- dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+  conn <- tryCatch({
+    dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+  },
+  error=function(cond) {
+    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
+  })
   
   invisible(lapply(split(frags, paste(frags$uniqueSample, frags$refGenome)), function(x){
     x <- unpackUniqueSampleID(x)
   
-    dbExecute(con, paste0("delete from fragments where trial='", x$trial[1], "' and subject='", x$subject[1],
+    dbExecute(conn, paste0("delete from fragments where trial='", x$trial[1], "' and subject='", x$subject[1],
                           "' and sample='", x$sample[1], "' and replicate='", x$replicate[1], "' and refGenome='", x$refGenome[1], "'"))
 
     f <- tmpFile()
@@ -330,10 +336,10 @@ if('databaseGroup' %in% names(opt)){
     
     invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
     
-    r <- dbExecute(con,
-              "insert into fragments values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    r <- dbExecute(conn,
+              "insert into fragments values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
               params = list(x$trial[1], x$subject[1], x$sample[1], x$replicate[1], x$refGenome[1],
-                            x$vectorFastaFile[1], x$flags[1], list(serialize(tab, NULL)), as.character(lubridate::today())))
+                            x$vectorFastaFile[1], x$flags[1], list(serialize(tab, NULL)), as.character(lubridate::today()), x$seqRunID[1]))
     
     if(r == 0){
         write(c(paste(now(), 'Error -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
@@ -343,10 +349,8 @@ if('databaseGroup' %in% names(opt)){
       }
   }))
   
-  dbDisconnect(con)
+  dbDisconnect(conn)
 }
-
-
 
 q(save = 'no', status = 0, runLast = FALSE) 
 

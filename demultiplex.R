@@ -110,16 +110,15 @@ invisible(lapply(split(d, d$i), function(x){
   chunkNum <<- chunkNum + 1
 }))
 
-
 # Clean up and free up memory. 
 rm(d, chunkNum, index1Reads, anchorReads, adriftReads)
 gc()
 
-
 write(paste(now(), '   Demultiplexing sequence chunks.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 if('anchorReadStartSeq' %in% names(samples)) write(paste(now(), '   Anchor read start sequence filter enabled.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
-# Demultiplex samples for each sequence chunk. Demultiplexed reads will be temporarily stored in output/tmp.
+# Demultiplex samples for each sequence chunk. 
+# Demultiplexed reads will be temporarily stored in output/tmp.
 
 invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
   library(ShortRead)
@@ -238,11 +237,9 @@ logReport <- bind_rows(lapply(split(logReport, logReport$sample), function(x){
   bind_cols(data.frame(sample = x[1,1]), o)
 })) %>% dplyr::arrange(demultiplexedReads)
 
-
+write(paste(now(), '   Writing attrition table.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), recursive = TRUE))
 write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))
-
-write(paste(now(), '   Writing outputs.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 if('anchorReadStartSeq' %in% names(samples)){
   reads <- left_join(reads, select(samples, uniqueSample, anchorReadStartSeq), by = 'uniqueSample')
@@ -252,6 +249,47 @@ if('leaderSeqHMM' %in% names(samples)){
   reads <- left_join(reads, select(samples, uniqueSample, leaderSeqHMM), by = 'uniqueSample')
 }
 
+if('databaseGroup' %in% names(opt)){
+  library(RMariaDB)
+  
+  write(paste(now(), '   Uploading to database.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  
+  f <- tmpFile()
+  invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
+  file.copy(configFile, file.path(opt$outputDir, 'tmp', 'config'))
+  file.copy(opt$demultiplex_sampleDataFile, file.path(opt$outputDir, 'tmp', 'sampleData'))
+  system(paste0('tar cfz ', file.path(opt$outputDir,  'tmp', paste0(f, '.tar.gz')), ' -C ', file.path(opt$outputDir,  'tmp'), ' ', paste0(list.files(file.path(opt$outputDir,  'tmp')), collapse = ' ')))
+  
+  fp <- file.path(opt$outputDir,  'tmp', paste0(f, '.tar.gz'))
+  tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
+  
+  conn <- tryCatch({
+    dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+  },
+  error = function(cond) {
+    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
+  })
+  
+  dbExecute(conn, paste0("delete from seqRunConfig where seqRunID='", opt$demultiplex_seqRunID, "'"))
+
+  r <- dbExecute(conn, "insert into seqRunConfig values (?, ?, ?)", params = list(opt$demultiplex_seqRunID, list(serialize(tab, NULL)), readLines(file.path(opt$softwareDir, 'version', 'version'))[1]))
+    
+  if(r == 0){
+      write(c(paste(now(), 'Error -- could not upload configuration data to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      q(save = 'no', status = 1, runLast = FALSE)
+  } else {
+      write(c(paste(now(), '   Uploaded configuration data to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  }
+  
+  dbDisconnect(conn)
+}
+
+reads$seqRunID <- opt$demultiplex_seqRunID
+
+write(paste(now(), '   Writing reads data object.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
 saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = TRUE)
+
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
 q(save = 'no', status = 0, runLast = FALSE) 

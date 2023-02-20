@@ -23,12 +23,14 @@ write(c(paste(now(), '   Reading in fragment file(s).')), file = file.path(opt$o
 # Create a database connection if requested in the configuration file.
 if('databaseGroup' %in% names(opt)){
   library(RMariaDB)
-  dbConn <- dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
-  
-  if(! 'dbConn' %in% ls()){
-    write(c(paste(now(), 'Error -- could not connect to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-    q(save = 'no', status = 1, runLast = FALSE)
-  }
+
+  dbConn <- tryCatch({
+    dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+  },
+  error=function(cond) {
+    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
+  })
 }
 
 # Check for configuration errors.
@@ -59,7 +61,6 @@ if('buildStdFragments_inputFile' %in% names(opt)){
     trialSubjects <- unpackUniqueSampleID(tibble(uniqueSample = unique(frags$uniqueSample))) %>% dplyr::select(-uniqueSample, -replicate, -sample) %>% distinct()
 
     dbFrags <- bind_rows(lapply(split(trialSubjects, 1:nrow(trialSubjects)), function(x) pullDBsubjectFrags(dbConn, x$trial, x$subject)))
-    RMariaDB::dbDisconnect(dbConn)
     
     dbFragsToAdd <- dbFrags[! dbFrags$uniqueSample %in% frags$uniqueSample,]
     
@@ -72,18 +73,15 @@ if('buildStdFragments_inputFile' %in% names(opt)){
   # Format:  trial;subject|trial;subject, eg. 'Sabatino;pM50|Sabatino;pLinus'
   
   frags <- distinct(bind_rows(lapply(unlist(base::strsplit(opt$buildStdFragments_trialSubjectList, '\\|')), function(x){
-         d <- unlist(base::strsplit(x, ';'))
-         pullDBsubjectFrags(dbConn, d[1], d[2])
-       })))
-  
-  RMariaDB::dbDisconnect(dbConn)
-
+             d <- unlist(base::strsplit(x, ';'))
+             pullDBsubjectFrags(dbConn, d[1], d[2])
+           })))
 } else {
   write(c(paste(now(), 'Error -- neither buildStdFragments_inputFile or buildStdFragments_trialSubjectList options were provided')), file = file.path(opt$outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE)
 }
 
-
+if('databaseGroup' %in% names(opt)) RMariaDB::dbDisconnect(dbConn)
 
 # Make sure fragments were retrieved.
 if(nrow(frags) == 0){
@@ -96,13 +94,13 @@ if(nrow(frags) == 0){
 # Set aside meta data till the end to save memory and add data back at the end 
 # and unpack the uniqueSample ids.
 # --------------------------------------------------------------------------------------------------------------
-sampleMetaData <- distinct(dplyr::select(frags, uniqueSample, refGenome, vectorFastaFile, flags))
+sampleMetaData <- distinct(dplyr::select(frags, uniqueSample, refGenome, vectorFastaFile, seqRunID, flags))
 
 frags <- rbindlist(lapply(split(frags, frags$uniqueSample), function(x){
             o <-  unlist(stringr::str_split(x$uniqueSample[1], '~'))
             x$trial = o[1]; x$subject = o[2]; x$sample = o[3]; x$replicate = o[4]
             x
-         })) %>% dplyr::select(-refGenome, -vectorFastaFile, -flags)
+         })) %>% dplyr::select(-refGenome, -vectorFastaFile, -seqRunID, -flags)
    
 
 
@@ -276,6 +274,13 @@ u <- group_by(frags, readID) %>% mutate(nPosIDs = n_distinct(posid)) %>% ungroup
 frags_uniqPosIDs <- frags[frags$readID %in% u,]   # (!) May have sonic break position chatter.
 frags_multPosIDs <- frags[! frags$readID %in% u,]
 
+
+# Remove UMIs found in unique frags from multiHit frags.
+# UMIs will server as an abundance metrics in multihits.
+
+# Check w/ real data...
+
+
 # Create quick look-up index.
 frags_uniqPosIDs$i <- paste(frags_uniqPosIDs$trial, frags_uniqPosIDs$subject, frags_uniqPosIDs$sample)
 
@@ -349,9 +354,6 @@ if(any(f$n > 1)){
   }))
 }
 
-
-
-
 # Correct for instances where a read maps to more than fragment but all fragments have the same integration position.
 # These are instances of fuzzy break points and here we select the shortest fragments lengths.
 
@@ -381,7 +383,6 @@ if(length(z) > 0){
   rm(a, b, a2)
   gc()
 }
-
 
 # Update position and fragment IDs to reflect standardization.
 frags_uniqPosIDs$posid <- paste0(frags_uniqPosIDs$chromosome, frags_uniqPosIDs$strand, 
@@ -445,17 +446,17 @@ if(nrow(frags_multPosIDs) > 0){
   }
 } 
 
-
 multiHitClusters <- tibble()
 
 if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   
   write(c(paste(now(), '   Building mulit-hit networks.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
  
-  # Read and width data needed by multi-hit calculating worker nodes.
+  # Create a data frame with width data needed by multi-hit calculating worker nodes
+  # then export the data to the cluster nodes.
   multiHitFragWidths  <- mutate(frags_multPosIDs, width = fragEnd - fragStart + 1) %>%
                          group_by(trial, subject, sample, posid) %>%
-                         summarise(widths = list(width), reads = list(readID)) %>%
+                         summarise(reads = list(readID), UMIs = list(randomLinkerSeq)) %>%
                          ungroup() %>% 
                          distinct()
     
@@ -464,22 +465,27 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   # For each read, create a from -> to data frame and capture the width of the read. 
   multiHitNet_replicates <- rbindlist(lapply(split(frags_multPosIDs, frags_multPosIDs$readID), function(x){
     if(n_distinct(x$posid) == 1) return(tibble()) # Cases of break point only variation.
+    
+    # Create unique to - from permutations.
     node_pairs <- RcppAlgos::comboGeneral(unique(x$posid), 2)
     data.table(trial = x[1,]$trial, subject = x[1,]$subject, sample = x[1,]$sample, 
-           replicate = x[1,]$replicate, from = node_pairs[,1], to = node_pairs[,2], readID = x[1,]$readID)
+               replicate = x[1,]$replicate, from = node_pairs[,1], to = node_pairs[,2], readID = x[1,]$readID)
   }))
 
-  # Create trial/subject/sample grouping indices that will be used to create a splitting vector for parallelization.
+  # Create trial/subject/sample grouping indices that will be used to create a splitting vector.
   multiHitNet_replicates$n <- group_by(multiHitNet_replicates, trial, subject, sample) %>% group_indices
+  
+  # Create a second splitting vector for parallelization that will not break up trial/subject/sample groupings.
   d <- tibble(n = 1:max(multiHitNet_replicates$n), n2 = ntile(1:max(n), opt$buildStdFragments_CPUs))
   multiHitNet_replicates <- left_join(multiHitNet_replicates, d, by = 'n')
 
-  
   multiHitClusters <- rbindlist(parLapply(cluster, split(multiHitNet_replicates, multiHitNet_replicates$n2), function(x){
   #multiHitClusters <- rbindlist(lapply(split(multiHitNet_replicates, multiHitNet_replicates$n2), function(x){
     library(igraph)
     library(dplyr)
     library(data.table)
+    
+    # Work within trial/subject/sample groupings...
     
     rbindlist(lapply(split(x, x$n), function(x2){
       # Build a graph with the posid nodes and read edges.
@@ -492,11 +498,11 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       o$clusterID <- paste0('MHC.', 1:nrow(o))
       
       tidyr::unnest(o, clusters) %>%
-      dplyr::left_join(subset(multiHitFragWidths, sample == x2$sample[1]) %>% dplyr::select(posid, reads, widths), by = c('clusters' = 'posid')) %>%
+      dplyr::left_join(subset(multiHitFragWidths, sample == x2$sample[1]) %>% dplyr::select(posid, reads, UMIs), by = c('clusters' = 'posid')) %>%
       tidyr::unnest(reads) %>%
-      tidyr::unnest(widths) %>%
+      tidyr::unnest(UMIs) %>%
       dplyr::group_by(trial, subject, sample, clusterID) %>%
-      dplyr::summarise(nodes = n_distinct(clusters), reads = n_distinct(reads), abund = n_distinct(widths), posids = list(unique(clusters))) %>%
+      dplyr::summarise(nodes = n_distinct(clusters), reads = n_distinct(reads), UMIs = n_distinct(UMIs), posids = list(unique(clusters))) %>%
       dplyr::ungroup()
     }))
   }))
@@ -506,16 +512,16 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   
   saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))
   
-  
   if('databaseGroup' %in% names(opt)){
     library(RMariaDB)
     
-    dbConn <- dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
-    
-    if(! 'dbConn' %in% ls()){
-      write(c(paste(now(), 'Error -- could not connect to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-      q(save = 'no', status = 1, runLast = FALSE)
-    }
+    dbConn <- tryCatch({
+      dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+    },
+    error=function(cond) {
+      write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      q(save = 'no', status = 1, runLast = FALSE) 
+    })
     
     o <- unpackUniqueSampleID(sampleMetaData)
     multiHitClusters$i <- paste0(multiHitClusters$trial, '~', multiHitClusters$subject, '~', multiHitClusters$sample)
@@ -548,13 +554,13 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
         write(c(paste(now(), '   Uploaded multihit data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
       }
     }))
+    
+    dbDisconnect(dbConn)
   }
 }
 
 # Frags are still read level. 
 # Switch frags to a data frame because tibbles refuse to store single character vectors as lists.
-
-
 
 frags <- group_by(data.frame(frags_uniqPosIDs), fragID) %>% mutate(i = n()) %>% ungroup()
 

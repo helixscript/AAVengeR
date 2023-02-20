@@ -559,20 +559,30 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
   
   # Subset HMM results such that alignments start at the start of reads, the end of the HMM
   # which contains the CA is includes and the alignment has a significant alignment scores.
-
-  o <- subset(o, targetStart <= opt$prepReads_HMMmaxStartPos & 
-                 hmmEnd == hmmLength & 
-                 fullScore >= as.numeric(opt$prepReads_HMMminFullBitScore))
+  
+  if(opt$prepReads_HMMmatchEnd){
+    o <- subset(o, targetStart <= opt$prepReads_HMMmaxStartPos & 
+                   hmmEnd == hmmLength & 
+                   fullScore >= as.numeric(opt$prepReads_HMMminFullBitScore))
+  } else {
+    o <- subset(o, targetStart <= opt$prepReads_HMMmaxStartPos & 
+                  fullScore >= as.numeric(opt$prepReads_HMMminFullBitScore))
+  }
  
   if(nrow(o) == 0) return(tibble())
   
+  
+  # Limit reads to those with matching HMM hits.
   reads2 <- reads[names(reads) %in% o$targetName]
+  
   rm(reads)
   gc()
+  
+  # Arrange reads to match o data frame.
   reads2 <- reads2[match(o$targetName, names(reads2))]
   
   # Make sure all HMMs alignments result in an CA in the target sequences.
-  reads2 <- reads2[as.character(subseq(reads2, o$targetEnd-1, o$targetEnd)) == 'CA']
+  if(opt$prepReads_HMMrequireTerminalCA) reads2 <- reads2[as.character(subseq(reads2, o$targetEnd-1, o$targetEnd)) == 'CA']
   if(length(reads2) == 0) return(tibble())
   
   tibble(id = names(reads2),
