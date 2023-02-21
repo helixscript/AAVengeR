@@ -66,6 +66,8 @@ sites <- arrange(sites, desc(sonicLengths))
 
 saveRDS(sites, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.rds'))
 openxlsx::write.xlsx(sites, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.xlsx'))
+readr::write_tsv(sites, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.tsv.gz'))
+
 
 if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))){
   o <- readRDS(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))
@@ -122,6 +124,7 @@ if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiH
   
  saveRDS(o, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.rds'))
  openxlsx::write.xlsx(o, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.xlsx'))
+ readr::write_tsv(o, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'multiHitClusters.tsv.gz'))
 }
 
 q(save = 'no', status = 0, runLast = FALSE) 

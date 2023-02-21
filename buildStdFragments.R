@@ -116,7 +116,6 @@ frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample
                        frags$fragStart, ':', frags$fragEnd,    ':', frags$randomLinkerSeq)
 
 
-
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
 
@@ -393,7 +392,6 @@ frags_uniqPosIDs <- tidyr::unite(frags_uniqPosIDs, fragID, trial, subject, sampl
                                  chromosome, strand, fragStart, fragEnd, leaderSeqGroup, sep = ':', remove = FALSE)
 
 
-# save.image('~/dogs.RData')
 # Multihits
 if(nrow(frags_multPosIDs) > 0){
   
@@ -511,6 +509,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   gc()
   
   saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))
+  readr::write_tsv(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.tsv.gz'))
   
   if('databaseGroup' %in% names(opt)){
     library(RMariaDB)
@@ -614,5 +613,6 @@ invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = T
 f <- left_join(f, sampleMetaData, by = 'uniqueSample')
 
 saveRDS(f, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'))
+readr::write_tsv(f, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

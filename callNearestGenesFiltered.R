@@ -93,5 +93,6 @@ sites <- arrange(sites, desc(sonicLengths))
 
 saveRDS(sites, file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir, 'sites.rds'))
 openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir, 'sites.xlsx'))
+readr::write_tsv(sites, file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir, 'sites.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

@@ -323,5 +323,6 @@ tbl2 <- arrange(tbl2, desc(sonicLengths))
 
 saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'))
 openxlsx::write.xlsx(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
+readr::write_tsv(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

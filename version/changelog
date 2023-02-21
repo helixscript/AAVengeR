@@ -6,4 +6,5 @@ Added demultiplex_seqRunID to configuration to track sequencing run ids and adde
 Code optimizations for prepReads.
 buildStdFragments updated to use UMIs for multiHitCluster abundance metric
   rather than fragment widths. abund column in multiHits replaced with UMIs.
-  
+0.992
+Added tsv.gz outputs to modules createStdFragments and above.

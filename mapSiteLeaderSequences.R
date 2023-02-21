@@ -117,7 +117,8 @@ sites$repLeaderSeqMap <- unlist(lapply(split(sites, 1:nrow(sites)), function(x){
 sites <- dplyr::relocate(sites, repLeaderSeqMap, .after = opt$mapSiteLeaderSequences_addAfter)
 sites$repLeaderSeqLength <- NULL
 
-saveRDS(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, opt$mapSiteLeaderSequences_outputFile))
-openxlsx::write.xlsx(sites, file = paste0(sub('\\.\\S+$', '', opt$mapSiteLeaderSequences_outputFile), '.xlsx'))
+saveRDS(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'sites.rds'))
+openxlsx::write.xlsx(sites, file = file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'sites.xlsx'))
+readr::write_tsv(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputFile, 'sites.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

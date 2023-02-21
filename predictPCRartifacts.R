@@ -249,5 +249,6 @@ sites$refGenome <- sub('\\.2bit$', '', sites$refGenome)
 
 saveRDS(sites, file = file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'sites.rds'))
 openxlsx::write.xlsx(sites, file = file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'sites.xlsx'))
+readr::write_tsv(sites, file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'sites.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
