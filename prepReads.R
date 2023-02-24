@@ -393,6 +393,8 @@ write(c(paste(now(), '   Triming adrift read over-reading.')), file = file.path(
 
 nReadsPreFilter <- n_distinct(reads$readID)
 
+#save.image("~/dev.RData")
+
 # Trim adrift reads with adapter sequences determined by the RC of their anchor read leader sequences.
 reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nrow(reads), opt$prepReads_CPUs)), function(x){
   source(file.path(opt$softwareDir, 'lib.R'))

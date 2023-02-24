@@ -8,3 +8,6 @@ buildStdFragments updated to use UMIs for multiHitCluster abundance metric
   rather than fragment widths. abund column in multiHits replaced with UMIs.
 0.992
 Added tsv.gz outputs to modules createStdFragments and above.
+0.993
+Added list of read ids to multiHits.
+Fixed output directory issue with callNearestGene.

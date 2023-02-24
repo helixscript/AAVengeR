@@ -500,8 +500,9 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       tidyr::unnest(reads) %>%
       tidyr::unnest(UMIs) %>%
       dplyr::group_by(trial, subject, sample, clusterID) %>%
-      dplyr::summarise(nodes = n_distinct(clusters), reads = n_distinct(reads), UMIs = n_distinct(UMIs), posids = list(unique(clusters))) %>%
-      dplyr::ungroup()
+      dplyr::summarise(nodes = n_distinct(clusters), readIDs = list(unique(reads)), reads = n_distinct(reads), UMIs = n_distinct(UMIs), posids = list(unique(clusters))) %>%
+      dplyr::ungroup() %>%
+      dplyr::relocate(readIDs, .after = posids)
     }))
   }))
    
