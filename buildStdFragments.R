@@ -611,7 +611,7 @@ f <- bind_rows(a2, b2)
 # Clear out the tmp/ directory.
 invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 
-f <- left_join(f, sampleMetaData, by = 'uniqueSample')
+if (nrow(f) > 0) f <- left_join(f, sampleMetaData, by = 'uniqueSample')
 
 saveRDS(f, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'))
 readr::write_tsv(f, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
