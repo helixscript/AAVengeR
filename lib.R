@@ -583,6 +583,8 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
   
   # Make sure all HMMs alignments result in an CA in the target sequences.
   if(opt$prepReads_HMMrequireTerminalCA) reads2 <- reads2[as.character(subseq(reads2, o$targetEnd-1, o$targetEnd)) == 'CA']
+  if(opt$prepReads_HMMrequireTerminalTA) reads2 <- reads2[as.character(subseq(reads2, o$targetEnd-1, o$targetEnd)) == 'TA']
+  
   if(length(reads2) == 0) return(tibble())
   
   tibble(id = names(reads2),

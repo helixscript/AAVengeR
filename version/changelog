@@ -13,3 +13,6 @@ Added list of read ids to multiHits.
 Fixed output directory issue with callNearestGene.
 0.994
 Updated buildStdFrags to handle cases where no unique sites are found, only multihits.
+0.995
+Added transposon support; config - prepReads_HMMrequireTerminalTA.
+Added transposon example config file.
