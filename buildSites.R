@@ -169,21 +169,23 @@ f <- mapply(function(x, y){
 cluster <- makeCluster(opt$buildSites_CPUs)
 clusterExport(cluster, c('opt', 'frags'))
 
-sites <- bind_rows(parLapply(cluster, split(f, f$i), function(a){
+# sites <- bind_rows(parLapply(cluster, split(f, f$i), function(a){
+# parallelization here is leading to an issue with represtantiveSeq() 
+# not returning a result for some inputs.
+
+sites <- bind_rows(lapply(split(f, f$i), function(a){  
            library(dplyr)
            source(file.path(opt$softwareDir, 'lib.R'))
   
            bind_rows(lapply(split(a, a$g), function(x){
 
              if(nrow(x) == 1){
-               #browser()
                return(dplyr::mutate(x, UMIs = n_distinct(x$randomLinkerSeq), 
                                     sonicLengths = n_distinct(x$fragWidth), 
                                     maxLeaderSeqDist = 0) %>%
                       dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, UMIs, sonicLengths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile))
            } else {
              s <- unlist(x$leaderSeqs)
-             #browser()
 
             if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
               set.seed(1)
@@ -203,6 +205,7 @@ sites <- bind_rows(parLapply(cluster, split(f, f$i), function(a){
            }))
          }))
   
+
 # Create a wide view of the replicate level sites and create NA cells 
 # for replicates where specific sites were not found.
   
