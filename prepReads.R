@@ -94,7 +94,7 @@ reads <- dplyr::rename(reads, anchorReadSeq = anchorReadSeq2, adriftReadSeq = ad
 
 # Identify and remove identical read pairs.
 write(c(paste(now(), '   Identifying duplicate read pairs.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-reads$i <- group_by(reads, uniqueSample, anchorReadSeq, adriftReadSeq) %>% group_indices() 
+reads$i <- group_by(reads, uniqueSample, adriftReadRandomID, anchorReadSeq, adriftReadSeq) %>% group_indices() 
 reads <- group_by(reads, i) %>% mutate(n = n()) %>% ungroup()
 
 a <- subset(reads, n == 1) # Non-duplicated read pairs.

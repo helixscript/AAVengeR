@@ -3,7 +3,9 @@ softwareDir:       /home/ubuntu/AAVengeR                                        
 outputDir:         output                                                       # [file path] Path to the output directory which will be created if it does not exists.
 databaseGroup:     AAVengeR
 
+
 modules:
+   - barcodeAssocLinkers                                                        # [module name]
    - demultiplex                                                                # [module name]
    - prepReads                                                                  # [module name]
    - alignReads                                                                 # [module name] 
@@ -14,12 +16,20 @@ modules:
 # Processing parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
+barcodeAssocLinkers_outputDir: barcodeAssocLinkers                              # [character] barcodeAssocLinkers ouput directory name that will be created in the output directory.
+barcodeAssocLinkers_sampleDataFile:  data/sampleData.tsv                        # [file path] sampleData file path.
+barcodeAssocLinkers_adriftReadsFile: data/Undetermined_S0_R1_001.fastq.gz       # [file path] Adrift read FASTQ path.
+barcodeAssocLinkers_index1ReadsFile: data/Undetermined_S0_I1_001.fastq.gz       # [file path] I1 barcode read FASTQ path.
+barcodeAssocLinkers_nCodes: 50                                                  # [integer]   number of most abundant I1 barcodes to examine.
+barcodeAssocLinkers_excludePolyG_index1BarCodes: TRUE                           # [boolean]   Exclude I1 barcodes that contain GGGGG (most likely PhiX).
+barcodeAssocLinkers_adriftReadUniqueLinkerLength: 20                            # [integer]   First n NTs of adrift read NTs to consider as a unique linker sequence.
+
 demultiplex_CPUs: 15                                                            # [integer]   Number of CPUs to use for demultiplexing.
 demultiplex_outputDir: demultiplex                                              # [character] Demultiplexing ouput directory name that will be created in the output directory.
-demultiplex_seqRunID: 5K_SynDataSet                                             # [character] Sequencing run id.
-demultiplex_anchorReadsFile: data/combined_R2.fastq.gz                          # [file path] Anchor read FASTQ path.
-demultiplex_adriftReadsFile: data/combined_R1.fastq.gz                          # [file path] Adrift read FASTQ path.
-demultiplex_index1ReadsFile: data/combined_I1.fastq.gz                          # [file path] I1 barcode read FASTQ path.
+demultiplex_seqRunID:  myDataRun                                                # [character] Sequencing run id.
+demultiplex_anchorReadsFile: data/Undetermined_S0_R2_001.fastq.gz               # [file path] Anchor read FASTQ path.
+demultiplex_adriftReadsFile: data/Undetermined_S0_R1_001.fastq.gz               # [file path] Adrift read FASTQ path.
+demultiplex_index1ReadsFile: data/Undetermined_S0_I1_001.fastq.gz               # [file path] I1 barcode read FASTQ path.
 demultiplex_sampleDataFile:  data/sampleData.tsv                                # [file path] Path to sample data file.
 demultiplex_RC_I1_barcodes: FALSE                                               # [boolean]   Use the reverse compliment of I1 barcode sequences found in [sampleConfigFile].
 demultiplex_RC_I1_barcodes_auto: TRUE                                           # [boolean]   Attempt to automatically determine best setting for demultiplex_RC_I1_barcodes. Will override [demultiplex_RC_I1_barcodes].

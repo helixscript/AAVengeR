@@ -16,3 +16,7 @@ Updated buildStdFrags to handle cases where no unique sites are found, only mult
 0.995
 Added transposon support; config - prepReads_HMMrequireTerminalTA.
 Added transposon example config file.
+0.996
+Added barcodeAssocLinkers.R as a core module and added configuration to example configuration files.
+Updated prepReads.R to consider UMIs when idetermining identical reads pairs. 
+Added anchorReadRearrangements.R
