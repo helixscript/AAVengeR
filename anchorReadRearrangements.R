@@ -141,6 +141,7 @@ b <- subset(reads, adriftReadRandomID %in% d)
 #      ungroup() %>% select(-w)
 
 concensusReadSeq <- function(x){
+  if(length(x) > 1000) x <- sample(x, 1000)
   Biostrings::consensusString(Biostrings::DNAStringSet(x), 
                               threshold = 0.75, 
                               ambiguityMap = 'N', 
@@ -148,11 +149,24 @@ concensusReadSeq <- function(x){
 }
 
 
-b <- group_by(b, adriftReadRandomID) %>%
-     mutate(anchorReadSeq = concensusReadSeq(anchorReadSeq)) %>%
-     dplyr::slice(1) %>%
-     ungroup() 
 
+b$i <- group_by(b, adriftReadRandomID) %>% group_indices() 
+o <- tibble(i2 = 1:n_distinct(b$i))
+o$n <- ntile(1:nrow(o), opt$anchorReadRearrangements_CPUs)
+b <- left_join(b, o, by = c('i' = 'i2'))
+
+clusterExport(cluster, 'concensusReadSeq')
+
+b <- bind_rows(parLapply(cluster, split(b, b$n), function(x){
+       library(dplyr)
+       library(Biostrings)
+  
+       set.seed(1)
+       group_by(x, adriftReadRandomID) %>%
+       mutate(anchorReadSeq = concensusReadSeq(anchorReadSeq)) %>%
+       dplyr::slice(1) %>%
+       ungroup()
+     }))
 
 reads <- bind_rows(a, b)
 
@@ -185,12 +199,16 @@ blastWorker <- function(y, wordSize = 6, evalue = 10){
     b <- subset(b, pident >= opt$anchorReadRearrangements_seqsMinPercentID & 
                   alignmentLength >= opt$anchorReadRearrangements_seqsMinAlignmentLength &
                   gapopen <= opt$anchorReadRearrangements_seqsMaxGaps)
-  } 
+  }
+  
+  invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
   
   b
 }
 
-clusterExport(cluster, 'blastWorker')
+stopCluster(cluster)
+cluster <- makeCluster(opt$anchorReadRearrangements_CPUs)
+clusterExport(cluster, c('opt', 'blastWorker', 'tmpFile', 'waitForFile'))
                          
 vectorHits <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$vectorFilter_outputDir, 'dbs'), full.names = TRUE)))
@@ -199,6 +217,8 @@ vectorHits <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
   waitForFile(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'dbs', 'd.nin'))
   
   o <- split(x, ntile(1:nrow(x), opt$anchorReadRearrangements_CPUs))
+  
+  #browser()
   rbindlist(parLapply(cluster, o, blastWorker))
 }))
 
@@ -250,48 +270,58 @@ vectorHits <- left_join(vectorHits, o, by = c('i' = 'i2'))
 
 r <- rbindlist(parallel::parLapply(cluster, split(vectorHits, vectorHits$n), blast2rearangements_worker))
 
+# Add annotation for missing alignments based on read length.
 reads$width <- nchar(reads$anchorReadSeq)
 r <- left_join(r, select(reads, readID, width), by = c('qname' = 'readID'))
 
-r2 <- bind_rows(lapply(split(r, 1:nrow(r)), function(x){
-        if(is.na(x$rearrangement)) return(NA)
+
+r$n <- ntile(1:nrow(r), opt$anchorReadRearrangements_CPUs)
+
+
+r2 <- bind_rows(parLapply(cluster, split(r, r$n), function(y){
+        library(dplyr)
+        library(stringr)
   
-        o <- unlist(strsplit(as.character(x$rearrangement), ';'))
-        lastRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[length(o)], '..(\\d+)')))
+        bind_rows(lapply(split(y, 1:nrow(y)), function(x){
+          if(is.na(x$rearrangement)) return(NA)
   
-        if((x$width - lastRangeEnd) > opt$anchorReadRearrangements_minAllowableGap){
-          x$rearrangement <- paste0(x$rearrangement, ';', lastRangeEnd+1, '..', x$width, '[x]')
-        }
+          o <- unlist(strsplit(as.character(x$rearrangement), ';'))
+          lastRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[length(o)], '..(\\d+)')))
   
-        o <- unlist(strsplit(as.character(x$rearrangement), ';'))
+          if((x$width - lastRangeEnd) > opt$anchorReadRearrangements_minAllowableGap){
+            x$rearrangement <- paste0(x$rearrangement, ';', lastRangeEnd+1, '..', x$width, '[x]')
+          }
   
-        if(length(o) > 1){
-          invisible(lapply(1:(length(o)-1), function(n){
-          lastRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[[n]], '..(\\d+)')))
-          nextFirstRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[[n+1]], '(\\d+)..')))
+          o <- unlist(strsplit(as.character(x$rearrangement), ';'))
+  
+          if(length(o) > 1){
+            invisible(lapply(1:(length(o)-1), function(n){
+              lastRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[[n]], '..(\\d+)')))
+              nextFirstRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[[n+1]], '(\\d+)..')))
       
-          if((nextFirstRangeEnd - lastRangeEnd) > opt$anchorReadRearrangements_minAllowableGap ){
-           o[[n]] <<- paste0(o[[n]], ';', lastRangeEnd+1, '..', nextFirstRangeEnd-1, '[x];')
-           }
-        }))
-      }
+              if((nextFirstRangeEnd - lastRangeEnd) > opt$anchorReadRearrangements_minAllowableGap ){
+               o[[n]] <<- paste0(o[[n]], ';', lastRangeEnd+1, '..', nextFirstRangeEnd-1, '[x];')
+              }
+            }))
+          }
   
-      x$rearrangement <- gsub(';;', ';', paste0(o, collapse = ';'))
-      x
+          x$rearrangement <- gsub(';;', ';', paste0(o, collapse = ';'))
+          x
+        }))
 }))
 
-save.image('~/myDev.RData')
-q()
-
-
-# Remove last unknown segments since they may be genomic sequences from integrated vectors.
+# Remove last unknown segments since they may be genomic sequences from integrated 
+# vectors or poor base calls at the ends of reads.
 if(opt$anchorReadRearrangements_removeTailingUnknownSegments) r2$rearrangement <- sub(';\\d+\\.\\.\\d+\\[x\\]$', '', r2$rearrangement)
 
-r2 <- left_join(r, select(reads, readID, uniqueSample, adriftReadRandomID), by = c('qname' = 'readID'))
-r2 <- unpackUniqueSampleID(r2)
+
+# Add read metadata.
+r2 <- left_join(r, select(reads, trial, subject, sample, readID, adriftReadRandomID), by = c('qname' = 'readID'))
 
 r3 <- bind_rows(lapply(split(r2, paste(r2$trial, r2$subject, r2$sample)), function(x){
-        x <- x[! duplicated(x$adriftReadRandomID),]
         select(x, trial, subject, sample)[1,] %>% mutate(percentRearranged = sum(grepl(';', x$rearrangement)) / nrow(x))
        }))
 
+saveRDS(r3, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result.rds'))
+openxlsx::write.xlsx(r3, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result.xlsx'))
+readr::write_tsv(r3, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result.tsv'))
