@@ -322,6 +322,10 @@ r3 <- bind_rows(lapply(split(r2, paste(r2$trial, r2$subject, r2$sample)), functi
         select(x, trial, subject, sample)[1,] %>% mutate(percentRearranged = sum(grepl(';', x$rearrangement)) / nrow(x))
        }))
 
+saveRDS(r2, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'readRearrangements.rds'))
+openxlsx::write.xlsx(r2, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'readRearrangements.xlsx'))
+readr::write_tsv(r2, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'readRearrangements.tsv'))
+
 saveRDS(r3, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result.rds'))
 openxlsx::write.xlsx(r3, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result.xlsx'))
 readr::write_tsv(r3, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result.tsv'))
