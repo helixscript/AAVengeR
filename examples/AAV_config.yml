@@ -17,11 +17,23 @@ modules:
 
 barcodeAssocLinkers_outputDir: barcodeAssocLinkers                              # [character] barcodeAssocLinkers ouput directory name that will be created in the output directory.
 barcodeAssocLinkers_sampleDataFile:  data/sampleData.tsv                        # [file path] sampleData file path.
-barcodeAssocLinkers_adriftReadsFile: data/Undetermined_S0_R1_001.fastq.gz       # [file path] Adrift read FASTQ path.
-barcodeAssocLinkers_index1ReadsFile: data/Undetermined_S0_I1_001.fastq.gz       # [file path] I1 barcode read FASTQ path.
+barcodeAssocLinkers_adriftReadsFile: data/Undetermined_S0_L001_R1_001.fastq.gz  # [file path] Adrift read FASTQ path.
+barcodeAssocLinkers_index1ReadsFile: data/Undetermined_S0_L001_I1_001.fastq.gz  # [file path] I1 barcode read FASTQ path.
 barcodeAssocLinkers_nCodes: 50                                                  # [integer]   number of most abundant I1 barcodes to examine.
 barcodeAssocLinkers_excludePolyG_index1BarCodes: TRUE                           # [boolean]   Exclude I1 barcodes that contain GGGGG (most likely PhiX).
 barcodeAssocLinkers_adriftReadUniqueLinkerLength: 20                            # [integer]   First n NTs of adrift read NTs to consider as a unique linker sequence.
+
+anchorReadRearrangements_CPUs: 15
+anchorReadRearrangements_outputDir: anchorReadRearrangements
+anchorReadRearrangements_readsTable: demultiplex/reads.rds
+anchorReadRearrangements_abundSeqMinCount: 10
+anchorReadRearrangements_minAnchorReadLength: 25
+anchorReadRearrangements_minAdriftReadLength: 25
+anchorReadRearrangements_seqsMinPercentID: 95
+anchorReadRearrangements_seqsMinAlignmentLength: 15
+anchorReadRearrangements_seqsMaxGaps: 1
+anchorReadRearrangements_minAllowableGap: 5
+anchorReadRearrangements_removeTailingUnknownSegments: TRUE
 
 demultiplex_CPUs: 15                                                            # [integer]   Number of CPUs to use for demultiplexing.
 demultiplex_outputDir: demultiplex                                              # [character] Demultiplexing ouput directory name that will be created in the output directory.

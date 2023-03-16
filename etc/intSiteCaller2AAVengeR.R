@@ -1,13 +1,14 @@
 library(dplyr)
 library(RMySQL)
 
-inputFile <- '/home/ubuntu/projects/AAVengeR_230306_inward/data/metaData'
-outputFile <- '/home/ubuntu/projects/AAVengeR_230306_inward/data/sampleData.tsv'
+inputFile <- '/home/ubuntu/projects/CD4_zeta/data/metaData'
+outputFile <- '/home/ubuntu/projects/CD4_zeta/data/sampleData.tsv'
 
 trial2HMM <- list()
 trial2HMM[['UPENN_CART19_CLL']] = 'Bushman_CART19.hmm'
 trial2HMM[['UPENN_CART19_ALL']] = 'Bushman_CART19.hmm'
 trial2HMM[['SCID1_Paris_Cavazzana']] = 'Bushman_SCID1.hmm'
+trial2HMM[['Zeta_HIV']] = 'Bushman_CD4zeta.hmm'
 trial2HMM[['Control']] = 'Bushman_CART19.hmm'
 
 m <- readr::read_csv(inputFile)

@@ -20,3 +20,5 @@ Added transposon example config file.
 Added barcodeAssocLinkers.R as a core module and added configuration to example configuration files.
 Updated prepReads.R to consider UMIs when idetermining identical reads pairs. 
 Added anchorReadRearrangements.R
+0.997
+Added anchorReadRearrangements.R
