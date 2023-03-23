@@ -1,5 +1,11 @@
 tmpFile <- function(){ paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') }
 
+setMissingOptions <- function(){
+  if(! 'core_createFauxFragDoneFiles' %in% names(opt)) opt$core_createFauxFragDoneFiles <- FALSE
+  if(! 'core_createFauxSiteDoneFiles' %in% names(opt)) opt$core_createFauxSiteDoneFiles <- FALSE
+}
+
+
 # Helper function that creates the expected done files expected by the core module when modules fail.
 # The core module would become stuck in perpetual loops if the done files did not appear after a failure.
 core_createFauxFragDoneFiles <- function(){

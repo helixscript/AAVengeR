@@ -10,9 +10,7 @@ configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
-
-if(! 'core_createFauxFragDoneFiles' %in% names(opt)) opt$core_createFauxFragDoneFiles <- FALSE
-if(! 'core_createFauxSiteDoneFiles' %in% names(opt)) opt$core_createFauxSiteDoneFiles <- FALSE
+setMissingOptions()
 
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'))
