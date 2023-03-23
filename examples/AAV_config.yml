@@ -15,6 +15,9 @@ modules:
 # Processing parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
+core_CPUs: 32                                                                   # [integer] The core module will override CPU settings in other configuration sections with dynamic CPU values.
+core_minCPUs: 8                                                                 # [integer] Minimum number of CPUs allocated to a sample replicate calculation.
+
 barcodeAssocLinkers_outputDir: barcodeAssocLinkers                              # [character] barcodeAssocLinkers ouput directory name that will be created in the output directory.
 barcodeAssocLinkers_sampleDataFile:  data/sampleData.tsv                        # [file path] sampleData file path.
 barcodeAssocLinkers_adriftReadsFile: data/Undetermined_S0_L001_R1_001.fastq.gz  # [file path] Adrift read FASTQ path.

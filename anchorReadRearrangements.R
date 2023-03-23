@@ -353,6 +353,8 @@ r2 <- bind_rows(parLapply(cluster, split(r, r$n), function(y){
 }))
 
 
+save.image('~/dev2.RData')
+
 # Remove last unknown segments since they may be genomic sequences from integrated 
 # vectors or poor base calls at the ends of reads.
 if(opt$anchorReadRearrangements_removeTailingUnknownSegments) r2$rearrangement <- sub(';\\d+\\.\\.\\d+\\[x\\]$', '', r2$rearrangement)

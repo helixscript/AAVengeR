@@ -10,14 +10,19 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
+if(! 'core_createFauxFragDoneFiles' %in% names(opt)) opt$core_createFauxFragDoneFiles <- FALSE
+if(! 'core_createFauxSiteDoneFiles' %in% names(opt)) opt$core_createFauxSiteDoneFiles <- FALSE
+
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
+dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'))
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads'))
 
 # Read in adrift alignment reads.
-write(c(paste(now(), '   Reading in anchor and adrift read alignments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Reading in anchor and adrift read alignments.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = FALSE)
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adriftReadsAlignmentFile))
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
 
+incomingSamples <- unique(anchorReadAlignments$uniqueSample)
 
 # Shorten file paths to save memory since we no longer need the full paths.
 anchorReadAlignments$refGenome <- sapply(anchorReadAlignments$refGenome, lpe)
@@ -42,7 +47,7 @@ r <- left_join(r, distinct(dplyr::select(adriftReadAlignments, readID, sample)),
 # Correct random ids to the most abundant within samples.
 # Uncorrectable codes are returned as NNNN and removed.
 
-write(c(paste(now(), '   Correcting minor differences in random ids.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Correcting minor differences in random ids.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
 
 # anchorReadAlignments too large to export to worker nodes.
 # stringDist uses all cores regardless of nthread option... best not to use parLappy().
@@ -64,14 +69,14 @@ r <- rbindlist(lapply(split(r, r$sample), function(x){
          data.table(x[! grepl('N', x$randomLinkerSeq),])
        }))
   
-write(c(paste(now(), '   Determining which random ids span multiple samples.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Determining which random ids span multiple samples.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
 
 o <- group_by(r, randomLinkerSeq) %>%
        summarise(nSamples = n_distinct(sample)) %>%
        ungroup() %>%
        filter(nSamples > 1)
 
-write(c(paste(now(), paste0('   ', sprintf("%.2f%%", (n_distinct(o$randomLinkerSeq)/n_distinct(r$randomLinkerSeq))*100), ' random ids seen across two or more samples'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), paste0('   ', sprintf("%.2f%%", (n_distinct(o$randomLinkerSeq)/n_distinct(r$randomLinkerSeq))*100), ' random ids seen across two or more samples'))), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
 
 randomIDsNoIssue   <- dplyr::filter(r, ! randomLinkerSeq %in% o$randomLinkerSeq)
 
@@ -119,7 +124,7 @@ rm(r)
 gc()
 
 
-write(c(paste(now(), '   Preparing alignment data for fragment generation.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Preparing alignment data for fragment generation.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
 
 anchorReadAlignments <- subset(anchorReadAlignments, readID %in% adriftReadAlignments$readID)
 
@@ -137,7 +142,7 @@ names(adriftReadAlignments) <- paste0(names(adriftReadAlignments), '.adriftReads
 ids <- unique(anchorReadAlignments$readID.anchorReads)
 id_groups <- split(ids, dplyr::ntile(1:length(ids), ceiling(length(ids)/opt$buildFragments_idGroup_size)))
 
-write(c(paste(now(), '   Building initial fragments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Building initial fragments.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
 
 # Convert from tibble to data.table for increased subsetting efficiency. 
 anchorReadAlignments <- data.table(anchorReadAlignments)
@@ -164,12 +169,12 @@ z <- as.character(tab[tab$s == 2,]$readID)
 # For read pairs where both mates have too many alignments, randomly select anchor reads and associated adrift mates 
 # that have the potential to form rational fragments.
 
-write(paste0(now(), '    Building rational fragments from alignment data.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(paste0(now(), '    Building rational fragments from alignment data.'), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
 
 if(length(z) > 0){
-  write(c(paste0(now(), '    ', length(z), ' reads pairs have more than ', opt$buildFragments_maxReadAlignments, ' alignments for both mates.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  write(c(paste0(now(), '    For each reach read, ', opt$buildFragments_maxReadAlignments, ' alignments will be randomly selected.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
-  write(c(paste0(now(), '    Adrift alignments that have the potential to form rational fragments with the selected anchor reads will be selected as well.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(c(paste0(now(), '    ', length(z), ' reads pairs have more than ', opt$buildFragments_maxReadAlignments, ' alignments for both mates.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+  write(c(paste0(now(), '    For each reach read, ', opt$buildFragments_maxReadAlignments, ' alignments will be randomly selected.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+  write(c(paste0(now(), '    Adrift alignments that have the potential to form rational fragments with the selected anchor reads will be selected as well.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
   
   a1 <- subset(anchorReadAlignments, ! readID.anchorReads %in% z)
   b1 <- subset(adriftReadAlignments, ! readID.adriftReads %in% z)
@@ -248,7 +253,7 @@ frags <- bind_rows(lapply(o, function(z){
   
   if(nrow(a) == 0 | nrow(b) == 0) return(data.frame())
   
-  write(paste0(now(), '    ', counter, '/', total, ': ', nrow(a), ' anchorRead alignments, ', nrow(b), ' adriftRead_alignments.'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(paste0(now(), '    ', counter, '/', total, ': ', nrow(a), ' anchorRead alignments, ', nrow(b), ' adriftRead_alignments.'), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
   counter <<- counter + 1
   
   # Join adrift reads alignments to anchor read alignments to create potential read pairs.
@@ -289,10 +294,10 @@ frags <- distinct(frags)
 rm(o, id_groups)
 gc()
 
-write(c(paste(now(), '   Fragment generation complete.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Fragment generation complete.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
 
 if('buildFragments_duplicateReadFile' %in% names(opt)){
-  write(c(paste(now(), '   Reading duplicate read file created by prepReads.R.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(c(paste(now(), '   Reading duplicate read file created by prepReads.R.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
   dups <- readRDS(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile))
   dups <- data.table(dplyr::distinct(dplyr::select(dups, id, n)))
   dups <- subset(dups, id %in% frags$readID)
@@ -306,7 +311,10 @@ if('buildFragments_duplicateReadFile' %in% names(opt)){
 frags <- dplyr::rename(frags, leaderSeq = leaderSeq.anchorReads, randomLinkerSeq = randomLinkerSeq.adriftReads, refGenome = refGenome.anchorReads, 
                               vectorFastaFile = vectorFastaFile.anchorReads, seqRunID = seqRunID.anchorReads, flags = flags.anchorReads)
 
+if(any(! incomingSamples %in% frags$uniqueSample) & opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
+
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.rds'))
+write(date(), file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.done'))
 
 
 if('databaseGroup' %in% names(opt)){
@@ -316,7 +324,8 @@ if('databaseGroup' %in% names(opt)){
     dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
   },
   error=function(cond) {
-    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+    if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
     q(save = 'no', status = 1, runLast = FALSE) 
   })
   
@@ -327,14 +336,14 @@ if('databaseGroup' %in% names(opt)){
                           "' and sample='", x$sample[1], "' and replicate='", x$replicate[1], "' and refGenome='", x$refGenome[1], "'"))
 
     f <- tmpFile()
-    readr::write_tsv(dplyr::select(x, -trial, -subject, -sample, -replicate), file.path(opt$outputDir, 'tmp', f))
-    system(paste0('xz ', file.path(opt$outputDir, 'tmp', f)))
+    readr::write_tsv(dplyr::select(x, -trial, -subject, -sample, -replicate), file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', f))
+    system(paste0('xz ', file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', f)))
     
-    fp <- file.path(opt$outputDir, 'tmp', paste0(f, '.xz'))
+    fp <- file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', paste0(f, '.xz'))
     
     tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
     
-    invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+    invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
     
     r <- dbExecute(conn,
               "insert into fragments values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -342,15 +351,18 @@ if('databaseGroup' %in% names(opt)){
                             x$vectorFastaFile[1], x$flags[1], list(serialize(tab, NULL)), as.character(lubridate::today()), x$seqRunID[1]))
     
     if(r == 0){
-        write(c(paste(now(), 'Error -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+        write(c(paste(now(), 'Error -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+        if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
         q(save = 'no', status = 1, runLast = FALSE)
     } else {
-      write(c(paste(now(), '   Uploaded fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      write(c(paste(now(), '   Uploaded fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
       }
   }))
   
   dbDisconnect(conn)
 }
+
+
 
 q(save = 'no', status = 0, runLast = FALSE) 
 

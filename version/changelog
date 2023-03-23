@@ -22,3 +22,6 @@ Updated prepReads.R to consider UMIs when idetermining identical reads pairs.
 Added anchorReadRearrangements.R
 0.997
 Added anchorReadRearrangements.R
+0.998
+Restructured modules to use tmp/ directories within each module directory rather than a single output/tmp directory.
+Added core module.

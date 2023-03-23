@@ -11,14 +11,18 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
+if(! 'core_createFauxFragDoneFiles' %in% names(opt)) opt$core_createFauxFragDoneFiles <- FALSE
+if(! 'core_createFauxSiteDoneFiles' %in% names(opt)) opt$core_createFauxSiteDoneFiles <- FALSE
+
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
+dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'))
 
 # Load fragment data from database or local file depending on configuration file.
 # Fragments are read in on the read level and contain a variable (n) which is the number 
 # of identical read pairs that were removed in prepReads. (n) can be added to fragment
 # read counts to account for all reads supporting fragments.
 
-write(c(paste(now(), '   Reading in fragment file(s).')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Reading in fragment file(s).')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = FALSE)
 
 # Create a database connection if requested in the configuration file.
 if('databaseGroup' %in% names(opt)){
@@ -28,7 +32,7 @@ if('databaseGroup' %in% names(opt)){
     dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
   },
   error=function(cond) {
-    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
     q(save = 'no', status = 1, runLast = FALSE) 
   })
 }
@@ -37,13 +41,13 @@ if('databaseGroup' %in% names(opt)){
 # ------------------------------------------------------------------------------
 if('buildStdFragments_autoPullTrialSamples' %in% names(opt) & ! 'databaseGroup' %in% names(opt)){
   if(opt$buildStdFragments_autoPullTrialSamples){
-    write(c(paste(now(), 'Error -- the databaseGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    write(c(paste(now(), 'Error -- the databaseGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
     q(save = 'no', status = 1, runLast = FALSE)
   }
 }
 
 if('buildStdFragments_trialSubjectList' %in% names(opt) & ! 'databaseGroup' %in% names(opt)){
-  write(c(paste(now(), 'Error -- the databaseGroup option must be provided with the buildStdFragments_trialSubjectList option.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(c(paste(now(), 'Error -- the databaseGroup option must be provided with the buildStdFragments_trialSubjectList option.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE)
 }
 
@@ -65,7 +69,7 @@ if('buildStdFragments_inputFile' %in% names(opt)){
     dbFragsToAdd <- dbFrags[! dbFrags$uniqueSample %in% frags$uniqueSample,]
     
     if(nrow(dbFragsToAdd) > 0){
-      write(c(paste(now(), paste0('   Adding ', nrow(dbFragsToAdd), ' fragment read records to incoming fragment data.'))), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      write(c(paste(now(), paste0('   Adding ', nrow(dbFragsToAdd), ' fragment read records to incoming fragment data.'))), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
       frags <- distinct(bind_rows(frags, dbFragsToAdd))
     }
   }
@@ -77,7 +81,7 @@ if('buildStdFragments_inputFile' %in% names(opt)){
              pullDBsubjectFrags(dbConn, d[1], d[2])
            })))
 } else {
-  write(c(paste(now(), 'Error -- neither buildStdFragments_inputFile or buildStdFragments_trialSubjectList options were provided')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(c(paste(now(), 'Error -- neither buildStdFragments_inputFile or buildStdFragments_trialSubjectList options were provided')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE)
 }
 
@@ -85,11 +89,11 @@ if('databaseGroup' %in% names(opt)) RMariaDB::dbDisconnect(dbConn)
 
 # Make sure fragments were retrieved.
 if(nrow(frags) == 0){
-  write(c(paste(now(), 'Error -- no fragments were loaded or retrieved.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(c(paste(now(), 'Error -- no fragments were loaded or retrieved.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE)
 }
 
-
+incomingSamples <- unique(sub('~\\d+$', '', frags$uniqueSample))
 
 # Set aside meta data till the end to save memory and add data back at the end 
 # and unpack the uniqueSample ids.
@@ -106,7 +110,7 @@ frags <- rbindlist(lapply(split(frags, frags$uniqueSample), function(x){
 
 # Categorize ITR/LTR remnant sequences.
 # -------------------------------------------------------------------------------
-write(c(paste(now(), '   Categorizing leader sequences.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Categorizing leader sequences.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
 
 frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 
@@ -119,71 +123,78 @@ frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
 
-frags <- bind_rows(parLapply(cluster, split(frags, paste(frags$trial, frags$subject)), function(x){
-           library(dplyr)
-           processed <- vector()
-         
-           x <- bind_rows(lapply(split(x, x$posid), function(x2){
-           
-           
-           # Find neighboring site fragments.
-           if(x2$strand[1] == '+'){
-              o <- subset(x, chromosome == x2$chromosome[1] & strand == '+' & fragStart >= x2$fragStart[1] - opt$buildStdFragments_leaderSeqGroupingDist & fragStart <= x2$fragStart[1] + opt$buildStdFragments_leaderSeqGroupingDist)
-           } else {
-              o <- subset(x, chromosome == x2$chromosome[1] & strand == '-' & fragEnd >= x2$fragEnd[1] - opt$buildStdFragments_leaderSeqGroupingDist  & fragEnd <= x2$fragEnd[1] + opt$buildStdFragments_leaderSeqGroupingDist)
-           }
-           
-           o <- filter(o, ! fragID %in% processed)
-           if(nrow(o) == 0) return(tibble())
-           
-           processed <<- c(processed, unique(o$fragID))
-           
-           if(n_distinct(o$posid) > 1){
+frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject)), function(x){
+
+           bind_rows(parLapply(cluster, split(x, x$chromosome), function(x2){
+             library(dplyr)
+             processed <- vector()
              
-             # There are multiple non-standardized position ids within the current one.
-             # Order their leader sequences by abundance and reads.
-      
-             d <- mutate(o, widths = abs(fragEnd - fragStart)) %>%
-                  group_by(leaderSeq) %>% 
-                  summarise(reads = n_distinct(readID), estAbund = n_distinct(widths)) %>%
-                  arrange(desc(estAbund), desc(reads)) 
-             
-             d$leaderSeqGroup <- 'none'
-             g <- 1
-
-             invisible(lapply(1:nrow(d), function(i){
-               if(! d[i,]$leaderSeqGroup == 'none') return()
-
-               maxEditDist <- ceiling(nchar(as.character(d[i,]$leaderSeq))/opt$buildStdFragments_categorize_anchorReadRemnants_stepSize)
-
-               d[i,]$leaderSeqGroup <<- paste0(x$trial[1], '~', x$subject[1], '~', g)
-
-               # Retrieve all other leader sequences for which a leader seq group has not been assigned.
-               otherFrags <- d[d$leaderSeqGroup == 'none',]
-               if(nrow(otherFrags) == 0) return()
-
-               # Calculate the edit distances between current leader seq and other leader seqs.
-               dist <- stringdist::stringdist(d[i,]$leaderSeq, otherFrags$leaderSeq)
-
-               k <- which(dist <= maxEditDist)
-
-               if(length(k) > 0){
-                 k2 <- which(d$leaderSeq %in% unique(otherFrags[k,]$leaderSeq))
-                 d[k2,]$leaderSeqGroup <<- paste0(x$trial[1], '~', x$subject[1], '~', g)
+             bind_rows(lapply(split(x2, x2$posid), function(x3){      
+                
+               # Find neighboring site fragments.
+               if(x3$strand[1] == '+'){
+                 o <- subset(x2, chromosome == x3$chromosome[1] & 
+                                 strand == '+' & 
+                                 fragStart >= x3$fragStart[1] - opt$buildStdFragments_leaderSeqGroupingDist & 
+                                 fragStart <= x3$fragStart[1] + opt$buildStdFragments_leaderSeqGroupingDist)
+               } else {
+                 o <- subset(x2, chromosome == x2$chromosome[1] & 
+                                 strand == '-' & 
+                                 fragEnd >= x3$fragEnd[1] - opt$buildStdFragments_leaderSeqGroupingDist & 
+                                 fragEnd <= x3$fragEnd[1] + opt$buildStdFragments_leaderSeqGroupingDist)
                }
-
-               g <<- g + 1
-             }))
-             
-             o <- left_join(o, select(d, leaderSeq, leaderSeqGroup), by = 'leaderSeq')
-           } else {
-             o$leaderSeqGroup <- paste0(x$trial[1], '~', x$subject[1], '~', 1)
-           }
            
-           o
+               o <- filter(o, ! fragID %in% processed)
+               if(nrow(o) == 0) return(tibble())
+           
+               processed <<- c(processed, unique(o$fragID))
+           
+               if(n_distinct(o$posid) > 1){
+             
+                 # There are multiple non-standardized position ids within the current one.
+                 # Order their leader sequences by abundance and reads.
+      
+                 d <- mutate(o, widths = abs(fragEnd - fragStart)) %>%
+                      group_by(leaderSeq) %>% 
+                      summarise(reads = n_distinct(readID), estAbund = n_distinct(widths)) %>%
+                      arrange(desc(estAbund), desc(reads)) 
+             
+                 d$leaderSeqGroup <- 'none'
+                 g <- 1
+
+                 invisible(lapply(1:nrow(d), function(i){
+                   if(! d[i,]$leaderSeqGroup == 'none') return()
+
+                   maxEditDist <- ceiling(nchar(as.character(d[i,]$leaderSeq))/opt$buildStdFragments_categorize_anchorReadRemnants_stepSize)
+
+                   d[i,]$leaderSeqGroup <<- paste0(x$trial[1], '~', x$subject[1], '~', g)
+
+                   # Retrieve all other leader sequences for which a leader seq group has not been assigned.
+                   otherFrags <- d[d$leaderSeqGroup == 'none',]
+                   if(nrow(otherFrags) == 0) return()
+
+                   # Calculate the edit distances between current leader seq and other leader seqs.
+                   dist <- stringdist::stringdist(d[i,]$leaderSeq, otherFrags$leaderSeq, nthread = 2)
+
+                   k <- which(dist <= maxEditDist)
+
+                   if(length(k) > 0){
+                     k2 <- which(d$leaderSeq %in% unique(otherFrags[k,]$leaderSeq))
+                     d[k2,]$leaderSeqGroup <<- paste0(x$trial[1], '~', x$subject[1], '~', g)
+                   }
+
+                   g <<- g + 1
+                 }))
+             
+                 o <- left_join(o, select(d, leaderSeq, leaderSeqGroup), by = 'leaderSeq')
+             } else {
+               o$leaderSeqGroup <- paste0(x$trial[1], '~', x$subject[1], '~', 1)
+             }
+           
+             o
+             
+             }))
          }))
-         
-         x
 }))
 
 
@@ -211,7 +222,7 @@ g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
 
 # Standardize integration positions across subjects.
 
-write(c(paste(now(), '   Standardizing integration positions within subjects.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Standardizing integration positions within subjects.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
 
 g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
        library(dplyr)
@@ -253,7 +264,7 @@ pIntSitePosUpdated <- sprintf("%.2f%%", (sum(unlist(lapply(split(frags, frags$st
        }
      }))) / nrow(frags))*100)
 
-write(c(paste(now(), '   ', pIntSitePosUpdated, ' of read records updated with corrected intSite positions.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   ', pIntSitePosUpdated, ' of read records updated with corrected intSite positions.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
 
 
 # Assign the new integration positions.
@@ -434,7 +445,7 @@ if(nrow(frags_multPosIDs) > 0){
          }))
 
     msg <- paste0('   ', sprintf("%.2f%%", (nrow(m) / nrow(frags_multPosIDs))*100), ' of multihit reads recovered because one potential site was in the unabiguous site list.')
-    write(c(paste(now(), msg)), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    write(c(paste(now(), msg)), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
 
     # Remove salvaged reads from multi-hit reads.
     frags_multPosIDs <- subset(frags_multPosIDs, ! readID %in% m$readID) %>% dplyr::select(-s, -returnToFrags)
@@ -448,7 +459,7 @@ multiHitClusters <- tibble()
 
 if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   
-  write(c(paste(now(), '   Building mulit-hit networks.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(c(paste(now(), '   Building mulit-hit networks.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
  
   # Create a data frame with width data needed by multi-hit calculating worker nodes
   # then export the data to the cluster nodes.
@@ -519,7 +530,8 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
     },
     error=function(cond) {
-      write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+      if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
       q(save = 'no', status = 1, runLast = FALSE) 
     })
     
@@ -534,24 +546,25 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
                             "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
       
       f <- tmpFile()
-      readr::write_tsv(dplyr::select(x, -trial, -subject, -sample, -i, -refGenome), file.path(opt$outputDir, 'tmp', f))
-      system(paste0('xz ', file.path(opt$outputDir, 'tmp', f)))
+      readr::write_tsv(dplyr::select(x, -trial, -subject, -sample, -i, -refGenome), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp', f))
+      system(paste0('xz ', file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp', f)))
       
-      fp <- file.path(opt$outputDir, 'tmp', paste0(f, '.xz'))
+      fp <- file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp', paste0(f, '.xz'))
       
       tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
       
-      invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+      invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
       
       r <- dbExecute(dbConn,
                      "insert into multihits values (?, ?, ?, ?, ?, ?)",
                      params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], list(serialize(tab, NULL)), as.character(lubridate::today())))
       
       if(r == 0){
-        write(c(paste(now(), 'Error -- could not upload fragment data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+        write(c(paste(now(), 'Error -- could not upload fragment data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+        if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
         q(save = 'no', status = 1, runLast = FALSE)
       } else {
-        write(c(paste(now(), '   Uploaded multihit data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+        write(c(paste(now(), '   Uploaded multihit data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
       }
     }))
     
@@ -570,7 +583,7 @@ b <- subset(frags, i > 1)
 if(nrow(b) > 0){
   o <- split(b, b$fragID)
 
-  write(c(paste(now(), '   Bundling fragment reads into fragment records.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(c(paste(now(), '   Bundling fragment reads into fragment records.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
 
   b2 <- bind_rows(lapply(o, function(x){
          totalReads <- n_distinct(x$readID) + sum(x$n)
@@ -609,9 +622,12 @@ if(nrow(a) > 0){
 f <- bind_rows(a2, b2)
 
 # Clear out the tmp/ directory.
-invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
+invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), full.names = TRUE)))
 
 if (nrow(f) > 0) f <- left_join(f, sampleMetaData, by = 'uniqueSample')
+
+s <- unique(paste0(f$trial, '~', f$subject, '~', f$sample))
+if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
 saveRDS(f, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'))
 readr::write_tsv(f, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))

@@ -25,13 +25,6 @@ if(! dir.exists(opt$outputDir)){
   }
 }
 
-
-dir.create(file.path(opt$outputDir, 'tmp'))
-if(! dir.exists(file.path(opt$outputDir, 'tmp'))){
-  message('Error: Can not create the tmp directory.')
-  q(save = 'no', status = 1, runLast = FALSE)
-}
-
 dir.create(file.path(opt$outputDir, 'src'))
 if(! dir.exists(file.path(opt$outputDir, 'src'))){
   message('Error: Can not create the src directory.')

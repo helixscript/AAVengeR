@@ -14,7 +14,6 @@ s$indexLinker <- paste0(s$index1Seq, substr(s$adriftReadLinkerSeq, 1, opt$barcod
 
 I1 <- readFastq(opt$barcodeAssocLinkers_index1ReadsFile)@sread
 R1 <- readFastq(opt$barcodeAssocLinkers_adriftReadsFile)@sread
-
 I1 <- as.character(I1)
 
 tab <- table(I1)
@@ -36,10 +35,26 @@ r <- bind_rows(lapply(split(tab, 1:nrow(tab)), function(x){
        } else {
          x$barcodeLinkerPairInSampleData <- NA
        }
-       
+     
        names(x) <- c('barcode', 'nObs', 'mostAssocLinker', 'percentAssocLinkers', 'barcodeInSampleData', 'barcodeLinkerPairInSampleData')
        x
-     }))
+   }))
 
-openxlsx::write.xlsx(r, file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir, 'barcodeTable.xlsx'))
-readr::write_tsv(r, file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir, 'barcodeTable.tsv'))
+R1 <- as.character(subseq(R1, 1, opt$barcodeAssocLinkers_adriftReadUniqueLinkerLength))
+tab <- sort(table(R1), decreasing = TRUE)
+tab <- data.frame(sort(tab, decreasing = TRUE)[1:opt$barcodeAssocLinkers_nCodes])
+  
+r2 <- bind_rows(lapply(split(tab, 1:nrow(tab)), function(x){
+        i <- which(R1 == x$R1)
+        k <- data.frame(sort(table(I1[i]), decreasing = TRUE)[1:5]) %>% 
+             mutate(uniqueLinker = x$R1, uniqueLinkerFreq = x$Freq, .before = 'Var1')
+        names(k) <- c('uniqueLinker', 'uniqueLinkerFreq', 'barcode', 'barcodeFreq')
+        k
+      }))
+
+openxlsx::write.xlsx(r, file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir, 'barcode2LinkerTable.xlsx'))
+readr::write_tsv(r, file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir, 'barcode2LinkerTable.tsv'))
+
+openxlsx::write.xlsx(r2, file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir, 'linker2barcodeTable.xlsx'))
+readr::write_tsv(r2, file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir, 'linker2barcodeTable.tsv'))
+

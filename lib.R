@@ -1,5 +1,20 @@
 tmpFile <- function(){ paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') }
 
+# Helper function that creates the expected done files expected by the core module when modules fail.
+# The core module would become stuck in perpetual loops if the done files did not appear after a failure.
+core_createFauxFragDoneFiles <- function(){
+  if(! dir.exists(file.path(opt$outputDir, 'buildFragments'))) dir.create(file.path(opt$outputDir,'buildFragments'))
+  write(date(), file = file.path(opt$outputDir, 'buildFragments', 'fragments.done'))
+  write(date(), file = file.path(opt$outputDir, 'buildFragments', 'xxx'))
+}
+
+
+core_createFauxSiteDoneFiles <- function(){
+  if(! dir.exists(file.path(opt$outputDir, 'buildSites'))) dir.create(file.path(opt$outputDir, 'buildSites'))
+  write(date(), file = file.path(opt$outputDir,  'buildSites', 'sites.done'))
+  write(date(), file = file.path(opt$outputDir,  'buildSites', 'xxx'))
+}
+
 
 checkSoftware <- function(){
   s <- c('blastn', 'blat', 'cutadapt', 'hmmbuild', 'hmmsearch', 'mafft', 'makeblastdb', 'muscle', 'python2')
@@ -52,7 +67,7 @@ waitForFile <- function(f, seconds = 1){
 }
 
 
-pullDBsubjectFrags <- function(dbConn, trial, subject){
+pullDBsubjectFrags <- function(dbConn, trial, subject, tmpDirPath){
   
   o <- dbGetQuery(dbConn, paste0("select * from fragments where trial = '", trial, "' and subject = '", subject, "'"))
   r <- tibble()
@@ -60,10 +75,10 @@ pullDBsubjectFrags <- function(dbConn, trial, subject){
   if(nrow(o) > 0){
     r <- bind_rows(lapply(split(o, 1:nrow(o)), function(y){
       f <- tmpFile()
-      writeBin(unserialize(o$data[[1]]), file.path(opt$outputDir, 'tmp', paste0(f, '.xz')))
-      system(paste0('unxz ', file.path(opt$outputDir, 'tmp', paste0(f, '.xz'))))
-      d <- readr::read_tsv(file.path(opt$outputDir, 'tmp', f))
-      invisible(file.remove(file.path(opt$outputDir, 'tmp', f)))
+      writeBin(unserialize(o$data[[1]]), file.path(tmpDirPath, paste0(f, '.xz')))
+      system(paste0('unxz ', file.path(tmpDirPath, paste0(f, '.xz'))))
+      d <- readr::read_tsv(file.path(tmpDirPath, f))
+      invisible(file.remove(file.path(tmpDirPath, f)))
       d
     }))
   }
@@ -296,7 +311,7 @@ parseCutadaptLog <- function(f){
 }
 
 
-representativeSeq <- function(s, percentReads = 95){
+representativeSeq <- function(s, percentReads = 95, tmpDirPath = NA){
   if(length(s) == 1 | dplyr::n_distinct(s) == 1) return(list(0, s[1]))
   
   k <- data.frame(table(s))
@@ -310,13 +325,13 @@ representativeSeq <- function(s, percentReads = 95){
   
   # Align sequences in order to handle potential indels.
   f <- tmpFile()
-  inputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.fasta'))
+  inputFile <- file.path(tmpDirPath, paste0(f, '.fasta'))
   fileConn <- file(inputFile)
   write(paste0('>', paste0('s', 1:length(s)), '\n', s), file = fileConn)
   close(fileConn)
   
   # Align sequences.
-  outputFile <- file.path(opt$outputDir, 'tmp', paste0(f, '.representativeSeq.muscle'))
+  outputFile <- file.path(tmpDirPath, paste0(f, '.representativeSeq.muscle'))
   system(paste('muscle -quiet -maxiters 1 -diags -in ', inputFile, ' -out ', outputFile))
   if(! file.exists(outputFile)) waitForFile(outputFile)
 
@@ -426,11 +441,11 @@ standardizedFragments <- function(frags, opt, cluster){
 }
 
 
-golayCorrection <- function(x){
+golayCorrection <- function(x, tmpDirPath = NA){
   library(ShortRead)
   library(dplyr)
   
-  f <- file.path(opt$outputDir, 'tmp', paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') )
+  f <- file.path(tmpDirPath, paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') )
   writeFasta(x, file = f)
   
   system(paste('python2', file.path(opt$softwareDir, 'bin', 'golayCorrection', 'processGolay.py'), f))
@@ -524,8 +539,8 @@ blast2rearangements_worker2 <-  function(b){
 }
 
 
-captureLTRseqsLentiHMM <- function(reads, hmm){
-  outputFile <- file.path(opt$outputDir, 'tmp', tmpFile())
+captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
+  outputFile <- file.path(tmpDirPath, tmpFile())
   
   reads <- reads[width(reads) > opt$prepReads_HMMsearchReadEndPos]
   if(length(reads) == 0) return(tibble())
@@ -593,23 +608,23 @@ captureLTRseqsLentiHMM <- function(reads, hmm){
 }
 
 
-blastReads <- function(reads, wordSize = 6, evalue = 10){
+blastReads <- function(reads, wordSize = 6, evalue = 10, tmpDirPath = NA){
   library(Biostrings)
   library(dplyr)
 
   f <- tmpFile()
-  writeXStringSet(reads,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
+  writeXStringSet(reads,  file.path(tmpDirPath, paste0(f, '.fasta')))
   
   system(paste0('blastn -dust no -soft_masking false -word_size ', wordSize, ' -evalue ', evalue,' -outfmt 6 -query ',
-                file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
+                file.path(tmpDirPath, paste0(f, '.fasta')), ' -db ',
                 file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'),
-                ' -num_threads 1 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),
+                ' -num_threads 1 -out ', file.path(tmpDirPath, paste0(f, '.blast'))),
          ignore.stdout = TRUE, ignore.stderr = TRUE)
   
-  waitForFile(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))
+  waitForFile(file.path(tmpDirPath, paste0(f, '.blast')))
   
-  if(file.info(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))$size > 0){
-    b <- read.table(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
+  if(file.info(file.path(tmpDirPath, paste0(f, '.blast')))$size > 0){
+    b <- read.table(file.path(tmpDirPath, paste0(f, '.blast')), sep = '\t', header = FALSE)
     names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
     return(b)
   } else {
@@ -619,23 +634,23 @@ blastReads <- function(reads, wordSize = 6, evalue = 10){
 
 
 
-blatReads <- function(reads, minIdentity=90, stepSize = 11, tileSize = 11){
+blatReads <- function(reads, minIdentity=90, stepSize = 11, tileSize = 11, tmpDirPath = NA){
   library(Biostrings)
   library(dplyr)
   
   f <- tmpFile()
-  writeXStringSet(reads,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
+  writeXStringSet(reads,  file.path(tmpDirPath, paste0(f, '.fasta')))
   
   system(paste0(file.path(opt$softwareDir, 'bin', 'blat'), ' ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'), ' ', 
-                file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' ',
-                file.path(opt$outputDir, 'tmp', paste0(f, '.psl')), ' -minIdentity=', minIdentity, 
+                file.path(tmpDirPath, paste0(f, '.fasta')), ' ',
+                file.path(tmpDirPath, paste0(f, '.psl')), ' -minIdentity=', minIdentity, 
                 ' -stepSize=', stepSize, ' -tileSize=', tileSize, ' -out=psl -noHead -minScore=0'),
          ignore.stdout = TRUE, ignore.stderr = TRUE)
   
-  waitForFile(file.path(opt$outputDir, 'tmp', paste0(f, '.psl')))
+  waitForFile(file.path(tmpDirPath, paste0(f, '.psl')))
   
-  if(file.info(file.path(opt$outputDir, 'tmp', paste0(f, '.psl')))$size > 0){
-    return(parseBLAToutput(file.path(opt$outputDir, 'tmp', paste0(f, '.psl'))))
+  if(file.info(file.path(tmpDirPath, paste0(f, '.psl')))$size > 0){
+    return(parseBLAToutput(file.path(tmpDirPath, paste0(f, '.psl'))))
   } else {
     return(tibble())
   }
@@ -747,3 +762,82 @@ determine_RC_I1 <- function(){
   ifelse(sum(d$barcodePercent) > sum(d$barcodePercentRC), FALSE, TRUE)
 }
 
+
+
+
+
+#' Annotate genomic ranges
+#'
+#' Create a dataframe of sequencing run ids associated with 1 or more patient identifiers.
+#'
+#' @param d Data frame containing genomic ranges to be added to UCSC track.
+#' @param abundCuts Cut points for estimated abundance (estAbund) values. 
+#' @param posColors Color codes for binned abundances (positive integrations).
+#' @param negColors Color codes for binned abundances (positive integrations).
+#' @param title Track title.
+#' @param outputFile Track output file.
+#' @param visibility Track default visibility (0 - hide, 1 - dense, 2 - full, 3 - pack, and 4 - squish).
+#' @param position Deafult track position.
+#' @param padSite Number of NTs to pad sites with for increased visibility.
+#' @param siteLabel Text to appear next to sites, ie. 'Patient X, chr12+1052325'.
+#' 
+#' @return Nothing.
+#'
+#' @export
+createIntUCSCTrack <- function(d, abundCuts = c(5,10,50), 
+                               posColors = c("#8C9DFF", "#6768E3", "#4234C7", "#1D00AB"),
+                               negColors = c("#FF8C8C", "#E35D5D", "#C72E2E", "#AB0000"),
+                               title = 'intSites', outputFile = 'track.ucsc', visibility = 1, 
+                               position = 'chr7:127471196-127495720', padSite = 0,
+                               siteLabel = NA){
+  
+  # Check function inputs.
+  if(length(posColors) != length(negColors)) 
+    stop('The pos and neg color vectors are not the same length.')
+  
+  if(length(abundCuts) != length(posColors) - 1) 
+    stop('The number of aundance cut offs must be one less than the number of provided colors.')
+  
+  if(! all(c('start', 'end', 'strand', 'seqnames', 'estAbund') %in% names(d))) 
+    stop("The expected column names 'start', 'end', 'strand', 'seqnames', 'estAbund' were not found.") 
+  
+  if(is.na(siteLabel) | ! siteLabel %in% names(d)) 
+    stop('The siteLabel parameter is not defined or can not be found in your data.')
+  
+  
+  # Cut the abundance data. Abundance bins will be used to look up color codes.
+  # We flank the provided cut break points with 0 and Inf in order to bin all values outside of breaks.
+  cuts <- cut(d$estAbund, breaks = c(0, abundCuts, Inf), labels = FALSE)
+  
+  
+  # Convert Hex color codes to RGB color codes. 
+  # col2rgb() returns a matrix, here we collapse the columns into comma delimited strings.
+  #   grDevices::col2rgb(posColors)
+  #         [,1] [,2] [,3] [,4]
+  #   red    140  103   66   29
+  #   green  157  104   52    0
+  #   blue   255  227  199  171
+  
+  posColors <- apply(grDevices::col2rgb(posColors), 2, paste0, collapse = ',')
+  negColors <- apply(grDevices::col2rgb(negColors), 2, paste0, collapse = ',')
+  
+  
+  # Create data fields needed for track table.
+  d$score <- 0
+  d$color <- ifelse(d$strand == '+', posColors[cuts], negColors[cuts])
+  
+  # Pad the site n NTs to increase visibility.
+  if(padSite > 0){
+    d$start <- floor(d$start - padSite/2)
+    d$end   <- ceiling(d$end + padSite/2)
+  }
+  
+  # Define track header.
+  trackHead <- sprintf("track name='%s' description='%s' itemRgb='On' visibility=%s\nbrowser position %s",
+                       title, title, visibility, position)
+  
+  # Write out track table.
+  write(trackHead, file = outputFile, append = FALSE)
+  write.table(d[, c('seqnames', 'start', 'end', siteLabel, 'score', 'strand', 'start', 'end', 'color')], 
+              sep = '\t', col.names = FALSE, row.names = FALSE, file = outputFile, append = TRUE, quote = FALSE)
+}

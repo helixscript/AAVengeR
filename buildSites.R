@@ -7,18 +7,24 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
+if(! 'core_createFauxFragDoneFiles' %in% names(opt)) opt$core_createFauxFragDoneFiles <- FALSE
+if(! 'core_createFauxSiteDoneFiles' %in% names(opt)) opt$core_createFauxSiteDoneFiles <- FALSE
+
 dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
+dir.create(file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp'))
 
 # Read in Standardized fragments.
-write(c(paste(now(), '   Reading standardized fragment data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Reading standardized fragment data.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = FALSE)
 frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile)) %>% dplyr::select(-readIDs) 
+
+incomingSamples <- unique(paste0(frags$trial, '~', frags$subject, '~', frags$sample))
 
 samples <- distinct(tibble(trial = frags$trial, subject = frags$subject, sample = frags$sample, replicate = frags$replicate, flags = frags$flags))
 
 # Process fragments as integrase u5/u3 sites if all samples have a u5/u3 sample flag.
 if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
   
-  write(c(paste(now(), '   Processing IN_u3 / IN_u5 flags.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+  write(c(paste(now(), '   Processing IN_u3 / IN_u5 flags.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
   
   frags$id  <- paste(frags$trial, frags$subject, frags$sample, frags$replicate)
   frags$id2 <- paste(frags$trial, frags$subject, frags$sample, frags$replicate, frags$posid)
@@ -96,6 +102,8 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
     }
   }))
   
+  #browser()
+  
   frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$sample)), function(x){
 
     dualDetect <- tibble()
@@ -149,7 +157,7 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
   }))
 }
 
-write(c(paste(now(), '   Building replicate level integration sites.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Building replicate level integration sites.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
 
 frags$fragWidth <- frags$fragEnd - frags$fragStart + 1
 frags$replicate <- as.integer(frags$replicate)
@@ -192,7 +200,7 @@ sites <- bind_rows(lapply(split(f, f$i), function(a){
               s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
             }
     
-            r <- representativeSeq(s)
+            r <- representativeSeq(s, tmpDir = file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp'))
     
             return(dplyr::mutate(x, UMIs = n_distinct(x$randomLinkerSeq), 
                                 sonicLengths = n_distinct(x$fragWidth), 
@@ -212,7 +220,7 @@ sites <- bind_rows(lapply(split(f, f$i), function(a){
 minReplicate <- min(sites$replicate)
 maxReplicate <- max(sites$replicate)
 
-write(c(paste(now(), '   Creating a wide view of the replicate level integration site data.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Creating a wide view of the replicate level integration site data.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
 
 tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sample, sites$posid)), function(x){ 
           o <- bind_cols(lapply(minReplicate:maxReplicate, function(r){
@@ -236,7 +244,7 @@ tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sa
           bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], refGenome = x$refGenome[1], posid = x$posid[1], flags = x$flags[1], vectorFastaFile = x$vectorFastaFile[1]), o)
 }))
 
-write(c(paste(now(), '   Buiding sample level integration sites.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+write(c(paste(now(), '   Buiding sample level integration sites.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
 
 tbl1$i <- dplyr::ntile(1:nrow(tbl1), opt$buildSites_CPUs)
 
@@ -264,7 +272,7 @@ tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
                  s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
                }
     
-               r <- representativeSeq(s)
+               r <- representativeSeq(s,tmpDir = file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp'))
     
                k <- tibble(UMIs = n_distinct(f$randomLinkerSeq), 
                            sonicLengths = n_distinct(f$fragWidth), 
@@ -281,6 +289,16 @@ tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
 if(any(is.infinite(tbl2$maxLeaderSeqDist))) tbl2[is.infinite(tbl2$maxLeaderSeqDist),]$maxLeaderSeqDist <- NA
 tbl2$i <- NULL
 
+tbl2 <- arrange(tbl2, desc(sonicLengths))
+
+s <- unique(paste0(tbl2$trial, '~', tbl2$subject, '~', tbl2$sample))
+if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
+
+saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'))
+openxlsx::write.xlsx(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
+readr::write_tsv(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.tsv.gz'))
+write(date(), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.done'))
+
 if('databaseGroup' %in% names(opt)){
   library(RMariaDB)
   
@@ -288,7 +306,7 @@ if('databaseGroup' %in% names(opt)){
     dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
   },
   error=function(cond) {
-    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
     q(save = 'no', status = 1, runLast = FALSE) 
   })
   
@@ -297,14 +315,14 @@ if('databaseGroup' %in% names(opt)){
                           "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
     
     f <- tmpFile()
-    readr::write_tsv(dplyr::select(x, -trial, -subject, -sample, -refGenome), file.path(opt$outputDir, 'tmp', f))
-    system(paste0('xz ', file.path(opt$outputDir, 'tmp', f)))
+    readr::write_tsv(dplyr::select(x, -trial, -subject, -sample, -refGenome), file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp', f))
+    system(paste0('xz ', file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp', f)))
     
-    fp <- file.path(opt$outputDir, 'tmp', paste0(f, '.xz'))
+    fp <- file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp', paste0(f, '.xz'))
     
     tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
     
-    invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+    invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
     
     r <- dbExecute(dbConn,
                    "insert into sites values (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -312,20 +330,14 @@ if('databaseGroup' %in% names(opt)){
                                  x$vectorFastaFile[1], x$flags[1], list(serialize(tab, NULL)), as.character(lubridate::today())))
     
     if(r == 0){
-      write(c(paste(now(), 'Error -- could not upload sites data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      write(c(paste(now(), 'Error -- could not upload sites data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
       q(save = 'no', status = 1, runLast = FALSE)
     } else {
-      write(c(paste(now(), '   Uploaded sites data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      write(c(paste(now(), '   Uploaded sites data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
     }
   }))
   
   dbDisconnect(dbConn)
 }
-
-tbl2 <- arrange(tbl2, desc(sonicLengths))
-
-saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'))
-openxlsx::write.xlsx(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
-readr::write_tsv(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
