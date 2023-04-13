@@ -3,21 +3,20 @@ softwareDir:       /home/ubuntu/AAVengeR                                        
 outputDir:         output                                                       # [file path] Path to the output directory which will be created if it does not exists.
 databaseGroup:     AAVengeR
 
-
 modules:
-   - barcodeAssocLinkers                                                        # [module name]
-   - demultiplex                                                                # [module name]
-   - prepReads                                                                  # [module name]
-   - alignReads                                                                 # [module name] 
-   - buildFragments                                                             # [module name]
-   - buildStdFragments                                                          # [module name]
-   - buildSites                                                                 # [module name]
+    - core                                                                       # [module name]
+#   - demultiplex                                                                # [module name]
+#   - prepReads                                                                  # [module name]
+#   - alignReads                                                                 # [module name] 
+#   - buildFragments                                                             # [module name]
+#   - buildStdFragments                                                          # [module name]
+#   - buildSites                                                                 # [module name]
 
 # Processing parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
-core_CPUs: 32                                                                   # [integer] The core module will override CPU settings in other configuration sections with dynamic CPU values.
-core_minCPUs: 8                                                                 # [integer] Minimum number of CPUs allocated to a sample replicate calculation.
+core_CPUs: 30
+core_maxPercentCPUs: 33
 
 barcodeAssocLinkers_outputDir: barcodeAssocLinkers                              # [character] barcodeAssocLinkers ouput directory name that will be created in the output directory.
 barcodeAssocLinkers_sampleDataFile:  data/sampleData.tsv                        # [file path] sampleData file path.
@@ -27,9 +26,10 @@ barcodeAssocLinkers_nCodes: 50                                                  
 barcodeAssocLinkers_excludePolyG_index1BarCodes: TRUE                           # [boolean]   Exclude I1 barcodes that contain GGGGG (most likely PhiX).
 barcodeAssocLinkers_adriftReadUniqueLinkerLength: 20                            # [integer]   First n NTs of adrift read NTs to consider as a unique linker sequence.
 
+
 anchorReadRearrangements_CPUs: 15
 anchorReadRearrangements_outputDir: anchorReadRearrangements
-anchorReadRearrangements_readsTable: demultiplex/reads.rds
+anchorReadRearrangements_readsTable: core/demultiplex/reads.rds
 anchorReadRearrangements_abundSeqMinCount: 10
 anchorReadRearrangements_minAnchorReadLength: 25
 anchorReadRearrangements_minAdriftReadLength: 25

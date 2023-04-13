@@ -1,13 +1,20 @@
 tmpFile <- function(){ paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') }
 
+# AAVegeneR is provided with default configuration files for different types of analyses
+# where all the expected options are provided. Removing options from the configuration file
+# may break the software in some instances. Some modules, such as the core module, injects 
+# non-public options and this function ensures that they are always set even when not needed
+# so modules will not throw errors. 
+
 setMissingOptions <- function(){
-  if(! 'core_createFauxFragDoneFiles' %in% names(opt)) opt$core_createFauxFragDoneFiles <- FALSE
-  if(! 'core_createFauxSiteDoneFiles' %in% names(opt)) opt$core_createFauxSiteDoneFiles <- FALSE
+  if(! 'core_createFauxFragDoneFiles' %in% names(opt)) opt$core_createFauxFragDoneFiles <<- FALSE
+  if(! 'core_createFauxSiteDoneFiles' %in% names(opt)) opt$core_createFauxSiteDoneFiles <<- FALSE
 }
 
 
 # Helper function that creates the expected done files expected by the core module when modules fail.
 # The core module would become stuck in perpetual loops if the done files did not appear after a failure.
+
 core_createFauxFragDoneFiles <- function(){
   if(! dir.exists(file.path(opt$outputDir, 'buildFragments'))) dir.create(file.path(opt$outputDir,'buildFragments'))
   write(date(), file = file.path(opt$outputDir, 'buildFragments', 'fragments.done'))
@@ -21,6 +28,8 @@ core_createFauxSiteDoneFiles <- function(){
   write(date(), file = file.path(opt$outputDir,  'buildSites', 'xxx'))
 }
 
+
+# Check the system path for the presence of required system level software.
 
 checkSoftware <- function(){
   s <- c('blastn', 'blat', 'cutadapt', 'hmmbuild', 'hmmsearch', 'mafft', 'makeblastdb', 'muscle', 'python2')
@@ -50,11 +59,16 @@ checkSoftware <- function(){
 }
 
 
+# Last Path Element -- return the last element of a file path delimited by slashes.
+
 lpe <- function(x){
   o <- unlist(strsplit(x, '/'))
   o[length(o)]
 }
 
+
+# Convert a ShortRead object to a BioString DNA object and
+# removing trailing lane information from reads ids.
 
 shortRead2DNAstringSet <- function(x){
   r <- x@sread
@@ -62,6 +76,8 @@ shortRead2DNAstringSet <- function(x){
   r
 }
 
+
+# Helper function to wait for a file to appear on the file system.
 
 waitForFile <- function(f, seconds = 1){
   repeat
@@ -72,6 +88,8 @@ waitForFile <- function(f, seconds = 1){
   return(TRUE)
 }
 
+
+# Pull non-standardized fragments from a database based on trial and subject ids.
 
 pullDBsubjectFrags <- function(dbConn, trial, subject, tmpDirPath){
   
@@ -92,6 +110,9 @@ pullDBsubjectFrags <- function(dbConn, trial, subject, tmpDirPath){
   r
 }
 
+
+# Quality trim ShortRead reads based on parameters in the configuration file 
+# and remove reads that fall below a specific length post trimming. 
 
 qualTrimReads <- function(f, chunkSize, label, ouputDir){
   
@@ -115,12 +136,18 @@ qualTrimReads <- function(f, chunkSize, label, ouputDir){
   }
 }
 
+
+# Given a set of Biostring objects, subject each object in the set such that 
+# they share a common set of read ids.
+
 syncReads <- function(...){
   arguments <- list(...)
   n <- Reduce(base::intersect, lapply(arguments, names))
   lapply(arguments, function(x) x[match(n, names(x))])
 }
 
+
+# Helper function to deconstruct uniqueSampleIDs into separate data frame columns.
 
 unpackUniqueSampleID <- function(d){
   d$trial     <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 1))
@@ -130,7 +157,10 @@ unpackUniqueSampleID <- function(d){
   d
 }
 
-# Function to remove minor sequence variation from short sequences.
+
+# Function to remove minor sequence variation from short sequences by identifying
+# a abundant sequences and conforming those with minor differences to those sequences.
+
 conformMinorSeqDiffs <- function(x, editDist = 1, abundSeqMinCount = 10, nThreads = 10){
   tab <- table(unname(x))
   if(length(tab[tab >= abundSeqMinCount]) == 0) return(x)
@@ -156,17 +186,6 @@ conformMinorSeqDiffs <- function(x, editDist = 1, abundSeqMinCount = 10, nThread
   }))
 }
 
-parse_cdhitest_output <- function (file) {
-  clusters <- readChar(file, file.info(file)$size)
-  clusters <- unlist(base::strsplit(clusters, ">Cluster"))
-  clusters <- clusters[2:length(clusters)]
-  lapply(clusters, function(x) {
-    gsub("\\.\\.\\.", "", unlist(lapply(stringr::str_match_all(x,
-                                                      ">([^\\s]+)"), function(y) {
-                                                        y[, 2]
-                                                      })))
-  })
-}
 
 
 loadSamples <- function(){
@@ -195,7 +214,6 @@ loadSamples <- function(){
     samples$vectorFastaFile <- NA
   }
   
-  
   if('leaderSeqHMM' %in% names(samples)){
     samples$leaderSeqHMM <- file.path(opt$softwareDir, 'data', 'hmms', samples$leaderSeqHMM)
     
@@ -204,8 +222,6 @@ loadSamples <- function(){
       q(save = 'no', status = 1, runLast = FALSE) 
     }
   }
-  
-  
 
   # Create missing columns and set to NA.
   if(! 'adriftRead.linkerBarcode.start' %in% names(samples)){
@@ -506,43 +522,68 @@ blast2rearangements_worker <-  function(b){
 }
     
 
-blast2rearangements_worker2 <-  function(b){
+buildRearrangementModel <- function(b, seqsMinAlignmentLength = 15){
+  r <- vector()
+  counter <- 0
+  b <- b[(b$qend - b$qstart + 1) >= seqsMinAlignmentLength,]
+  b$qstartBin <- cut(b$qstart, c(seq(0, max(b$qstart), 5), Inf), labels = FALSE)
+  b <- arrange(b, qstartBin, desc(bitscore))
+
+  while(nrow(b) != 0){
+    counter <- counter + 1
+    b <- arrange(b, qstart, evalue)
+    x <- b[1,]
+    r <- paste0(r, ';', x$qstart, '..', x$qend, '[', x$sstart2, x$strand, x$send2, ']')
+
+    b <- b[b$qstart >= x$qend - 5 & b$qstartBin != x$qstartBin,] 
+    b <- arrange(b, qstartBin, desc(bitscore))
+    
+    if(counter == 1000) break
+  } 
+  
+  sub('^;', '', r)
+}
+
+blast2rearangements <- function(b, maxMissingTailNTs = 5){
   library(dplyr)
   library(IRanges)
   library(data.table)
-
-  rbindlist(lapply(split(b, b$qname), function(b2){
-
+  
+  bind_rows(lapply(split(b, b$qname), function(b){
+    
     # Sort BLAST results by query start position and evalue (low to high).
-    b2 <- arrange(b2, qstart, evalue)
-    b2$strand <- ifelse(b2$send < b2$sstart, '-', '+')
-
+    b$strand <- ifelse(b$send < b$sstart, '-', '+')
+    
     # Alignment to the negative strand will result in the subject end to come before the start.
     # Switch it back so that they are sequential.
-    b2$sstart2 <- ifelse(b2$sstart > b2$send, b2$send, b2$sstart)
-    b2$send2   <- ifelse(b2$sstart > b2$send, b2$sstart, b2$send)
-
-    # Create IRanges
-    ir <- IRanges(start = b2$qstart, end = b2$qend)
-    if(length(ir) == 0) return(data.frame())
-
-    # Name the ranges with the binned query positions followed by the actual subject positions.
-    names(ir) <- paste0(b2$qstart, '..', b2$qend, '[', b2$sstart2, b2$strand, b2$send2, ']')
-
-    o <- ir[1]
-    invisible(lapply(split(ir, 1:length(ir)), function(a){
-      if(all(! countOverlaps(o, a, minoverlap = 2) > 0)){
-        o <<- c(o, a)
+    b$sstart2 <- ifelse(b$sstart > b$send, b$send, b$sstart)
+    b$send2   <- ifelse(b$sstart > b$send, b$sstart, b$send)
+    
+    r <- tibble(qname = b$qname[1], rearrangement = buildRearrangementModel(b))
+    
+    # Add missing internal segments.
+    o <- unlist(strsplit(r$rearrangement, ';'))
+    if(length(o) > 1){
+      for(i in c(2:length(o))){
+        n1 <- as.integer(sub('\\[', '', stringr::str_extract(o[i-1], '\\d+\\[')))
+        n2 <- as.integer(stringr::str_extract(o[i], '^\\d+'))
+        if(n2 - n1 >= 10) o[i-1] <- paste0(o[i-1], ';', n1+1, '..', n2-1, '[x]')
       }
-    }))
-
-    if(length(o) == 0) return(data.frame())
-
-    r <- paste0(unique(names(o)), collapse = ';')
-
-    data.frame(qname = b2$qname[1], rearrangement = r)
+      r$rearrangement <- paste0(o, collapse = ';')
+      
+      o <- unlist(stringr::str_extract_all(r$rearrangement, '\\.\\.\\d+'))
+      lastRangeEnd <- as.integer(sub('\\.\\.', '', stringr::str_extract(o[length(o)], '\\.\\.\\d+')))
+      browser()
+      if(b$qlen[1] - lastRangeEnd >= maxMissingTailNTs){
+        
+        r$rearrangement <- paste0(r$rearrangement, ';', (lastRangeEnd+1), '..', b$qlen[1], '[x]')
+      }
+    }
+    
+    r
   }))
 }
+
 
 
 captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
@@ -614,24 +655,28 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
 }
 
 
-blastReads <- function(reads, wordSize = 6, evalue = 10, tmpDirPath = NA){
+blastReads <- function(reads, wordSize = 5, evalue = 100, tmpDirPath = NA, dbPath = NA){
   library(Biostrings)
   library(dplyr)
 
   f <- tmpFile()
   writeXStringSet(reads,  file.path(tmpDirPath, paste0(f, '.fasta')))
   
-  system(paste0('blastn -dust no -soft_masking false -word_size ', wordSize, ' -evalue ', evalue,' -outfmt 6 -query ',
-                file.path(tmpDirPath, paste0(f, '.fasta')), ' -db ',
-                file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'),
-                ' -num_threads 1 -out ', file.path(tmpDirPath, paste0(f, '.blast'))),
-         ignore.stdout = TRUE, ignore.stderr = TRUE)
+  comm <- paste0('blastn -dust no -soft_masking false -word_size ', wordSize, ' -evalue ', evalue,' -outfmt 6 -query ',
+                 file.path(tmpDirPath, paste0(f, '.fasta')), ' -db ',
+                 dbPath, ' -num_threads 1 -out ', file.path(tmpDirPath, paste0(f, '.blast')))
+            
+  system(comm, ignore.stdout = TRUE, ignore.stderr = TRUE)
   
   waitForFile(file.path(tmpDirPath, paste0(f, '.blast')))
   
   if(file.info(file.path(tmpDirPath, paste0(f, '.blast')))$size > 0){
     b <- read.table(file.path(tmpDirPath, paste0(f, '.blast')), sep = '\t', header = FALSE)
     names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
+    
+    o <- reads[names(reads) %in% b$qname]
+    d <- tibble(qname = names(o), qlen = width(o))
+    b <- left_join(b, d, by = 'qname')
     return(b)
   } else {
     return(tibble())

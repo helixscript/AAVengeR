@@ -11,8 +11,6 @@ opt <- yaml::read_yaml(configFile)
 
 source(file.path(opt$softwareDir, 'lib.R'))
 
-invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
-
 sites <- readRDS(file.path(opt$outputDir, opt$mapSiteLeaderSequences_inputFile))
 
 if(! opt$mapSiteLeaderSequences_addAfter %in% names(sites)){
@@ -26,11 +24,12 @@ sites$repLeaderSeqMap <- NULL
 
 dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir))
 dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'))
+dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp'))
 
 sites$s <- paste(sites$subject, sites$sample)
 
 cluster <- makeCluster(opt$mapSiteLeaderSequences_CPUs)
-clusterExport(cluster, 'opt')
+clusterExport(cluster, c('opt', 'buildRearrangementModel'))
 
 m <- rbindlist(lapply(split(sites, sites$vectorFastaFile), function(x){
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'), full.names = TRUE)))
@@ -52,22 +51,26 @@ m <- rbindlist(lapply(split(sites, sites$vectorFastaFile), function(x){
   b <- bind_rows(lapply(split(reads, s$n), function(a){
          f <- tmpFile()
  
-         writeXStringSet(a,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
+         writeXStringSet(a,  file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp', paste0(f, '.fasta')))
     
          system(paste0('blastn -dust no -soft_masking false -word_size 5 -evalue 50 -outfmt 6 -query ',
-                  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
+                  file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
                   file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs', 'd'),
-                  ' -num_threads 1 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),
+                  ' -num_threads 1 -out ', file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp', paste0(f, '.blast'))),
                 ignore.stdout = TRUE, ignore.stderr = TRUE)
     
-         waitForFile(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))
+         waitForFile(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp', paste0(f, '.blast')))
     
-         if(file.info(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))$size == 0) return(tibble())
+         if(file.info(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp', paste0(f, '.blast')))$size == 0) return(tibble())
     
-          b <- read.table(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
+          b <- read.table(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
           names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
           b$alignmentLength <- b$qend - b$qstart + 1
           b$strand <- ifelse(b$sstart > b$send, '-', '+')
+          
+          o <- a[names(a) %in% b$qname]
+          d <- tibble(qname = names(o), qlen = width(o))
+          b <- left_join(b, d, by = 'qname')
     
           dplyr::filter(b, pident >= opt$mapSiteLeaderSequences_minAlignmentPercentID, alignmentLength >= opt$mapSiteLeaderSequences_minAlignmentLength)
        }))
@@ -77,48 +80,23 @@ m <- rbindlist(lapply(split(sites, sites$vectorFastaFile), function(x){
   o <- tibble(i2 = 1:n_distinct(b$i))
   o$n <- ntile(1:nrow(o), opt$prepReads_CPUs)
   b <- left_join(b, o, by = c('i' = 'i2'))
-  r <- rbindlist(parallel::parLapply(cluster, split(b, b$n), blast2rearangements_worker2))
+  r <- rbindlist(parallel::parLapply(cluster, split(b, b$n), blast2rearangements))
   
   left_join(tibble(qname = names(reads), leaderSeq = as.character(reads)), dplyr::rename(r, repLeaderSeqMap = rearrangement), by = 'qname')
 }))
 
 stopCluster(cluster)
 
-invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
+invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp'), full.names = TRUE)))
 
 sites <- select(sites, -s) %>% left_join(select(m, leaderSeq, repLeaderSeqMap), by = c('repLeaderSeq' = 'leaderSeq'))
 sites$repLeaderSeqLength <- nchar(sites$repLeaderSeq)
-
-# Fill in missing pieces.
-sites$repLeaderSeqMap <- unlist(lapply(split(sites, 1:nrow(sites)), function(x){
-  if(is.na(x$repLeaderSeqMap)) return(NA)
-  o <- unlist(strsplit(as.character(x$repLeaderSeqMap), ';'))
-  lastRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[length(o)], '..(\\d+)')))
-  
-  if((x$repLeaderSeqLength - lastRangeEnd) > opt$mapSiteLeaderSequences_minAllowableGap){
-    x$repLeaderSeqMap <- paste0(x$repLeaderSeqMap, ';', lastRangeEnd+1, '..', x$repLeaderSeqLength, '[x]')
-  }
-  
-  o <- unlist(strsplit(as.character(x$repLeaderSeqMap), ';'))
-  if(length(o) > 1){
-    invisible(lapply(1:(length(o)-1), function(x){
-      lastRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[[x]], '..(\\d+)')))
-      nextFirstRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[[x+1]], '(\\d+)..')))
-    
-      if((nextFirstRangeEnd - lastRangeEnd) > opt$mapSiteLeaderSequences_minAllowableGap){
-        o[[x]] <<- paste0(o[[x]], ';', lastRangeEnd+1, '..', nextFirstRangeEnd-1, '[x];')
-      }
-    }))
-  }
-  
-  gsub(';;', ';', paste0(o, collapse = ';'))
-}))
 
 sites <- dplyr::relocate(sites, repLeaderSeqMap, .after = opt$mapSiteLeaderSequences_addAfter)
 sites$repLeaderSeqLength <- NULL
 
 saveRDS(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'sites.rds'))
 openxlsx::write.xlsx(sites, file = file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'sites.xlsx'))
-readr::write_tsv(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputFile, 'sites.tsv.gz'))
+readr::write_tsv(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'sites.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

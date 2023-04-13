@@ -1,8 +1,8 @@
 library(dplyr)
 library(RMySQL)
 
-inputFile <- '/home/ubuntu/projects/Emma/data/metaData'
-outputFile <- '/home/ubuntu/projects/Emma/data/sampleData.tsv'
+inputFile <- '/home/ubuntu/projects/CD4_zeta/190910_M03249_0009_000000000-CLHJ9/data/metaData'
+outputFile <- '/home/ubuntu/projects/CD4_zeta/190910_M03249_0009_000000000-CLHJ9/data/sampleData.tsv'
 
 trial2HMM <- list()
 trial2HMM[['UPENN_CART19_CLL']] = 'Bushman_CART19.hmm'
@@ -11,6 +11,8 @@ trial2HMM[['UPENN_CART19_ALL']] = 'Bushman_CART19.hmm'
 trial2HMM[['SCID1_Paris_Cavazzana']] = 'Bushman_SCID1.hmm'
 trial2HMM[['Zeta_HIV']] = 'Bushman_CD4zeta.hmm'
 trial2HMM[['Control']] = 'Bushman_CART19.hmm'
+trial2HMM[['WAS_Paris_Cavazzana']] = 'Bushman_CART19.hmm'
+trial2HMM[['WAS_UK_Thrasher']] = 'Bushman_CART19.hmm'
 
 m <- readr::read_csv(inputFile)
 
@@ -30,6 +32,8 @@ trial <- gtsp[match(samples, gtsp$SpecimenAccNum),]$Trial
 trial <- ifelse(is.na(trial), 'Control', trial)
 
 hmms <- sapply(trial, function(x) trial2HMM[[x]]) %>% unlist() %>% unname()
+
+m$vectorSeq <- 'Bushman_CD4zeta.fasta'
 
 r <- tibble(trial = trial,
             subject = subjects,

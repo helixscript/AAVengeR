@@ -20,6 +20,12 @@ write(c(paste(now(), '   Reading in anchor and adrift read alignments.')), file 
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adriftReadsAlignmentFile))
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
 
+if(nrow(anchorReadAlignments) == 0 | nrow(adriftReadAlignments) == 0){
+  write(c(paste(now(), '   Error - anchor and/or adrift alignment data files were empty.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
 incomingSamples <- unique(anchorReadAlignments$uniqueSample)
 
 # Shorten file paths to save memory since we no longer need the full paths.
@@ -289,6 +295,12 @@ frags <- bind_rows(lapply(o, function(z){
 # Odd blat calls can lead to duplicate alignment entries, the blat parser is likely leaving odd additional information about the alignments.
 frags <- distinct(frags)
 
+if(nrow(frags) == 0){
+  write(c(paste(now(), '   Error - no fragments were identified.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
 rm(o, id_groups)
 gc()
 
@@ -297,11 +309,16 @@ write(c(paste(now(), '   Fragment generation complete.')), file = file.path(opt$
 if('buildFragments_duplicateReadFile' %in% names(opt)){
   write(c(paste(now(), '   Reading duplicate read file created by prepReads.R.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
   dups <- readRDS(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile))
-  dups <- data.table(dplyr::distinct(dplyr::select(dups, id, n)))
-  dups <- subset(dups, id %in% frags$readID)
   
-  frags <- left_join(frags, dups, by = c('readID' = 'id'))
-  frags$n <- ifelse(is.na(frags$n), 0, frags$n)
+  if(nrow(dups) >0){
+    dups <- data.table(dplyr::distinct(dplyr::select(dups, id, n)))
+    dups <- subset(dups, id %in% frags$readID)
+  
+    frags <- left_join(frags, dups, by = c('readID' = 'id'))
+    frags$n <- ifelse(is.na(frags$n), 0, frags$n)
+  }else{
+    frags$n <- 0
+  }
 } else {
   frags$n <- 0
 }

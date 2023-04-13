@@ -15,10 +15,13 @@ opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
 
+# Clear out tmp directory.
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
+
+
 # Create module directory structure.
 dir.create(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir))
 dir.create(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'dbs'))
-dir.create(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'))
 
 write(c(paste(now(), '   Reading in demultiplexed reads.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 reads <- readRDS(file.path(opt$outputDir, opt$anchorReadRearrangements_readsTable))
@@ -39,7 +42,7 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
   library(Biostrings)
   
   data.table::rbindlist(lapply(split(x, x$adriftReadTrimSeq), function(y){
-    f <- file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpFile())
+    f <- file.path(opt$outputDir, 'tmp',  tmpFile())
     o <- DNAStringSet(y$anchorReadSeq)
     names(o) <- y$readID
     Biostrings::writeXStringSet(o, f)
@@ -116,7 +119,7 @@ reads <- data.table(bind_rows(a, subset(b, ! readID %in% c$id2)) %>% dplyr::sele
 
 # Clean up.
 stopCluster(cluster)
-invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'), full.names = TRUE)))
+invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), full.names = TRUE)))
 rm(a, b, c)
 gc()
 
@@ -205,25 +208,21 @@ blastWorker <- function(y, wordSize = 6, evalue = 10){
   names(s) <- y$readID
   
   f <- tmpFile()
-  writeXStringSet(s,  file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.fasta')))
+  writeXStringSet(s,  file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')))
   
   system(paste0('blastn -dust no -soft_masking false -word_size ', wordSize, ' -evalue ', evalue,' -outfmt 6 -query ',
-                file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
+                file.path(opt$outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
                 file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'dbs', 'd'),
-                ' -num_threads 1 -out ', file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.blast'))),
+                ' -num_threads 1 -out ', file.path(opt$outputDir, 'tmp', paste0(f, '.blast'))),
          ignore.stdout = TRUE, ignore.stderr = TRUE)
   
-  waitForFile(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.blast')))
+  waitForFile(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))
   
   b <- tibble()
   
-  if(file.info(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.blast')))$size > 0){
-    b <- read.table(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
+  if(file.info(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')))$size > 0){
+    b <- read.table(file.path(opt$outputDir, 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
     names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
-    
-    o <- s[names(s) %in% b$qname]
-    d <- tibble(qname = names(o), qlen = width(o))
-    b <- left_join(b, d, by = 'qname')
     
     b$alignmentLength <- b$qend - b$qstart + 1
     b <- subset(b, pident >= opt$anchorReadRearrangements_seqsMinPercentID & 
@@ -231,7 +230,7 @@ blastWorker <- function(y, wordSize = 6, evalue = 10){
                   gapopen <= opt$anchorReadRearrangements_seqsMaxGaps)
   }
   
-  invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+  invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
   
   b
 }
@@ -241,7 +240,7 @@ blastWorker <- function(y, wordSize = 6, evalue = 10){
 
 stopCluster(cluster)
 cluster <- makeCluster(opt$anchorReadRearrangements_CPUs)
-clusterExport(cluster, c('opt', 'blastWorker', 'tmpFile', 'waitForFile', 'buildRearrangementModel'))
+clusterExport(cluster, c('opt', 'blastWorker', 'tmpFile', 'waitForFile'))
         
 
 write(c(paste(now(), '    Aligning reads to vector files.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
@@ -262,41 +261,45 @@ o <- group_by(vectorHits, qname) %>% summarise(n = any(qstart >= 25)) %>% ungrou
 write(c(paste(now(), '   ', sprintf("%.2f%%", (sum(o$n)/ n_distinct(o$qname))*100), 'of reads that align to the vector files have a start position >= 25')), file = file.path(opt$outputDir, 'log'), append = TRUE)
 
 
-# buildModel <- function(b2){
-#   r <- vector()
-#   counter <- 0
-#   while(nrow(b2) != 0){
-#     message(counter)
-#     counter <- counter + 1
-#     b2 <- arrange(b2, qstart, evalue)
-#     x <- b2[1,]
-#     if((x$qend - x$qstart + 1) < opt$anchorReadRearrangements_seqsMinAlignmentLength) next
-#     r <- paste0(r, ';', x$qstart, '..', x$qend, '[', x$sstart2, x$strand, x$send2, ']')
-#     b2 <- b2[abs(b2$qstart - x$qend) < 5,] # Remove alignments that were considered during this loop.
-#     if(counter == 1000) break
-#   } 
-#   
-#   sub('^;', '', r)
-# }
-# 
-# blast2rearangements_worker <- function(b){
-#   library(dplyr)
-#   library(IRanges)
-#   library(data.table)
-#   
-#   rbindlist(lapply(split(b, b$qname), function(b2){
-# 
-#     # Sort BLAST results by query start position and evalue (low to high).
-#     b2 <- arrange(b2, qstart, evalue)
-#     b2$strand <- ifelse(b2$send < b2$sstart, '-', '+')
-#     
-#     # Alignment to the negative strand will result in the subject end to come before the start.
-#     # Switch it back so that they are sequential.
-#     b2$sstart2 <- ifelse(b2$sstart > b2$send, b2$send, b2$sstart)
-#     b2$send2   <- ifelse(b2$sstart > b2$send, b2$sstart, b2$send)
-#     
-#     data.table(qname = b2$qname[1], rearrangement = buildModel(b2))
-#   }))
+buildModel <- function(b2){
+  r <- vector()
+  counter <- 0
+  while(nrow(b2) != 0){
+    message(counter)
+    counter <- counter + 1
+    b2 <- arrange(b2, qstart, evalue)
+    x <- b2[1,]
+    if((x$qend - x$qstart + 1) < opt$anchorReadRearrangements_seqsMinAlignmentLength) next
+    r <- paste0(r, ';', x$qstart, '..', x$qend, '[', x$sstart2, x$strand, x$send2, ']')
+    b2 <- b2[abs(b2$qstart - x$qend) < 5,] # Remove alignments that were considered during this loop.
+    if(counter == 1000) break
+  } 
+  
+  sub('^;', '', r)
+}
+
+blast2rearangements_worker <- function(b){
+  library(dplyr)
+  library(IRanges)
+  library(data.table)
+  
+  rbindlist(lapply(split(b, b$qname), function(b2){
+
+    # Sort BLAST results by query start position and evalue (low to high).
+    b2 <- arrange(b2, qstart, evalue)
+    b2$strand <- ifelse(b2$send < b2$sstart, '-', '+')
+    
+    # Alignment to the negative strand will result in the subject end to come before the start.
+    # Switch it back so that they are sequential.
+    b2$sstart2 <- ifelse(b2$sstart > b2$send, b2$send, b2$sstart)
+    b2$send2   <- ifelse(b2$sstart > b2$send, b2$sstart, b2$send)
+    
+    data.table(qname = b2$qname[1], rearrangement = buildModel(b2))
+  }))
+}
+
+clusterExport(cluster, c('blast2rearangements_worker', 'buildModel'))
+
 
 # Create a splitting CPU splitting vector that will not split up read ids.
 vectorHits$i <- group_by(vectorHits, qname) %>% group_indices() 
@@ -306,8 +309,7 @@ vectorHits <- left_join(vectorHits, o, by = c('i' = 'i2'))
 
 
 # Create alignment rearrangement models for each read.
-r <- rbindlist(parallel::parLapply(cluster, split(vectorHits, vectorHits$n), blast2rearangements))
-# r <- rbindlist(lapply(split(vectorHits, vectorHits$n), blast2rearangements))
+r <- rbindlist(parallel::parLapply(cluster, split(vectorHits, vectorHits$n), blast2rearangements_worker))
 
 # Add annotation for missing alignments based on read length.
 reads$width <- nchar(reads$anchorReadSeq)
@@ -350,9 +352,13 @@ r2 <- bind_rows(parLapply(cluster, split(r, r$n), function(y){
         }))
 }))
 
+
+save.image('~/dev2.RData')
+
 # Remove last unknown segments since they may be genomic sequences from integrated 
 # vectors or poor base calls at the ends of reads.
 if(opt$anchorReadRearrangements_removeTailingUnknownSegments) r2$rearrangement <- sub(';\\d+\\.\\.\\d+\\[x\\]$', '', r2$rearrangement)
+
 
 # Add read metadata.
 r2 <- left_join(r2, select(reads, trial, subject, sample, readID, adriftReadRandomID), by = c('qname' = 'readID'))

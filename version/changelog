@@ -25,3 +25,6 @@ Added anchorReadRearrangements.R
 0.998
 Restructured modules to use tmp/ directories within each module directory rather than a single output/tmp directory.
 Added core module.
+Added pander library requirement.
+0.999
+Updated ITR/LTR rearrangement functions using synthetic data.
