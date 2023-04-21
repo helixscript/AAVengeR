@@ -82,14 +82,21 @@ m <- rbindlist(lapply(split(sites, sites$vectorFastaFile), function(x){
   b <- left_join(b, o, by = c('i' = 'i2'))
   r <- rbindlist(parallel::parLapply(cluster, split(b, b$n), blast2rearangements))
   
-  left_join(tibble(qname = names(reads), leaderSeq = as.character(reads)), dplyr::rename(r, repLeaderSeqMap = rearrangement), by = 'qname')
+  z <- left_join(tibble(qname = names(reads), leaderSeq = as.character(reads)), dplyr::rename(r, repLeaderSeqMap = rearrangement), by = 'qname')
+  z$vectorFastaFile <- x$vectorFastaFile[1]
+  z
 }))
 
 stopCluster(cluster)
 
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp'), full.names = TRUE)))
 
-sites <- select(sites, -s) %>% left_join(select(m, leaderSeq, repLeaderSeqMap), by = c('repLeaderSeq' = 'leaderSeq'))
+sites <- bind_rows(lapply(split(sites, sites$vectorFastaFile), function(x){
+      m2 <- subset(m, vectorFastaFile == x$vectorFastaFile[1])
+      m2 <- m2[! duplicated(m2$leaderSeq),]
+      select(x, -s) %>% left_join(select(m2, leaderSeq, repLeaderSeqMap), by = c('repLeaderSeq' = 'leaderSeq'))
+}))
+
 sites$repLeaderSeqLength <- nchar(sites$repLeaderSeq)
 
 sites <- dplyr::relocate(sites, repLeaderSeqMap, .after = opt$mapSiteLeaderSequences_addAfter)

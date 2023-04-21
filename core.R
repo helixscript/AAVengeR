@@ -10,16 +10,26 @@ source(file.path(opt$softwareDir, 'lib.R'))
 # Create directories and start logging.
 dir.create(opt$outputDir)
 dir.create(file.path(opt$outputDir, 'core'))
+dir.create(file.path(opt$outputDir, 'core', 'demultiplex'))
+dir.create(file.path(opt$outputDir, 'core', 'replicate_analyses'))
+dir.create(file.path(opt$outputDir, 'core', 'sample_analyses'))           
+          
 write(paste0(date(), ' - start'), file = file.path(opt$outputDir, 'core', 'log'))
 
 # Gather select sections from the configuration file.
 o <- opt[grepl('^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^demultiplex', names(opt))]
 o$outputDir <- file.path(opt$outputDir, 'core')
 
-# Run demultiplex.
+# Run demultiplex module.
 o$demultiplex_CPUs <- opt$core_CPUs
-yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'demultiplex_config.yml'))
-r <- system(paste(opt$Rscript, file.path(opt$softwareDir, 'demultiplex.R'), file.path(opt$outputDir, 'core', 'demultiplex_config.yml')), wait = TRUE, intern = TRUE)
+yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml'))
+
+write(c('#!/usr/bin/sh', 
+        paste(opt$Rscript, file.path(opt$softwareDir, 'demultiplex.R'), file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml'))), 
+      file = file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'))
+
+system(paste('chmod 755', file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh')))
+system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, show.output.on.console = FALSE)
 
 # Read in demultiplex result.
 reads <- readRDS(file.path(opt$outputDir, 'core', 'demultiplex', 'reads.rds'))
@@ -33,7 +43,7 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
       id <- o[length(o)-2]
       
       jobTable[jobTable$id == id,]$done   <<- TRUE
-      jobTable[jobTable$id == id,]$active <<- FALSE
+      jobTable[jobTable$id == id,]$active <<- NA
       jobTable[jobTable$id == id,]$endTime <<- as.character(lubridate::now()) 
       jobTable[jobTable$id == id,]$duration <<- paste0(as.integer(as.character(difftime(lubridate::now(), lubridate::ymd_hms(jobTable[jobTable$id == o[length(o)-2],]$startTime), units="mins"))), ' minutes')
       
@@ -43,12 +53,20 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
   }
   
   # Redefine CPUs...
-  o <- jobTable[jobTable$done == FALSE,]
-  o$CPUs <- as.integer(ceiling((((o$reads / max(o$reads)) * opt$core_maxPercentCPUs) / 100) * opt$core_CPUs))
-  o$CPUs <- ifelse(o$CPUs == 1, 2, o$CPUs)
+  o <- jobTable[jobTable$done == FALSE,]  # Identify jobs that have not completed.
+  
+  # Increase core_maxPercentCPUs near the end of the job table.
+  core_maxPercentCPUs <- opt$core_maxPercentCPUs
+  if(100/nrow(o) > core_maxPercentCPUs) core_maxPercentCPUs <- ceiling(100/nrow(o)) 
+  
+  # The job with the most reads will evaluate to 1 * core_maxPercentCPUs and recieve core_maxPercentCPUs cores.
+  o$CPUs <- as.integer(ceiling((((o$reads / max(o$reads)) * core_maxPercentCPUs) / 100) * opt$core_CPUs))
+  
+  o$CPUs <- ifelse(o$CPUs == 1, 2, o$CPUs) # Each job must get at least 2 CPUs.
+  
   jobTable[match(o$id, jobTable$id),]$CPUs <- o$CPUs
   
-  tab <- pandoc.table.return(jobTable, style = "simple", split.tables = Inf, plain.ascii = TRUE)
+  tab <- pandoc.table.return(arrange(jobTable, desc(done), desc(active)), style = "simple", split.tables = Inf, plain.ascii = TRUE)
   write(c(date(), paste0('Available CPUs: ', (opt$core_CPUs - CPUs_used)), tab), file = file.path(opt$outputDir, 'core', outputFileName), append = FALSE)
 }
 
@@ -81,7 +99,7 @@ while(! all(jobTable$done == TRUE)){
   o$prepReads_CPUs <- tab$CPUs
   o$alignReads_CPUs <- tab$CPUs
   o$buildFragments_CPUs <- tab$CPUs
-  o$outputDir <- file.path(opt$outputDir, 'core', tab$id)
+  o$outputDir <- file.path(opt$outputDir, 'core', 'replicate_analyses', tab$id)
   
   # Instruct the pipeline to create a buildFragments/fragments.done file for jobs that failed.
   o$core_createFauxFragDoneFiles <- TRUE
@@ -96,15 +114,15 @@ while(! all(jobTable$done == TRUE)){
   # Define modules to run in replicate level configuration file and write out file.
   o$modules <- list()
   o[['modules']] <- c('prepReads', 'alignReads', 'buildFragments')
-  yaml::write_yaml(o, file.path(opt$outputDir, 'core',  tab$id, 'config.yml'))
+  yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))
   
   # Create AAVengeR launching script since system(x, wait = TRUE) does not wait for commands w/ arguments.
   write(c('#!/usr/bin/sh', 
-          paste(opt$Rscript, file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core',  tab$id, 'config.yml'))), 
-        file = file.path(opt$outputDir, 'core',  tab$id, 'run.sh'))
+          paste(opt$Rscript, file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))), 
+        file = file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'run.sh'))
   
-  system(paste('chmod 755', file.path(opt$outputDir, 'core',  tab$id, 'run.sh')))
-  system(file.path(opt$outputDir, 'core',  tab$id, 'run.sh'), wait = FALSE, show.output.on.console = FALSE)
+  system(paste('chmod 755', file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'run.sh')))
+  system(file.path(opt$outputDir, 'core', 'replicate_analyses', tab$id, 'run.sh'), wait = FALSE, show.output.on.console = FALSE)
   
   CPUs_used <- CPUs_used + tab$CPUs
   
@@ -159,7 +177,7 @@ while(! all(jobTable$done == TRUE)){
   o <- opt[grepl('^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^buildStdFragments|^buildSites', names(opt))]
   o$buildStdFragments_CPUs <- tab$CPUs
   o$buildSites_CPUs <- tab$CPUs
-  o$outputDir <- file.path(opt$outputDir, 'core', tab$id)
+  o$outputDir <- file.path(opt$outputDir, 'core', 'sample_analyses', tab$id)
   
   # Instruct the pipeline to create a buildFragments/fragments.done file for jobs that failed.
   o$core_createFauxSiteDoneFiles <- TRUE
@@ -176,15 +194,15 @@ while(! all(jobTable$done == TRUE)){
   o$modules <- list()
   o[['modules']] <- c('buildStdFragments', 'buildSites')
   
-  yaml::write_yaml(o, file.path(opt$outputDir, 'core',  tab$id, 'config.yml'))
+  yaml::write_yaml(o, file.path(opt$outputDir, 'core', 'sample_analyses', tab$id, 'config.yml'))
   
   # Create AAVengeR launching script since system(x, wait = TRUE) does not wait for commands w/ arguments.
   write(c('#!/usr/bin/sh', 
-          paste(opt$Rscript, file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core',  tab$id, 'config.yml'))), 
-        file = file.path(opt$outputDir, 'core',  tab$id, 'run.sh'))
+          paste(opt$Rscript, file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core', 'sample_analyses',  tab$id, 'config.yml'))), 
+        file = file.path(opt$outputDir, 'core', 'sample_analyses',  tab$id, 'run.sh'))
   
-  system(paste('chmod 755', file.path(opt$outputDir, 'core',  tab$id, 'run.sh')))
-  system(file.path(opt$outputDir, 'core',  tab$id, 'run.sh'), wait = FALSE, show.output.on.console = FALSE)
+  system(paste('chmod 755', file.path(opt$outputDir, 'core', 'sample_analyses', tab$id, 'run.sh')))
+  system(file.path(opt$outputDir, 'core', 'sample_analyses', tab$id, 'run.sh'), wait = FALSE, show.output.on.console = FALSE)
   
   CPUs_used <- CPUs_used + tab$CPUs
   
