@@ -10,6 +10,9 @@ Alter Table multihits ADD PRIMARY KEY(trial, subject, sample, refGenome);
 CREATE TABLE sites (trial VARCHAR(100), subject VARCHAR(100), sample VARCHAR(100), refGenome VARCHAR(50),  vectorFastaFile VARCHAR(100), flags VARCHAR(50), data LONGBLOB, compDate DATE);
 Alter Table sites ADD PRIMARY KEY(trial, subject, sample, refGenome);
 
+create table demultiplex (trial varchar(100), subject varchar(100), sample varchar(100), replicate tinyint(3) unsigned, refGenome varchar(50), vectorFastaFile varchar(100), flags varchar(50), index1Seq varchar(100), adriftReadLinkerSeq varchar(100), leaderSeqHMM varchar(100));
+
+Alter Table demultiplex ADD PRIMARY KEY(trial, subject, sample, replicate, refGenome);
 
 
 set global max_allowed_packet=2147483648; # 2GB packet max.

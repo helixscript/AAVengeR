@@ -16,6 +16,8 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
+if(! 'demultiplex_exportFASTQ' %in% names(opt)) opt$demultiplex_exportFASTQ <- FALSE
+
 # The launch script creates (if missing) and writes to the output directory.
 # File write permission issues should be caught before starting modules.
 dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
@@ -292,5 +294,30 @@ write(paste(now(), '   Writing reads data object.'), file = file.path(opt$output
 saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = TRUE)
 
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
+
+if(opt$demultiplex_exportFASTQ){
+  
+  dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'fastq'))
+  
+  invisible(lapply(c('I1', 'R1', 'R2'), function(a){
+    
+    if(a == 'I1'){
+      f <- opt$demultiplex_index1ReadsFile
+    } else if (a == 'R1'){
+      f <- opt$demultiplex_adriftReadsFile
+    } else {
+      f <- opt$demultiplex_anchorReadsFile
+    }
+    
+    r <- readFastq(f)
+    ids <- sub('\\s+.+$', '', as.character(r@id))
+  
+    invisible(lapply(split(reads, reads$uniqueSample), function(x){
+      writeFastq(r[match(x$readID, ids)],
+                 file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'fastq', paste0(x$uniqueSample[1], '.', a, '.fastq.gz')),
+                 compress = TRUE)
+    }))
+  }))
+}
 
 q(save = 'no', status = 0, runLast = FALSE) 

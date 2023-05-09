@@ -1,16 +1,8 @@
 library(dplyr)
 library(RMySQL)
 
-inputFile <- '/home/ubuntu/projects/Weinberger/data/metaData'
-outputFile <- '/home/ubuntu/projects/Weinberger/data/sampleData.tsv'
-
-trial2HMM <- list()
-trial2HMM[['UPENN_CART19_CLL']] = 'Bushman_CART19.hmm'
-trial2HMM[['UPENN_CART19_ALL']] = 'Bushman_CART19.hmm'
-trial2HMM[['SCID1_Paris_Cavazzana']] = 'Bushman_SCID1.hmm'
-trial2HMM[['Zeta_HIV']] = 'Bushman_CD4zeta.hmm'
-trial2HMM[['Control']] = 'Bushman_CART19.hmm'
-trial2HMM[['Weinberger_HIV']] = 'NA'
+inputFile <- '/home/ubuntu/projects/Jones_CD8/220317_MN01490_0066_A000H3T5LT/data/metaData'
+outputFile <- '/home/ubuntu/projects/Jones_CD8/220317_MN01490_0066_A000H3T5LT/data/sampleData.tsv'
 
 m <- readr::read_csv(inputFile)
 
@@ -29,8 +21,8 @@ subjects <- ifelse(is.na(subjects), samples, subjects)
 trial <- gtsp[match(samples, gtsp$SpecimenAccNum),]$Trial
 trial <- ifelse(is.na(trial), 'Control', trial)
 
-hmms <- ifelse(m$uniqueRegion == 'U5', 'HIV1_1-100_U5.hmm', 'HIV1_1-100_U3_RC.hmm') 
-flags <- ifelse(m$uniqueRegion == 'U5', 'IN_u5', 'IN_u3') 
+hmms <- ifelse(grepl('u5', m$SampleName, ignore.case = TRUE), 'HIV1_1-100_U5.hmm', 'HIV1_1-100_U3_RC.hmm') 
+flags <- ifelse(grepl('u5', m$SampleName, ignore.case = TRUE), 'IN_u5', 'IN_u3') 
 
 m$vectorSeq <- 'HXB2.fasta'
 

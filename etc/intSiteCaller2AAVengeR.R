@@ -1,8 +1,8 @@
 library(dplyr)
 library(RMySQL)
 
-inputFile <- '/home/ubuntu/projects/CD4_zeta/190910_M03249_0009_000000000-CLHJ9/data/metaData'
-outputFile <- '/home/ubuntu/projects/CD4_zeta/190910_M03249_0009_000000000-CLHJ9/data/sampleData.tsv'
+inputFile <- '/home/ubuntu/projects/CD4_zeta_U3/230503_MN01490_0130_A000H5JTJ2/data/metaData'
+outputFile <- '/home/ubuntu/projects/CD4_zeta_U3/230503_MN01490_0130_A000H5JTJ2/data/sampleData.tsv'
 
 trial2HMM <- list()
 trial2HMM[['UPENN_CART19_CLL']] = 'Bushman_CART19.hmm'
@@ -23,7 +23,7 @@ dbDisconnect(dbConn)
 
 samples <- sub('\\-\\d+$', '', m$alias)
 reps <- as.integer(stringr::str_extract(m$alias, '\\d+$'))
-flags <- 'IN_u5'
+flags <- 'IN_u3'
 
 subjects <- gtsp[match(samples, gtsp$SpecimenAccNum),]$Patient
 subjects <- ifelse(is.na(subjects), samples, subjects)
@@ -31,7 +31,8 @@ subjects <- ifelse(is.na(subjects), samples, subjects)
 trial <- gtsp[match(samples, gtsp$SpecimenAccNum),]$Trial
 trial <- ifelse(is.na(trial), 'Control', trial)
 
-hmms <- sapply(trial, function(x) trial2HMM[[x]]) %>% unlist() %>% unname()
+#hmms <- sapply(trial, function(x) trial2HMM[[x]]) %>% unlist() %>% unname()
+hmms <- 'Bushman_CD4zeta_u3.fa'
 
 m$vectorSeq <- 'Bushman_CD4zeta.fasta'
 

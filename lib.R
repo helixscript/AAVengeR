@@ -190,6 +190,8 @@ conformMinorSeqDiffs <- function(x, editDist = 1, abundSeqMinCount = 10, nThread
 
 loadSamples <- function(){
   samples <- readr::read_tsv(opt$demultiplex_sampleDataFile, col_types = readr::cols())
+
+  # browser()
   
   if(nrow(samples) == 0){
     write(c(paste(lubridate::now(), 'Error - no lines of information was read from the sample configuration file.')), file = file.path(opt$outputDir, 'log'), append = TRUE)

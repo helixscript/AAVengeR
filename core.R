@@ -12,7 +12,7 @@ dir.create(opt$outputDir)
 dir.create(file.path(opt$outputDir, 'core'))
 dir.create(file.path(opt$outputDir, 'core', 'demultiplex'))
 dir.create(file.path(opt$outputDir, 'core', 'replicate_analyses'))
-dir.create(file.path(opt$outputDir, 'core', 'sample_analyses'))           
+dir.create(file.path(opt$outputDir, 'core', 'subject_analyses'))           
           
 write(paste0(date(), ' - start'), file = file.path(opt$outputDir, 'core', 'log'))
 
@@ -144,6 +144,9 @@ saveRDS(frags, file = file.path(opt$outputDir, 'core', 'fragments.rds'))
 jobTable <- tibble(u = unique(frags$uniqueSample))
 jobTable$id <- sapply(jobTable$u, function(x) paste0(unlist(strsplit(x, '~'))[1:2], collapse = '~'))
 
+
+# Here... 
+
 # Create a subject-level splitting vector for fragments records.
 frags <- left_join(frags, jobTable, by = c('uniqueSample' = 'u'))
 
@@ -177,7 +180,7 @@ while(! all(jobTable$done == TRUE)){
   o <- opt[grepl('^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^buildStdFragments|^buildSites', names(opt))]
   o$buildStdFragments_CPUs <- tab$CPUs
   o$buildSites_CPUs <- tab$CPUs
-  o$outputDir <- file.path(opt$outputDir, 'core', 'sample_analyses', tab$id)
+  o$outputDir <- file.path(opt$outputDir, 'core', 'subject_analyses', tab$id)
   
   # Instruct the pipeline to create a buildFragments/fragments.done file for jobs that failed.
   o$core_createFauxSiteDoneFiles <- TRUE
@@ -194,15 +197,15 @@ while(! all(jobTable$done == TRUE)){
   o$modules <- list()
   o[['modules']] <- c('buildStdFragments', 'buildSites')
   
-  yaml::write_yaml(o, file.path(opt$outputDir, 'core', 'sample_analyses', tab$id, 'config.yml'))
+  yaml::write_yaml(o, file.path(opt$outputDir, 'core', 'subject_analyses', tab$id, 'config.yml'))
   
   # Create AAVengeR launching script since system(x, wait = TRUE) does not wait for commands w/ arguments.
   write(c('#!/usr/bin/sh', 
-          paste(opt$Rscript, file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core', 'sample_analyses',  tab$id, 'config.yml'))), 
-        file = file.path(opt$outputDir, 'core', 'sample_analyses',  tab$id, 'run.sh'))
+          paste(opt$Rscript, file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core', 'subject_analyses',  tab$id, 'config.yml'))), 
+        file = file.path(opt$outputDir, 'core', 'subject_analyses',  tab$id, 'run.sh'))
   
-  system(paste('chmod 755', file.path(opt$outputDir, 'core', 'sample_analyses', tab$id, 'run.sh')))
-  system(file.path(opt$outputDir, 'core', 'sample_analyses', tab$id, 'run.sh'), wait = FALSE, show.output.on.console = FALSE)
+  system(paste('chmod 755', file.path(opt$outputDir, 'core', 'subject_analyses', tab$id, 'run.sh')))
+  system(file.path(opt$outputDir, 'core', 'subject_analyses', tab$id, 'run.sh'), wait = FALSE, show.output.on.console = FALSE)
   
   CPUs_used <- CPUs_used + tab$CPUs
   
