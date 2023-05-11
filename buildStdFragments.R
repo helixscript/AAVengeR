@@ -627,7 +627,7 @@ if (nrow(f) > 0) f <- left_join(f, sampleMetaData, by = 'uniqueSample')
 s <- unique(paste0(f$trial, '~', f$subject, '~', f$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
-saveRDS(f, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'))
-readr::write_tsv(f, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
+saveRDS(select(f, -leaderSeq, -n, -i, -id, -id, -trialSubject), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'))
+readr::write_tsv(select(f, -leaderSeq, -n, -i, -id, -id, -trialSubject), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
