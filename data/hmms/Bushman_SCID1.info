@@ -1,9 +1,0 @@
->seq
-TCAGCGGGGGTCTTTCA
-
-prepReads_HMMsearchReadStartPos: 1                                              # [integer]   (evaluated if leaderSeqHMM is a column in the sampleDetails file) Read start position of region to be evaluated by HMM.
-prepReads_HMMsearchReadEndPos:  19                                              # [integer]   (evaluated if leaderSeqHMM is a column in the sampleDetails file) Read end position of region to be evaluated by HMM.
-prepReads_HMMmaxStartPos: 2                                                     # [integer]   (evaluated if leaderSeqHMM is a column in the sampleDetails file) Max position on anchor read that a HMM hit can begin.
-prepReads_HMMminFullBitScore: 5                                                 # [float]     (evaluated if leaderSeqHMM is a column in the sampleDetails file) Min. HMM score for a leader sequence to be considered.
-prepReads_HMMmatchEnd: TRUE                                                     # [boolean]   (evaluated if leaderSeqHMM is a column in the sampleDetails file) Requirement to match last position of provided  HHM
-prepReads_HMMrequireTerminalCA: TRUE                                            # [boolean]   (evaluated if leaderSeqHMM is a column in the sampleDetails file) Requirement that last two matched NTs are CA.

@@ -10,6 +10,7 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 setMissingOptions()
+setOptimalParameters()
 
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'))

@@ -28,3 +28,8 @@ Added core module.
 Added pander library requirement.
 0.999
 Updated ITR/LTR rearrangement functions using synthetic data.
+1.000
+Added modes to the confile.
+Removed examples/ and provide single example of config and sampleConfig in software root directory.
+Added prepReads_HMMmatchTerminalSeq to configFile - replaces CA and TA matching flags.
+Added prepReads_useDefaultHMMsettings to configFile - uses data/hmms/*.settings values.

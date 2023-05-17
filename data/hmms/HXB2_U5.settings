@@ -1,0 +1,8 @@
+#GAAAATCTCTAGCA
+#
+prepReads_HMMsearchReadStartPos: 1
+prepReads_HMMsearchReadEndPos:  16
+prepReads_HMMmaxStartPos: 3
+prepReads_HMMminFullBitScore: 5
+prepReads_HMMmatchEnd: TRUE
+prepReads_HMMmatchTerminalSeq: CA

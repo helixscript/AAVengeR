@@ -11,6 +11,7 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 setMissingOptions()
+setOptimalParameters()
 
 # Create the required directory structure.
 

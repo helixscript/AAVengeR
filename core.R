@@ -17,7 +17,7 @@ dir.create(file.path(opt$outputDir, 'core', 'subject_analyses'))
 write(paste0(date(), ' - start'), file = file.path(opt$outputDir, 'core', 'log'))
 
 # Gather select sections from the configuration file.
-o <- opt[grepl('^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^demultiplex', names(opt))]
+o <- opt[grepl('^mode|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^demultiplex', names(opt))]
 o$outputDir <- file.path(opt$outputDir, 'core')
 
 # Run demultiplex module.
@@ -95,7 +95,7 @@ while(! all(jobTable$done == TRUE)){
   }
   
   # Gather select sections from the configuration file and set CPU values.
-  o <- opt[grepl('^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^prepReads|^alignReads|^buildFragments', names(opt))]
+  o <- opt[grepl('^mode|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^prepReads|^alignReads|^buildFragments', names(opt))]
   o$prepReads_CPUs <- tab$CPUs
   o$alignReads_CPUs <- tab$CPUs
   o$buildFragments_CPUs <- tab$CPUs
@@ -177,7 +177,7 @@ while(! all(jobTable$done == TRUE)){
   }
   
   # Gather select sections from the configuration file and set CPU values.
-  o <- opt[grepl('^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^buildStdFragments|^buildSites', names(opt))]
+  o <- opt[grepl('^mode|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^buildStdFragments|^buildSites', names(opt))]
   o$buildStdFragments_CPUs <- tab$CPUs
   o$buildSites_CPUs <- tab$CPUs
   o$outputDir <- file.path(opt$outputDir, 'core', 'subject_analyses', tab$id)

@@ -1,3 +1,5 @@
+
+
 tmpFile <- function(){ paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') }
 
 # AAVegeneR is provided with default configuration files for different types of analyses
@@ -591,11 +593,27 @@ blast2rearangements <- function(b, maxMissingTailNTs = 5){
 captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
   outputFile <- file.path(tmpDirPath, tmpFile())
   
+  if(opt$prepReads_useDefaultHMMsettings){
+    localOpt <- opt # Force local copy opt opt.
+    
+    f <- sub('\\.hmm$', '.settings', hmm)
+    if(! file.exists(f)) stop(paste0('Error -- hmm settings file: ', f, ' does not exists'))
+    
+    # Update local copy.
+    y <- yaml::read_yaml(f)  
+    for(i in names(y)){
+      localOpt[[i]] <- y[[i]]
+    }
+ 
+    # rename local copy to original which will now be local and updated.
+    opt <- localOpt
+  }
+    
   reads <- reads[width(reads) > opt$prepReads_HMMsearchReadEndPos]
   if(length(reads) == 0) return(tibble())
   
   writeXStringSet(subseq(reads, opt$prepReads_HMMsearchReadStartPos, opt$prepReads_HMMsearchReadEndPos), outputFile)
-  # score 5
+
   comm <- paste0('hmmsearch --max --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
   system(comm)
 
@@ -625,17 +643,16 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
   # which contains the CA is includes and the alignment has a significant alignment scores.
   
   if(opt$prepReads_HMMmatchEnd){
-    o <- subset(o, targetStart <= opt$prepReads_HMMmaxStartPos & 
-                   hmmEnd == hmmLength & 
+    o <- subset(o, targetStart <= opt$prepReads_HMMmaxStartPos &
+                   hmmEnd == hmmLength &
                    fullScore >= as.numeric(opt$prepReads_HMMminFullBitScore))
   } else {
-    o <- subset(o, targetStart <= opt$prepReads_HMMmaxStartPos & 
+    o <- subset(o, targetStart <= opt$prepReads_HMMmaxStartPos &
                   fullScore >= as.numeric(opt$prepReads_HMMminFullBitScore))
   }
- 
+
   if(nrow(o) == 0) return(tibble())
-  
-  
+
   # Limit reads to those with matching HMM hits.
   reads2 <- reads[names(reads) %in% o$targetName]
   
@@ -645,9 +662,9 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
   # Arrange reads to match o data frame.
   reads2 <- reads2[match(o$targetName, names(reads2))]
   
-  # Make sure all HMMs alignments result in an CA in the target sequences.
-  if(opt$prepReads_HMMrequireTerminalCA) reads2 <- reads2[as.character(subseq(reads2, o$targetEnd-1, o$targetEnd)) == 'CA']
-  if(opt$prepReads_HMMrequireTerminalTA) reads2 <- reads2[as.character(subseq(reads2, o$targetEnd-1, o$targetEnd)) == 'TA']
+  if(! grepl('none', opt$prepReads_HMMmatchTerminalSeq, ignore.case = TRUE)){
+    reads2 <- reads2[as.character(subseq(reads2, o$targetEnd-(nchar(opt$prepReads_HMMmatchTerminalSeq)-1), o$targetEnd)) == opt$prepReads_HMMmatchTerminalSeq]
+  }
   
   if(length(reads2) == 0) return(tibble())
   
@@ -893,4 +910,28 @@ createIntUCSCTrack <- function(d, abundCuts = c(5,10,50),
   write(trackHead, file = outputFile, append = FALSE)
   write.table(d[, c('seqnames', 'start', 'end', siteLabel, 'score', 'strand', 'start', 'end', 'color')], 
               sep = '\t', col.names = FALSE, row.names = FALSE, file = outputFile, append = TRUE, quote = FALSE)
+}
+
+setOptimalParameters <- function(){
+  if(grepl('integrase', opt$mode, ignore.case = TRUE)){
+    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
+    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
+    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
+  } else if(grepl('AAV', opt$mode, ignore.case = TRUE)){
+    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 300
+    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
+    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 10
+  } else if(grepl('transposase', opt$mode, ignore.case = TRUE)){
+    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
+    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
+    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
+  }
+  else{
+    # none
+  }
+
+  if(grepl('quick', opt$mode, ignore.case = TRUE)){
+    opt$alignReads_genomeAlignment_repMatch <<- 1000
+    opt$buildStdFragments_createMultiHitClusters <<- FALSE
+  }
 }

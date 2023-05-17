@@ -15,6 +15,7 @@ configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
+setOptimalParameters()
 
 if(! 'demultiplex_exportFASTQ' %in% names(opt)) opt$demultiplex_exportFASTQ <- FALSE
 

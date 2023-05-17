@@ -21,6 +21,7 @@ invisible(file.remove(list.files(file.path(opt$outputDir, opt$prepReads_outputDi
 
 source(file.path(opt$softwareDir, 'lib.R'))
 setMissingOptions()
+setOptimalParameters()
 
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir))
 dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))
@@ -342,7 +343,8 @@ if(! 'leaderSeqHMM' %in% names(reads)){
   cluster <- parallel::makeCluster(opt$prepReads_CPUs)
   clusterExport(cluster, c('opt'))
   
-  hmmResults <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
+  #hmmResults <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
+  hmmResults <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
     library(Biostrings)
     library(dplyr)
     source(file.path(opt$softwareDir, 'lib.R'))
