@@ -917,6 +917,8 @@ setOptimalParameters <- function(){
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
     opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
     opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
+    opt$prepReads_HMMmatchEnd <<- TRUE
+    opt$prepReads_HMMmatchTerminalSeq <<- 'CA'
   } else if(grepl('AAV', opt$mode, ignore.case = TRUE)){
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 300
     opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
@@ -925,9 +927,13 @@ setOptimalParameters <- function(){
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
     opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
     opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
+    opt$prepReads_HMMmatchEnd <<- TRUE
+    opt$prepReads_HMMmatchTerminalSeq <<- 'TA'
   }
-  else{
-    # none
+  else if(grepl('manual', opt$mode, ignore.case = TRUE)){
+    # No action
+  } else {
+    stop('Error -- mode set to an unknown value.')
   }
 
   if(grepl('quick', opt$mode, ignore.case = TRUE)){
@@ -935,3 +941,7 @@ setOptimalParameters <- function(){
     opt$buildStdFragments_createMultiHitClusters <<- FALSE
   }
 }
+
+
+: TRUE                                                     # [boolean]   (^) Require a match to the end of the HMM profile. 
+prepReads_HMMmatchTerminalSeq: CA 
