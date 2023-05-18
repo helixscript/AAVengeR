@@ -941,7 +941,3 @@ setOptimalParameters <- function(){
     opt$buildStdFragments_createMultiHitClusters <<- FALSE
   }
 }
-
-
-: TRUE                                                     # [boolean]   (^) Require a match to the end of the HMM profile. 
-prepReads_HMMmatchTerminalSeq: CA 
