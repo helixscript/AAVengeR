@@ -7,15 +7,11 @@ library(png)
 n <- 50000
 w <- 200
 
-configFile <- '/data/project/Encoded/220222_M03249_0243_000000000-JHTY6/config2.yml'
-
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
-
 d <- tibble(file = list.files(file.path(opt$outputDir, 'prepReads', 'final'), pattern = 'anchor', full.names = TRUE))
 d$sample <- unlist(lapply(unlist(lapply(d$file, lpe)), function(x){ o <- unlist(strsplit(x, '~'))[2] }))
-
 
 createPlot <- function(ds, n2){
   dp <- lapply(strsplit(ds, ''), function(x){ tibble(base = x, n = 1:length(x)) })
