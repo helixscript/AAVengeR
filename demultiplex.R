@@ -21,7 +21,7 @@ if(! 'demultiplex_exportFASTQ' %in% names(opt)) opt$demultiplex_exportFASTQ <- F
 
 # The launch script creates (if missing) and writes to the output directory.
 # File write permission issues should be caught before starting modules.
-dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
+if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
 dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'))
 dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))
 dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'))

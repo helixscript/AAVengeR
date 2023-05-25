@@ -67,8 +67,6 @@ r <- Reduce('append', lapply(split(d, d$sample), function(x){
        
        message(all(names(anchorReads) == names(adriftReads)))
        
-       ### if(x$sample == 'tumor1_1') browser()
-
        p1 <- createPlot(as.character(anchorReads), n2)
        p1 <- p1 + scale_x_continuous(limits = c(0, w), expand = c(0, 0)) +
              ggtitle(paste0('ITR reads: ', x$sample[1], ' - ', n2, ' reads'))

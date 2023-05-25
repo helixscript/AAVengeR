@@ -58,9 +58,6 @@ sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
                 i <- ifelse(nchar(leaderSeq) < opt$predictPCRartifacts_adjacentSeqLength, nchar(leaderSeq),opt$predictPCRartifacts_adjacentSeqLength)
                 t <- substr(leaderSeq, nchar(leaderSeq)-i+1, nchar(leaderSeq))
              
-                # if(us[1] == 'Sabatino~pH19~GTSP2171~chr1+38773155.1') browser()
-                # message(us)
-
                 if(strand == '-'){
                   r <- tibble(uniqueSite = us, leaderSeqSeg = t, seq = as.character(reverseComplement( subseq(s, pos+1, pos+opt$predictPCRartifacts_adjacentSeqLength))))   
                 } else {

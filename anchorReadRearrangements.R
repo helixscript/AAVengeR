@@ -339,7 +339,6 @@ r2 <- bind_rows(parLapply(cluster, split(r, r$n), function(y){
               nextFirstRangeEnd <- as.integer(sub('\\.\\.', '', str_extract(o[[n+1]], '(\\d+)..')))
       
               if((nextFirstRangeEnd - lastRangeEnd) > opt$anchorReadRearrangements_minAllowableGap ){
-                #browser()
                o[[n]] <<- paste0(o[[n]], ';', lastRangeEnd+1, '..', nextFirstRangeEnd-1, '[x];')
               }
             }))

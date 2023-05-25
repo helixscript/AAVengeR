@@ -343,8 +343,8 @@ if(! 'leaderSeqHMM' %in% names(reads)){
   cluster <- parallel::makeCluster(opt$prepReads_CPUs)
   clusterExport(cluster, c('opt'))
   
-  #hmmResults <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
-  hmmResults <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
+  hmmResults <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
+  #hmmResults <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
     library(Biostrings)
     library(dplyr)
     source(file.path(opt$softwareDir, 'lib.R'))

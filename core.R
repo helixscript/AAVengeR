@@ -133,25 +133,42 @@ while(! all(jobTable$done == TRUE)){
   Sys.sleep(5)
 }
 
-
-
 # Bundle together fragment output files.
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'fragments.rds', recursive = TRUE, full.names = TRUE)
 frags <- bind_rows(lapply(f, readRDS))
-saveRDS(frags, file = file.path(opt$outputDir, 'core', 'fragments.rds'))
+
+### saveRDS(frags, file = file.path(opt$outputDir, 'core', 'fragments.rds'))
 
 # Create a subject level to-do table.
 jobTable <- tibble(u = unique(frags$uniqueSample))
 jobTable$id <- sapply(jobTable$u, function(x) paste0(unlist(strsplit(x, '~'))[1:2], collapse = '~'))
 
+# Collate logs.
+write('Replicate level modules:\n', file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
 
-# Here... 
+for(x in list.files(file.path(opt$outputDir, 'core', 'replicate_analyses'))){
+  write(paste0('\n', x), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+  
+  if(file.exists(file.path(opt$outputDir, 'core', 'replicate_analyses', x, 'prepReads', 'log'))){
+   write(paste0(' \n[prepReads]'), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+   write(paste0(' ',readLines(file.path(opt$outputDir, 'core', 'replicate_analyses', x, 'prepReads', 'log'))), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+  }
+  
+  if(file.exists(file.path(opt$outputDir, 'core', 'replicate_analyses', x, 'alignReads', 'log'))){
+   write(paste0(' \n[alignReads]'), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+   write(paste0(' ',readLines(file.path(opt$outputDir, 'core', 'replicate_analyses', x, 'alignReads', 'log'))), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+  }
+  
+  if(file.exists(file.path(opt$outputDir, 'core', 'replicate_analyses', x, 'buildFragments', 'log'))){
+   write(paste0(' \n[buildFragments]'), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+   write(paste0(' ',readLines(file.path(opt$outputDir, 'core', 'replicate_analyses', x, 'buildFragments', 'log'))), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+  }
+}
 
 # Create a subject-level splitting vector for fragments records.
 frags <- left_join(frags, jobTable, by = c('uniqueSample' = 'u'))
 
 jobTable <- group_by(distinct(frags), id) %>% summarise(reads = n()) %>% ungroup() %>% arrange(desc(reads))
-
 
 jobTable$CPUs <- as.integer(ceiling((((jobTable$reads / max(jobTable$reads)) * opt$core_maxPercentCPUs) / 100) * opt$core_CPUs))
 jobTable$CPUs <- ifelse(jobTable$CPUs == 1, 2, jobTable$CPUs)
@@ -187,7 +204,7 @@ while(! all(jobTable$done == TRUE)){
   
   # Create the output directory for this replicate and save a copy of the replicate reads within it.
   dir.create(o$outputDir)
-  # ! only one replicate !
+  
   saveRDS(subset(frags, trialSubject == tab$id), file.path(o$outputDir, paste0(tab$id, '.rds')))
   
   # Update configuration to point to the subset of replicate reads.
@@ -216,6 +233,27 @@ while(! all(jobTable$done == TRUE)){
   Sys.sleep(5)
 }
 
+# Collate logs.
+write('Subject level modules:\n', file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+
+for(x in list.files(file.path(opt$outputDir, 'core', 'subject_analyses'))){
+  write(paste0('\n', x), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+  
+  if(file.exists(file.path(opt$outputDir, 'core', 'subject_analyses', x, 'buildStdFragments', 'log'))){
+    write(paste0(' \n[buildStdFragments]'), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+    write(paste0(' ',readLines(file.path(opt$outputDir, 'core', 'subject_analyses', x, 'buildStdFragments', 'log'))), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+  }
+  
+  if(file.exists(file.path(opt$outputDir, 'core', 'subject_analyses', x, 'buildSites', 'log'))){
+    write(paste0(' \n[buildSites]'), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+    write(paste0(' ',readLines(file.path(opt$outputDir, 'core', 'subject_analyses', x, 'buildSites', 'log'))), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+  }
+}
+
+# Bundle together multi-hit cluster output files.
+f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'multiHitClusters.rds', recursive = TRUE, full.names = TRUE)
+multiHitClusters <- bind_rows(lapply(f, readRDS))
+saveRDS(multiHitClusters, file = file.path(opt$outputDir, 'core', 'multiHitClusters.rds'))
 
 # Bundle together site output files.
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'sites.rds', recursive = TRUE, full.names = TRUE)

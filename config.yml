@@ -6,7 +6,7 @@
 mode: integrase                                                                 # [character] Set predefined valuse for select parameters. Allowed values: integrase, transposase, AAV, manual 
                                                                                 # This parmater will optimize specific parametes. No changes to the paramters below will be made if set to 'manual'. 
 modules:
-    - core                                                                      # [module name] The core module will run the module [demultiplex]->[buildSites] module chain.
+    - core                                                                      # [module name] The core module will run the [demultiplex]->[buildSites] module chain while optimizing CPU use.
 #    - demultiplex                                                              # [module name]
 #    - prepReads                                                                # [module name]
 #    - alignReads                                                               # [module name]
@@ -14,12 +14,16 @@ modules:
 #    - buildStdFragments                                                        # [module name]
 #    - buildSites                                                               # [module name]
 
+# Additional modules:
+# predictPCRartifacts    callNearestGenes          callNearestGenesFiltered  buildDemultiplexedSampleReadMaps
+# buildAAVremnantPlots   anchorReadRearrangements  annotateRepeats           barcodeAssocLinkers
+
 
 # Commonly changed parameters.
 # The databaseGroup prameter should only be provided when the database server is running and prepared to recieve data.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
-#databaseGroup:     AAVengeR                                                    # [character] Database identifier found in ~/.my.cnf file for capturing results.
+#databaseGroup:     AAVengeR                                                    # [character] Database identifier found in ~/.my.cnf file for capturing results. Database server must be active.
 outputDir:         output                                                       # [file path] Path to the output directory which will be created if it does not exists.
 
 core_CPUs: 30                                                                   # [integer] Total number of CPUs allowed to be used by AAVengeR.
@@ -52,6 +56,7 @@ demultiplex_index1ReadMaxMismatch: 1                                            
 demultiplex_useAdriftReadUniqueLinkers: TRUE                                    # [boolean]   Use unique adrift read linker sequences when demultiplexing.
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1                               # [integer]   (evaluated if demultiplex_useAdriftReadUniqueLinkers = TRUE) Max. number of mismatches allowed in R1 unique linker sequences.
 demultiplex_anchorReadStartSeq.maxMisMatch: 1                                   # [integer]   (evaluated if anchorRead.startSeq column provided in sampleData file) Max. number of mismatches allowed in anchor read start sequences.
+demultiplex_exportFASTQ: FALSE                                                  # [bollean]   Export demultiplexed reads as FASTQ to the demultiplex output folder.
 
                                                                                 # (*) evaluated if repReads_buildReadMaps_blastReconstruction = TRUE
                                                                                 # (^) evaluated if leaderSeqHMM is a column in the sampleDetails file

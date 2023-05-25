@@ -613,7 +613,8 @@ if(nrow(a) > 0){
                       readIDs = list(readID),
                       leaderSeqs = list(leaderSeq[1])) %>%
         dplyr::slice(1) %>%
-        dplyr::ungroup()
+        dplyr::ungroup() %>%
+        dplyr::filter(reads >= opt$buildStdFragments_minReadsPerFrag)
 } else {
   a2 <- tibble()
 } 

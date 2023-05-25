@@ -117,7 +117,7 @@ pullDBsubjectFrags <- function(dbConn, trial, subject, tmpDirPath){
 # and remove reads that fall below a specific length post trimming. 
 
 qualTrimReads <- function(f, chunkSize, label, ouputDir){
-  
+
   # Create a pointer like object to the read file.
   strm <- FastqStreamer(f, n = as.integer(chunkSize))
   
@@ -192,8 +192,6 @@ conformMinorSeqDiffs <- function(x, editDist = 1, abundSeqMinCount = 10, nThread
 
 loadSamples <- function(){
   samples <- readr::read_tsv(opt$demultiplex_sampleDataFile, col_types = readr::cols())
-
-  # browser()
   
   if(nrow(samples) == 0){
     write(c(paste(lubridate::now(), 'Error - no lines of information was read from the sample configuration file.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
@@ -577,7 +575,7 @@ blast2rearangements <- function(b, maxMissingTailNTs = 5){
       
       o <- unlist(stringr::str_extract_all(r$rearrangement, '\\.\\.\\d+'))
       lastRangeEnd <- as.integer(sub('\\.\\.', '', stringr::str_extract(o[length(o)], '\\.\\.\\d+')))
-      browser()
+      
       if(b$qlen[1] - lastRangeEnd >= maxMissingTailNTs){
         
         r$rearrangement <- paste0(r$rearrangement, ';', (lastRangeEnd+1), '..', b$qlen[1], '[x]')
