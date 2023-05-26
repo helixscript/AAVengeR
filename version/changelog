@@ -36,3 +36,6 @@ Added prepReads_useDefaultHMMsettings to configFile - uses data/hmms/*.settings 
 1.01
 Fixed issue with buildStdFragments_minReadsPerFrag flag and sites with single fragments.
 Added log collation for core module.
+Core module now collates multihit results.
+1.02
+Fixed bug in core CPU scheduler.

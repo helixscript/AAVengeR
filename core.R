@@ -42,9 +42,9 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
       o <- unlist(strsplit(x, '/'))
       id <- o[length(o)-2]
       
-      jobTable[jobTable$id == id,]$done   <<- TRUE
-      jobTable[jobTable$id == id,]$active <<- NA
-      jobTable[jobTable$id == id,]$endTime <<- as.character(lubridate::now()) 
+      jobTable[jobTable$id == id,]$done     <<- TRUE
+      jobTable[jobTable$id == id,]$active   <<- NA
+      jobTable[jobTable$id == id,]$endTime  <<- as.character(lubridate::now()) 
       jobTable[jobTable$id == id,]$duration <<- paste0(as.integer(as.character(difftime(lubridate::now(), lubridate::ymd_hms(jobTable[jobTable$id == o[length(o)-2],]$startTime), units="mins"))), ' minutes')
       
       CPUs_used <<- CPUs_used - jobTable[jobTable$id == id,]$CPUs
@@ -53,18 +53,21 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
   }
   
   # Redefine CPUs...
-  o <- jobTable[jobTable$done == FALSE,]  # Identify jobs that have not completed.
+  ### o <- jobTable[jobTable$done == FALSE,]  # Identify jobs that have not completed.
+  o <- jobTable[jobTable$done == FALSE & is.na(jobTable$active),]  # Identify jobs that have not completed
   
-  # Increase core_maxPercentCPUs near the end of the job table.
-  core_maxPercentCPUs <- opt$core_maxPercentCPUs
-  if(100/nrow(o) > core_maxPercentCPUs) core_maxPercentCPUs <- ceiling(100/nrow(o)) 
+  if(nrow(o) > 0){
+    # Increase core_maxPercentCPUs near the end of the job table.
+    core_maxPercentCPUs <- opt$core_maxPercentCPUs
+    if(100/nrow(o) > core_maxPercentCPUs) core_maxPercentCPUs <- ceiling(100/nrow(o)) 
   
-  # The job with the most reads will evaluate to 1 * core_maxPercentCPUs and recieve core_maxPercentCPUs cores.
-  o$CPUs <- as.integer(ceiling((((o$reads / max(o$reads)) * core_maxPercentCPUs) / 100) * opt$core_CPUs))
+    # The job with the most reads will evaluate to 1 * core_maxPercentCPUs and recieve core_maxPercentCPUs cores.
+    o$CPUs <- as.integer(ceiling((((o$reads / max(o$reads)) * core_maxPercentCPUs) / 100) * opt$core_CPUs))
   
-  o$CPUs <- ifelse(o$CPUs == 1, 2, o$CPUs) # Each job must get at least 2 CPUs.
+    o$CPUs <- ifelse(o$CPUs == 1, 2, o$CPUs) # Each job must get at least 2 CPUs.
   
-  jobTable[match(o$id, jobTable$id),]$CPUs <- o$CPUs
+    jobTable[match(o$id, jobTable$id),]$CPUs <- o$CPUs
+  }
   
   tab <- pandoc.table.return(arrange(jobTable, desc(done), desc(active)), style = "simple", split.tables = Inf, plain.ascii = TRUE)
   write(c(date(), paste0('Available CPUs: ', (opt$core_CPUs - CPUs_used)), tab), file = file.path(opt$outputDir, 'core', outputFileName), append = FALSE)
@@ -96,9 +99,9 @@ while(! all(jobTable$done == TRUE)){
   
   # Gather select sections from the configuration file and set CPU values.
   o <- opt[grepl('^mode|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^prepReads|^alignReads|^buildFragments', names(opt))]
-  o$prepReads_CPUs <- tab$CPUs
-  o$alignReads_CPUs <- tab$CPUs
-  o$buildFragments_CPUs <- tab$CPUs
+  o$prepReads_CPUs <- as.integer(tab$CPUs)
+  o$alignReads_CPUs <- as.integer(tab$CPUs)
+  o$buildFragments_CPUs <- as.integer(tab$CPUs)
   o$outputDir <- file.path(opt$outputDir, 'core', 'replicate_analyses', tab$id)
   
   # Instruct the pipeline to create a buildFragments/fragments.done file for jobs that failed.
@@ -137,8 +140,6 @@ while(! all(jobTable$done == TRUE)){
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'fragments.rds', recursive = TRUE, full.names = TRUE)
 frags <- bind_rows(lapply(f, readRDS))
 
-### saveRDS(frags, file = file.path(opt$outputDir, 'core', 'fragments.rds'))
-
 # Create a subject level to-do table.
 jobTable <- tibble(u = unique(frags$uniqueSample))
 jobTable$id <- sapply(jobTable$u, function(x) paste0(unlist(strsplit(x, '~'))[1:2], collapse = '~'))
@@ -160,8 +161,8 @@ for(x in list.files(file.path(opt$outputDir, 'core', 'replicate_analyses'))){
   }
   
   if(file.exists(file.path(opt$outputDir, 'core', 'replicate_analyses', x, 'buildFragments', 'log'))){
-   write(paste0(' \n[buildFragments]'), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
-   write(paste0(' ',readLines(file.path(opt$outputDir, 'core', 'replicate_analyses', x, 'buildFragments', 'log'))), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+  # write(paste0(' \n[buildFragments]'), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
+  # write(paste0(' ',readLines(file.path(opt$outputDir, 'core', 'replicate_analyses', x, 'buildFragments', 'log'))), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
   }
 }
 
@@ -192,11 +193,11 @@ while(! all(jobTable$done == TRUE)){
     Sys.sleep(5)
     next
   }
-  
+
   # Gather select sections from the configuration file and set CPU values.
   o <- opt[grepl('^mode|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^buildStdFragments|^buildSites', names(opt))]
-  o$buildStdFragments_CPUs <- tab$CPUs
-  o$buildSites_CPUs <- tab$CPUs
+  o$buildStdFragments_CPUs <- as.integer(tab$CPUs)
+  o$buildSites_CPUs <- as.integer(tab$CPUs)
   o$outputDir <- file.path(opt$outputDir, 'core', 'subject_analyses', tab$id)
   
   # Instruct the pipeline to create a buildFragments/fragments.done file for jobs that failed.
