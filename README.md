@@ -29,6 +29,7 @@ AAVengeR provides six core modules to call integration sites from raw sequencing
 Figure 2. AAVengeR core pipeline. 
 <p align="center"><img src="figures/pipeline_overview1.png"></p>
 
+
 # Implementation  
 
 AAVengeR is written in the R programming language and is designed to run on a single server with modest resources while its modular design can be easily adapted to more distributive solutions such as Nextflow and cloud computing platforms. The software is driven by two configuration files, one that defines processing parameters for each module and a second that describes experimental samples. The sample configuration file contains sample specific details such as barcode and linker sequences, vector details, and reference genomes.  AAVengeR modules can be chained together to create custom pipelines and custom modules can be used by simply adding them to module chain lists and adding their parameters to the software configuration file.
