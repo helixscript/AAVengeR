@@ -7,11 +7,10 @@ Use the commands below to install these genomes after updating the first two lin
 your installation path and genome of interest.  
 
 ```
-export AAVengeR_genome='hg38'
+export AAVengeR_GENOME='hg38'
 export AAVengeR_HOME='/home/ubuntu/AAVengeR'
-wget -O update.tar http://bushmanlab.org/data/AAVengeR/genomeData/$AAVengeR_genome.tar
-tar xf update.tar
-rsync -a $AAVengeR_genome/ $AAVengeR_HOME/data/
+wget -qO- http://bushmanlab.org/data/AAVengeR/genomeData/$AAVengeR_GENOME.tar | tar x
+rsync -a $AAVengeR_GENOME/ $AAVengeR_HOME/data/
 ```
 
 # Overview  
