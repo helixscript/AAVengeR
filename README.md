@@ -12,5 +12,4 @@ export AAVengeR_HOME='/home/ubuntu/AAVengeR'
 wget -O update.tar http://bushmanlab.org/data/AAVengeR/genomeData/$AAVengeR_genome.tar
 tar xf update.tar
 rsync -a $AAVengeR_genome/ $AAVengeR_HOME/data/
-rm -rf $AAVengeR_genome
 ```
