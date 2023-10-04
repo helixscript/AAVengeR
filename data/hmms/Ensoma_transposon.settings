@@ -1,8 +1,0 @@
-#Ensoma
-#CAACTTAAGTGTATGTAAACTTCCGACTTCAACTGTA
-prepReads_HMMsearchReadStartPos: 1
-prepReads_HMMsearchReadEndPos:  40
-prepReads_HMMmaxStartPos: 3
-prepReads_HMMminFullBitScore: 20
-prepReads_HMMmatchEnd: TRUE
-prepReads_HMMmatchTerminalSeq: TA

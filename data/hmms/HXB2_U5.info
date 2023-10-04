@@ -1,8 +1,0 @@
-HMM created with a single sequence: GAAAATCTCTAGCA
-
-Recommend parameters:
-----------------------------------
-prepReads_HMMsearchReadStartPos: 1
-prepReads_HMMsearchReadEndPos:  17
-prepReads_HMMmaxStartPos: 3
-prepReads_HMMminFullBitScore: 5
