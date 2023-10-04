@@ -1,9 +1,16 @@
 # AAVengeR
 
+Due to GitHub size restrictions, only the sacCer3 genome and annotation files are provided 
+with the software. These additional genomes and genome annotations are available: hg38, mm9, canFam3, macFas5, and GCA_009914755.4.
 
-Many of the required data files are too large to be archived in this repository.  
-Update the command below with the location of your AAVengeR installation and run it to update your installation.  
-  
+Use the commands below to install these genomes after updating the first to lines to reflect 
+your installation path and genome of interest.  
+
 ```
-Rscript updateDataFolder.R  /home/ubuntu/AAVengeR
+export AAVengeR_genome='hg38'
+export AAVengeR_HOME='/home/ubuntu/AAVengeR'
+wget -O update.tar http://bushmanlab.org/data/AAVengeR/genomeData/$AAVengeR_genome.tar
+tar xf update.tar
+rsync -a $AAVengeR_genome/ $AAVengeR_HOME/data/
+rm -rf $AAVengeR_genome
 ```
