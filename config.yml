@@ -1,9 +1,9 @@
 # Processing modules.
 # The core module will automatically run demultiplex, prepreads, alignReads, buildFragments, buildStdFragments, and buildSites.
-# Additional modules such as annotateRepeats, callNearestGenes, and predictPCRartifacts can be called after integration sites are called.
+# Additional modules such as annotateRepeats, callNearestGenes, and predictprediPCRartifacts can be called after integration sites are called.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
-mode: integrase                                                                 # [character] Set predefined valuse for select parameters. Allowed values: integrase, transposase, AAV, manual 
+mode: integrase                                                                 # [character] Set predefined valuse for select parameters. Allowed values: integrase, transposase, AAV, vectorIntoVector, and manual 
                                                                                 # This parmater will optimize specific parametes. No changes to the paramters below will be made if set to 'manual'. 
 modules:
     - core                                                                      # [module name] The core module will run the [demultiplex]->[buildSites] module chain while optimizing CPU use.
@@ -25,6 +25,8 @@ modules:
 
 #databaseGroup:     AAVengeR                                                    # [character] Database identifier found in ~/.my.cnf file for capturing results. Database server must be active.
 outputDir:         output                                                       # [file path] Path to the output directory which will be created if it does not exists.
+
+compressDataFiles: FALSE
 
 core_CPUs: 30                                                                   # [integer] Total number of CPUs allowed to be used by AAVengeR.
 core_maxPercentCPUs: 33                                                         # [integer] Largerest percentage (1-100) of core_CPUs allowed to be used by a single process.
@@ -55,7 +57,7 @@ demultiplex_sequenceChunkSize: 100000                                           
 demultiplex_index1ReadMaxMismatch: 1                                            # [integer]   Max. number of mismatches allowed in I1 barcodes.
 demultiplex_useAdriftReadUniqueLinkers: TRUE                                    # [boolean]   Use unique adrift read linker sequences when demultiplexing.
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1                               # [integer]   (evaluated if demultiplex_useAdriftReadUniqueLinkers = TRUE) Max. number of mismatches allowed in R1 unique linker sequences.
-demultiplex_anchorReadStartSeq.maxMisMatch: 1                                   # [integer]   (evaluated if anchorRead.startSeq column provided in sampleData file) Max. number of mismatches allowed in anchor read start sequences.
+demultiplex_anchorReadStartSeq.maxMisMatch: 1                                   # [integer]   (evaluated if anchorReadStartSeq column provided in sampleData file) Max. number of mismatches allowed in anchor read start sequences.
 demultiplex_exportFASTQ: FALSE                                                  # [bollean]   Export demultiplexed reads as FASTQ to the demultiplex output folder.
 
                                                                                 # (*) evaluated if repReads_buildReadMaps_blastReconstruction = TRUE
@@ -180,7 +182,7 @@ addSampleDetails_detailsFile: data/sampleDetails.tsv
 addSampleDetails_addAfter: sample
 
 annotateRepeats_CPUs: 30
-annotateRepeats_inputFile: buildSites/sites.rds
+annotateRepeats_inputFile: predictPCRartifacts/sites.rds
 annotateRepeats_outputDir: annotateRepeats
 annotateRepeats_addAfter: nRepsObs
 

@@ -39,3 +39,8 @@ Added log collation for core module.
 Core module now collates multihit results.
 1.02
 Fixed bug in core CPU scheduler.
+1.10
+Added requirement for cd-hit-est which is used by buildStdFrags.R to more quickly cluter leader sequences.
+Modified multiple code blocks to increase processing speed.
+Updated scheduler in the core module.
+Added compressDataFiles option to the config file in order to increase processing speed by not compressing rds files.

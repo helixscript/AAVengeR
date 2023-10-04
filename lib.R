@@ -1,8 +1,11 @@
-
+percentSysMemUsed <- function(){
+  m <- as.integer(unlist(strsplit(system('free', intern = TRUE)[2], '\\s+'))[2:3])
+  (m[2] / m[1]) * 100
+}
 
 tmpFile <- function(){ paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') }
 
-# AAVegeneR is provided with default configuration files for different types of analyses
+# AAVengeR is provided with default configuration files for different types of analyses
 # where all the expected options are provided. Removing options from the configuration file
 # may break the software in some instances. Some modules, such as the core module, injects 
 # non-public options and this function ensures that they are always set even when not needed
@@ -34,7 +37,7 @@ core_createFauxSiteDoneFiles <- function(){
 # Check the system path for the presence of required system level software.
 
 checkSoftware <- function(){
-  s <- c('blastn', 'blat', 'cutadapt', 'hmmbuild', 'hmmsearch', 'mafft', 'makeblastdb', 'muscle', 'python2')
+  s <- c('blat', 'cutadapt', 'hmmbuild', 'hmmsearch', 'blastn', 'makeblastdb', 'muscle', 'python2', 'cd-hit-est')
   
   o <- bind_rows(lapply(s, function(x){
          r <- tryCatch({
@@ -199,8 +202,8 @@ loadSamples <- function(){
   }
   
   if('refGenome' %in% names(samples)){
-    if(! all(sapply(unique(file.path(opt$softwareDir, 'data', 'blatDBs', paste0(samples$refGenome, '.2bit'))), file.exists))){
-      write(c(paste(now(), "Error - one or more blat database files could not be found in AAVengeR's data/blatDBs directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    if(! all(sapply(unique(file.path(opt$softwareDir, 'data', 'referenceGenomes', paste0(samples$refGenome, '.2bit'))), file.exists))){
+      write(c(paste(now(), "Error - one or more blat database files could not be found in AAVengeR's data/referenceGenomes directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
       q(save = 'no', status = 1, runLast = FALSE) 
     }
   } else {
@@ -334,56 +337,93 @@ parseCutadaptLog <- function(f){
   }
 }
 
+alignRemnantSeqs <- function(s, tmpDirPath = NA){
+    
+    if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
+      set.seed(1)
+      s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
+    }
 
-representativeSeq <- function(s, percentReads = 95, tmpDirPath = NA){
-  if(length(s) == 1 | dplyr::n_distinct(s) == 1) return(list(0, s[1]))
+    # Align sequences in order to handle potential indels.
+    f <- tmpFile()
+    inputFile <- file.path(tmpDirPath, paste0(f, '.fasta'))
+    fileConn <- file(inputFile)
+    write(paste0('>', paste0('s', 1:length(s)), '\n', s), file = fileConn)
+    close(fileConn)
+
+    # Align sequences.
+    outputFile <- file.path(tmpDirPath, paste0(f, '.representativeSeq.muscle'))
+    system(paste('muscle -quiet -maxiters 1 -diags -in ', inputFile, ' -out ', outputFile))
+
+    if(! file.exists(outputFile)) waitForFile(outputFile)
+    
+    r <- Biostrings::readDNAMultipleAlignment(outputFile)
+    
+    # Close the connection created by readDNAStringSet which are sometimes left often.
+    g <- grepl(f, showConnections(all = TRUE)[,1])
+    if(any(g)) close.connection(getConnection(which(grepl(f, g)) - 1))
+    
+    invisible(file.remove(c(inputFile, outputFile)))
+    
+    r
+}
+
+
+calcRepLeaderSeq <- function(d, threads = 2){
   
-  k <- data.frame(table(s))
-  s <- unique(s)
+  if(nrow(d) > 1000) d <- dplyr::sample_n(d, 1000)
   
-  if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
-    set.seed(1)
-    message('Sampling ', opt$buildStdFragments_representativeSeqCalc_maxReads, ' reads in representativeSeq()')
-    s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
+  m <- stringdist::stringdistmatrix(d$seq, d$seq, nthread = threads)
+  s <- apply(m, 1, sum)
+  
+  repLeaderSeq <- d$seq[which(s <= min(s) + round(mean(nchar(d$seq))*0.10))]
+  
+  # Break ties with read counts.
+  if(length(repLeaderSeq) != 1){
+    repLeaderSeq <- subset(d, seq %in% repLeaderSeq) %>% dplyr::arrange(desc(count), desc(reads)) %>% dplyr::slice(1) %>% dplyr::pull(seq)
   }
   
-  # Align sequences in order to handle potential indels.
-  f <- tmpFile()
-  inputFile <- file.path(tmpDirPath, paste0(f, '.fasta'))
-  fileConn <- file(inputFile)
-  write(paste0('>', paste0('s', 1:length(s)), '\n', s), file = fileConn)
-  close(fileConn)
-  
-  # Align sequences.
-  outputFile <- file.path(tmpDirPath, paste0(f, '.representativeSeq.muscle'))
-  system(paste('muscle -quiet -maxiters 1 -diags -in ', inputFile, ' -out ', outputFile))
-  if(! file.exists(outputFile)) waitForFile(outputFile)
+  if(length(repLeaderSeq) > 1) browser()
+  repLeaderSeq
+}
+    
 
-  # Alignments are read in with dashes.
-  s <- as.character(Biostrings::readDNAStringSet(outputFile))
+cdhitRepSeq <- function(s, tmpDir = NA){
+  library(dplyr)
+   f <- file.path(tmpDir, tmpFile())
+   u <- tibble(id = paste0('s', 1:length(s)), seq = s)
   
-  # Close the connection created by readDNAStringSet which are sometimes left often.
-  g <- grepl(f, showConnections(all = TRUE)[,1])
-  if(any(g)) close.connection(getConnection(which(grepl(f, g)) - 1))
+   write(paste0('>', u$id, '\n', u$seq), file = f)
 
-  invisible(file.remove(c(inputFile, outputFile)))
+   system(paste0("cd-hit-est -i ", f, 
+              " -o ", paste0(f, '.cdhit'), " -T ", 2, 
+              " -c 0.85 -d 0 -M 0 -G 0 -aS 0.9 -aL 0.9 -s 0.9 -A 0.80 -n 5 -sc 1"))
 
-  # Create an all vs. all edit distance matrix.
-  m <- as.matrix(stringdist::stringdistmatrix(s, nthread = opt$buildStdFragments_representativeSeqCalc_CPUs))
-
-  # Select the sequence with the least amount of difference to other sequences.
-  d <- apply(m, 1, sum)
-  lowestEditDistSeqs1 <- unique(s[which(d == min(d))])
-  lowestEditDistSeqs2 <- gsub('\\-', '', lowestEditDistSeqs1)
-  
-  if(length(lowestEditDistSeqs1) > 1){
-    lowestEditDistSeq <- dplyr::filter(k, s %in% lowestEditDistSeqs2) %>% slice_max(Freq, n = 1, with_ties = FALSE) %>% dplyr::pull(s) %>% as.character()
-  } else {
-    lowestEditDistSeq <- lowestEditDistSeqs2
-  }
-  
-  # list(max(stringdist::stringdist(lowestEditDistSeqs1, s))/nchar(lowestEditDistSeq), lowestEditDistSeq)
-  list(NA, lowestEditDistSeq)
+   r <- paste0(readLines(paste0(f, '.cdhit.clstr')), collapse = '')
+   r <- unlist(strsplit(r, '>Cluster'))
+   
+   n <- 0
+   m <- bind_rows(lapply(r, function(x){
+          e <- unlist(stringr::str_extract_all(x, 's\\d+'))
+          if(length(e) > 0){
+            n <<- n + 1
+            return(tibble(cluster = n,
+                   id = e, 
+                   clusterRepSeq = stringr::str_extract(stringr::str_extract(x, 's\\d+\\.+\\s+\\*'), 's\\d+')))
+           } else {
+             return(tibble())
+           }
+         }))
+   
+   files <- list.files(tmpDir, full.names = TRUE)
+   invisible(file.remove(files[grepl(f, files)]))
+   
+    group_by(m, cluster) %>% 
+    summarise(clusterSize = n(), clusterRepSeq = clusterRepSeq[1]) %>% 
+    ungroup() %>% 
+    left_join(u, by = c('clusterRepSeq' = 'id')) %>%
+    slice_max(clusterSize, with_ties = FALSE) %>%
+    dplyr::pull(seq)
 }
 
 

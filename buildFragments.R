@@ -329,7 +329,7 @@ frags <- dplyr::rename(frags, leaderSeq = leaderSeq.anchorReads, randomLinkerSeq
 
 if(any(! incomingSamples %in% frags$uniqueSample) & opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
 
-saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.rds'))
+saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.rds'), compress = opt$compressDataFiles)
 write(date(), file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.done'))
 
 

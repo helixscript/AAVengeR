@@ -52,9 +52,8 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
     }))
   }
   
-  # Redefine CPUs...
-  ### o <- jobTable[jobTable$done == FALSE,]  # Identify jobs that have not completed.
-  o <- jobTable[jobTable$done == FALSE & is.na(jobTable$active),]  # Identify jobs that have not completed
+  # Redefine CPUs.
+  o <- jobTable[jobTable$done == FALSE & jobTable$active == FALSE,]
   
   if(nrow(o) > 0){
     # Increase core_maxPercentCPUs near the end of the job table.
@@ -98,7 +97,7 @@ while(! all(jobTable$done == TRUE)){
   }
   
   # Gather select sections from the configuration file and set CPU values.
-  o <- opt[grepl('^mode|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^prepReads|^alignReads|^buildFragments', names(opt))]
+  o <- opt[grepl('^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^prepReads|^alignReads|^buildFragments', names(opt))]
   o$prepReads_CPUs <- as.integer(tab$CPUs)
   o$alignReads_CPUs <- as.integer(tab$CPUs)
   o$buildFragments_CPUs <- as.integer(tab$CPUs)
@@ -109,10 +108,10 @@ while(! all(jobTable$done == TRUE)){
   
   # Create the output directory for this replicate and save a copy of the replicate reads within it.
   dir.create(o$outputDir)
-  saveRDS(subset(reads, uniqueSample == tab$id), file.path(o$outputDir, paste0(tab$id, '.rds')))
+  saveRDS(subset(reads, uniqueSample == tab$id), file.path(o$outputDir, paste0(tab$id, '.CORE_TMP.rds')), compress = opt$compressDataFiles)
   
   # Update configuration to point to the subset of replicate reads.
-  o$prepReads_readsTable <- paste0(tab$id, '.rds')
+  o$prepReads_readsTable <- paste0(tab$id, '.CORE_TMP.rds')
   
   # Define modules to run in replicate level configuration file and write out file.
   o$modules <- list()
@@ -179,7 +178,12 @@ jobTable$endTime <- NA
 jobTable$done <- FALSE
 jobTable$duration <- NA
 
-frags$trialSubject <- sub('~[^~]+~\\d+$', '', frags$uniqueSample)
+### frags$trialSubject <- sub('~[^~]+~\\d+$', '', frags$uniqueSample)
+
+d <- tibble(uniqueSample = unique(frags$uniqueSample)) %>% tidyr::separate(uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~', remove = FALSE)
+d$trialSubject <- paste0(d$trial, '~', d$subject)
+frags <- left_join(frags, distinct(dplyr::select(d, uniqueSample, trialSubject)), by = 'uniqueSample')
+
 
 CPUs_used <- 0
 
@@ -195,7 +199,7 @@ while(! all(jobTable$done == TRUE)){
   }
 
   # Gather select sections from the configuration file and set CPU values.
-  o <- opt[grepl('^mode|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^buildStdFragments|^buildSites', names(opt))]
+  o <- opt[grepl('^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^buildStdFragments|^buildSites', names(opt))]
   o$buildStdFragments_CPUs <- as.integer(tab$CPUs)
   o$buildSites_CPUs <- as.integer(tab$CPUs)
   o$outputDir <- file.path(opt$outputDir, 'core', 'subject_analyses', tab$id)
@@ -206,10 +210,10 @@ while(! all(jobTable$done == TRUE)){
   # Create the output directory for this replicate and save a copy of the replicate reads within it.
   dir.create(o$outputDir)
   
-  saveRDS(subset(frags, trialSubject == tab$id), file.path(o$outputDir, paste0(tab$id, '.rds')))
+  saveRDS(subset(frags, trialSubject == tab$id), file.path(o$outputDir, paste0(tab$id, '.CORE_TMP.rds')), compress = opt$compressDataFiles)
   
   # Update configuration to point to the subset of replicate reads.
-  o$buildStdFragments_inputFile <- file.path(paste0(tab$id, '.rds'))
+  o$buildStdFragments_inputFile <- file.path(paste0(tab$id, '.CORE_TMP.rds'))
   
   # Define modules to run in replicate level configuration file and write out file.
   o$modules <- list()
@@ -254,12 +258,12 @@ for(x in list.files(file.path(opt$outputDir, 'core', 'subject_analyses'))){
 # Bundle together multi-hit cluster output files.
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'multiHitClusters.rds', recursive = TRUE, full.names = TRUE)
 multiHitClusters <- bind_rows(lapply(f, readRDS))
-saveRDS(multiHitClusters, file = file.path(opt$outputDir, 'core', 'multiHitClusters.rds'))
+saveRDS(multiHitClusters, file = file.path(opt$outputDir, 'core', 'multiHitClusters.rds'), compress = opt$compressDataFiles)
 
 # Bundle together site output files.
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'sites.rds', recursive = TRUE, full.names = TRUE)
 sites <- bind_rows(lapply(f, readRDS))
-saveRDS(sites, file = file.path(opt$outputDir, 'core', 'sites.rds'))
+saveRDS(sites, file = file.path(opt$outputDir, 'core', 'sites.rds'), compress = opt$compressDataFiles)
 openxlsx::write.xlsx(sites, file.path(opt$outputDir, 'core', 'sites.xlsx'))
 readr::write_tsv(sites, file.path(opt$outputDir, 'core', 'sites.tsv.gz'))
 

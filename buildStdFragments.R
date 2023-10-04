@@ -99,6 +99,8 @@ incomingSamples <- unique(sub('~\\d+$', '', frags$uniqueSample))
 # --------------------------------------------------------------------------------------------------------------
 sampleMetaData <- distinct(dplyr::select(frags, uniqueSample, refGenome, vectorFastaFile, seqRunID, flags))
 
+
+# Update to use tidyr::separate
 frags <- rbindlist(lapply(split(frags, frags$uniqueSample), function(x){
             o <-  unlist(stringr::str_split(x$uniqueSample[1], '~'))
             x$trial = o[1]; x$subject = o[2]; x$sample = o[3]; x$replicate = o[4]
@@ -122,80 +124,49 @@ frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
 
-frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject)), function(x){
+# Create a table of unique leader sequences to cluster.
+u <- tibble(leaderSeq = unique(frags$leaderSeq)) %>% arrange(nchar(leaderSeq))
+u$id <- paste0('s', 1:nrow(u))
 
-           bind_rows(parLapply(cluster, split(x, x$chromosome), function(x2){
-             library(dplyr)
-             processed <- vector()
-             
-             bind_rows(lapply(split(x2, x2$posid), function(x3){      
-                
-               # Find neighboring site fragments.
-               if(x3$strand[1] == '+'){
-                 o <- subset(x2, chromosome == x3$chromosome[1] & 
-                                 strand == '+' & 
-                                 fragStart >= x3$fragStart[1] - opt$buildStdFragments_leaderSeqGroupingDist & 
-                                 fragStart <= x3$fragStart[1] + opt$buildStdFragments_leaderSeqGroupingDist)
-               } else {
-                 o <- subset(x2, chromosome == x2$chromosome[1] & 
-                                 strand == '-' & 
-                                 fragEnd >= x3$fragEnd[1] - opt$buildStdFragments_leaderSeqGroupingDist & 
-                                 fragEnd <= x3$fragEnd[1] + opt$buildStdFragments_leaderSeqGroupingDist)
-               }
-           
-               o <- filter(o, ! fragID %in% processed)
-               if(nrow(o) == 0) return(tibble())
-           
-               processed <<- c(processed, unique(o$fragID))
-           
-               if(n_distinct(o$posid) > 1){
-             
-                 # There are multiple non-standardized position ids within the current one.
-                 # Order their leader sequences by abundance and reads.
-      
-                 d <- mutate(o, widths = abs(fragEnd - fragStart)) %>%
-                      group_by(leaderSeq) %>% 
-                      summarise(reads = n_distinct(readID), estAbund = n_distinct(widths)) %>%
-                      arrange(desc(estAbund), desc(reads)) 
-             
-                 d$leaderSeqGroup <- 'none'
-                 g <- 1
+o <- DNAStringSet(u$leaderSeq)
+names(o) <- u$id
+writeXStringSet(o, file.path(opt$outputDir, 'uniqueLeaderSeqs.fasta'))
 
-                 invisible(lapply(1:nrow(d), function(i){
-                   if(! d[i,]$leaderSeqGroup == 'none') return()
+system(paste0("cd-hit-est -i ", file.path(opt$outputDir, 'uniqueLeaderSeqs.fasta'), 
+              " -o ",  file.path(opt$outputDir, 'uniqueLeaderSeqsClusters'), " -T ", opt$buildStdFragments_CPUs, 
+              " -c 0.8 -d 0 -M 0 -G 1 -aS 0.85 -aL 0.85 -s 0.85  -n 5"))
 
-                   maxEditDist <- ceiling(nchar(as.character(d[i,]$leaderSeq))/opt$buildStdFragments_categorize_anchorReadRemnants_stepSize)
+r <- paste0(readLines(file.path(opt$outputDir, 'uniqueLeaderSeqsClusters.clstr')), collapse = '')
+r <- unlist(strsplit(r, '>Cluster'))
 
-                   d[i,]$leaderSeqGroup <<- paste0(x$trial[1], '~', x$subject[1], '~', g)
+n <- 0
+m <- bind_rows(lapply(r, function(x){
+       e <- unlist(stringr::str_extract_all(x, 's\\d+'))
+       if(length(e) > 0){
+         n <<- n + 1
+         return(tibble(id = e, 
+                       leaderSeqGroupNum = n, 
+                       clusterRepSeq = stringr::str_extract(stringr::str_extract(x, 's\\d+\\.+\\s+\\*'), 's\\d+')))
+       } else {
+         return(tibble())
+       }
+     }))
 
-                   # Retrieve all other leader sequences for which a leader seq group has not been assigned.
-                   otherFrags <- d[d$leaderSeqGroup == 'none',]
-                   if(nrow(otherFrags) == 0) return()
+m <- left_join(m, u, by = c('clusterRepSeq' = 'id')) %>% 
+     dplyr::select(-clusterRepSeq) %>% 
+     dplyr::rename(repLeaderSeq = leaderSeq)
 
-                   # Calculate the edit distances between current leader seq and other leader seqs.
-                   dist <- stringdist::stringdist(d[i,]$leaderSeq, otherFrags$leaderSeq, nthread = 2)
+u <- left_join(u, m, by = 'id') %>% dplyr::select(-id)
 
-                   k <- which(dist <= maxEditDist)
+i <- is.na(u$leaderSeqGroupNum)
+if(any(i)) u[i,]$leaderSeqGroupNum <- 0
 
-                   if(length(k) > 0){
-                     k2 <- which(d$leaderSeq %in% unique(otherFrags[k,]$leaderSeq))
-                     d[k2,]$leaderSeqGroup <<- paste0(x$trial[1], '~', x$subject[1], '~', g)
-                   }
+frags <- left_join(frags, u, by = 'leaderSeq')
+frags$leaderSeqGroup <- paste0(frags$trial, '~', frags$subject, '~', frags$leaderSeqGroupNum)
+frags$leaderSeqGroupNum <- NULL
 
-                   g <<- g + 1
-                 }))
-             
-                 o <- left_join(o, select(d, leaderSeq, leaderSeqGroup), by = 'leaderSeq')
-             } else {
-               o$leaderSeqGroup <- paste0(x$trial[1], '~', x$subject[1], '~', 1)
-             }
-           
-             o
-             
-             }))
-         }))
-}))
-
+rm(n, m, o, u , r)
+gc()
 
 # Define fragment ids including ITR/LTR grouping ids and random ids.
 frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample, ':',  
@@ -519,7 +490,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   rm(frags_multPosIDs, multiHitNet_replicates, multiHitFragWidths) 
   gc()
   
-  saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))
+  saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'), compress = opt$compressDataFiles)
   readr::write_tsv(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.tsv.gz'))
   
   if('databaseGroup' %in% names(opt)){
@@ -588,17 +559,14 @@ if(nrow(b) > 0){
          totalReads <- n_distinct(x$readID) + sum(x$n)
   
          if(totalReads < opt$buildStdFragments_minReadsPerFrag) return(tibble())
-  
-         # Select the leader sequence with the most reads as the representative leader sequence.
-         x$repLeaderSeq <- names(sort(table(x$leaderSeq), decreasing = TRUE))[1]
-  
-         leaderSeqs <- x$repLeaderSeq
+        
+         tab <- sort(table(x$leaderSeq), decreasing = TRUE)
+         x$leaderSeqs <- paste0(mapply(function(n, x){ paste0(n, ',', x, '|') }, names(tab), tab, SIMPLIFY = FALSE), collapse = '')
          readList <- x$readID
   
          x <- x[1,]
          x$reads <- totalReads
          x$readIDs <- list(readList)
-         x$leaderSeqs <- list(leaderSeqs)
          x
        }))
 } else {
@@ -609,9 +577,9 @@ if(nrow(a) > 0){
   # Set values for fragments with single reads.
   a2 <- dplyr::group_by(a, fragID) %>%
         dplyr::mutate(reads = n+1, 
-                      repLeaderSeq = leaderSeq[1], 
-                      readIDs = list(readID),
-                      leaderSeqs = list(leaderSeq[1])) %>%
+                      repLeaderSeq = repLeaderSeq[1], 
+                      leaderSeqs = paste0(leaderSeq, ',1'),
+                      readIDs = list(readID)) %>%
         dplyr::slice(1) %>%
         dplyr::ungroup() %>%
         dplyr::filter(reads >= opt$buildStdFragments_minReadsPerFrag)
@@ -629,7 +597,7 @@ if (nrow(f) > 0) f <- left_join(f, sampleMetaData, by = 'uniqueSample')
 s <- unique(paste0(f$trial, '~', f$subject, '~', f$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
-saveRDS(select(f, -leaderSeq, -n, -i, -id, -id, -trialSubject), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'))
-readr::write_tsv(select(f, -leaderSeq, -n, -i, -id, -id, -trialSubject), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
+saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -n, -i, -id, -trialSubject), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
+readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -n, -i, -id, -trialSubject), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

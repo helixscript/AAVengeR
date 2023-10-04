@@ -112,12 +112,12 @@ c <- group_by(b, i) %>%
       summarise(id = readID[1], n = n() - 1, id2 = list(readID[2:n()])) %>%
       ungroup() %>% select(-i) %>% tidyr::unnest(id2)
 
-saveRDS(c, file.path(opt$outputDir, opt$prepReads_outputDir, 'duplicateReads.rds'))
+saveRDS(c, file.path(opt$outputDir, opt$prepReads_outputDir, 'duplicateReads.rds'), compress = opt$compressDataFiles)
 
 
 # Exclude duplicate read pairs.
 reads <- data.table(bind_rows(a, subset(b, ! readID %in% c$id2)) %>% dplyr::select(-i, -n))
-saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'uniqueReadPairs.rds'))
+saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'uniqueReadPairs.rds'), compress = opt$compressDataFiles)
 
 
 # Clean up.
@@ -225,7 +225,7 @@ if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVe
 }
 
 parallel::stopCluster(cluster)
-saveRDS(vectorHits, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorHits.rds'))
+saveRDS(vectorHits, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorHits.rds'), compress = opt$compressDataFiles)
 
 if(nrow(vectorHits) > 0){
   readsPerSample <- mutate(reads, sample = sub('~\\d+$', '', uniqueSample)) %>%
@@ -399,7 +399,7 @@ if(nrow(reads) == 0){
 reads <- left_join(reads, dplyr::select(m, id, leaderMapping.qStart, leaderMapping.qEnd), by = c('readID' = 'id'))
 reads$leaderSeq = substr(reads$anchorReadSeq, 1, reads$leaderMapping.qEnd)
 
-saveRDS(m, file.path(opt$outputDir, opt$prepReads_outputDir, 'leaderSeqMaps.rds'), compress = FALSE)
+saveRDS(m, file.path(opt$outputDir, opt$prepReads_outputDir, 'leaderSeqMaps.rds'), compress = opt$compressDataFiles)
 
 write(c(paste(now(), '   Removing indentified leader sequences from anchor reads.')), file = file.path(opt$outputDir, opt$prepReads_outputDir, 'log'), append = TRUE)
 
@@ -511,7 +511,7 @@ if('leaderSeqHMM' %in% names(reads)){
 
 unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'), recursive = TRUE) 
 
-saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds'), compress = TRUE)
+saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds'), compress = opt$compressDataFiles)
 
 if(any(! incomingSamples %in% reads$uniqueSample) & opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
 

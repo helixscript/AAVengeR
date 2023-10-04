@@ -257,6 +257,8 @@ vectorHits <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
   rbindlist(parLapply(cluster, o, blastWorker))
 }))
 
+write(c(paste(now(), '    Vector alignments completed.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 o <- group_by(vectorHits, qname) %>% summarise(n = any(qstart >= 25)) %>% ungroup()
 
 write(c(paste(now(), '   ', sprintf("%.2f%%", (sum(o$n)/ n_distinct(o$qname))*100), 'of reads that align to the vector files have a start position >= 25')), file = file.path(opt$outputDir, 'log'), append = TRUE)
@@ -305,11 +307,16 @@ o$n <- ntile(1:nrow(o), opt$anchorReadRearrangements_CPUs)
 vectorHits <- left_join(vectorHits, o, by = c('i' = 'i2'))
 
 
+write(c(paste(now(), '    Building rearrangement models for each read.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 # Create alignment rearrangement models for each read.
 r <- rbindlist(parallel::parLapply(cluster, split(vectorHits, vectorHits$n), blast2rearangements))
 # r <- rbindlist(lapply(split(vectorHits, vectorHits$n), blast2rearangements))
 
 # Add annotation for missing alignments based on read length.
+
+write(c(paste(now(), '    Adding default annotations for reads without alignments.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 reads$width <- nchar(reads$anchorReadSeq)
 r <- left_join(r, select(reads, readID, width), by = c('qname' = 'readID'))
 
@@ -354,6 +361,8 @@ r2 <- bind_rows(parLapply(cluster, split(r, r$n), function(y){
 if(opt$anchorReadRearrangements_removeTailingUnknownSegments) r2$rearrangement <- sub(';\\d+\\.\\.\\d+\\[x\\]$', '', r2$rearrangement)
 
 # Add read metadata.
+write(c(paste(now(), '    Adding metadata to rearrangement models.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+
 r2 <- left_join(r2, select(reads, trial, subject, sample, readID, adriftReadRandomID), by = c('qname' = 'readID'))
 
 r3 <- bind_rows(lapply(split(r2, paste(r2$trial, r2$subject, r2$sample)), function(x){

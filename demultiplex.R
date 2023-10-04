@@ -292,7 +292,7 @@ if('databaseGroup' %in% names(opt)){
 reads$seqRunID <- opt$demultiplex_seqRunID
 
 write(paste(now(), '   Writing reads data object.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = TRUE)
+saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = opt$compressDataFiles)
 
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
 

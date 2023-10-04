@@ -70,7 +70,7 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
           
           i <- which(frags$fragID %in% c(f1$fragID, f2$fragID))
           frags[i,]$repLeaderSeq <<- paste0(names(sort(table(f1$repLeaderSeq), decreasing = TRUE))[1], '/', names(sort(table(f2$repLeaderSeq), decreasing = TRUE))[1])
-          frags[i,]$leaderSeqs <<- list(frags[i,]$repLeaderSeq[1])
+          ### frags[i,]$leaderSeqs <<- list(frags[i,]$repLeaderSeq[1])
           frags[i,]$flags <<- 'dual detect'
           
           chr <- stringr::str_extract(a, 'chr[XY\\d+]')
@@ -147,53 +147,41 @@ frags <- group_by(frags, trial, subject, sample, replicate, posid) %>%
          mutate(g = cur_group_id()) %>%
          ungroup()
 
-o <- split(frags, frags$g)
-i <- dplyr::ntile(1:length(o), opt$buildSites_CPUs)
-f <- mapply(function(x, y){
-       x$i <- y
-       x
-     }, o, i, SIMPLIFY = FALSE) %>% bind_rows()
-
 cluster <- makeCluster(opt$buildSites_CPUs)
 clusterExport(cluster, c('opt', 'frags'))
 
-# sites <- bind_rows(parLapply(cluster, split(f, f$i), function(a){
-# parallelization here is leading to an issue with represtantiveSeq() 
-# not returning a result for some inputs.
-
-sites <- bind_rows(lapply(split(f, f$i), function(a){  
+sites <- bind_rows(parLapply(cluster, split(frags, frags$g), function(x){  
+#sites <- bind_rows(lapply(split(frags, frags$g), function(x){    
            library(dplyr)
+           library(Biostrings)
+           library(stringdist)
            source(file.path(opt$softwareDir, 'lib.R'))
   
-           bind_rows(lapply(split(a, a$g), function(x){
-
-             if(nrow(x) == 1){
-               return(dplyr::mutate(x, UMIs = n_distinct(x$randomLinkerSeq), 
-                                    sonicLengths = n_distinct(x$fragWidth), 
-                                    maxLeaderSeqDist = 0) %>%
-                      dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, UMIs, sonicLengths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile))
+           leaderSeqTbl  <- bind_rows(lapply(strsplit(unlist(strsplit(x$leaderSeqs, '\\|')), ','), function(x){ tibble(seq = x[1], reads = x[2]) }))
+           leaderSeqTbl2 <- group_by(leaderSeqTbl, seq) %>% 
+                              summarise(count = n(), reads = sum(as.integer(reads))) %>% 
+                              ungroup() %>% arrange(desc(count), desc(reads))
+           
+           repLeaderSeq <- leaderSeqTbl2$seq[1]
+ 
+           if(nrow(x) == 1 & nrow(leaderSeqTbl2) == 1){
+              return(dplyr::mutate(x, UMIs = n_distinct(x$randomLinkerSeq), 
+                                   sonicLengths = n_distinct(x$fragWidth)) %>%
+                     dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, UMIs, sonicLengths, reads, repLeaderSeq, vectorFastaFile))
            } else {
-             s <- unlist(x$leaderSeqs)
-
-            if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
-              set.seed(1)
-              s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
-            }
-    
-            r <- representativeSeq(s, tmpDir = file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp'))
-    
-            return(dplyr::mutate(x, UMIs = n_distinct(x$randomLinkerSeq), 
-                                sonicLengths = n_distinct(x$fragWidth), 
-                                reads = sum(reads), 
-                                repLeaderSeq = r[[2]], 
-                                maxLeaderSeqDist = max(stringdist::stringdistmatrix(s))) %>%
-                  dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, UMIs, sonicLengths, reads, maxLeaderSeqDist, repLeaderSeq, vectorFastaFile) %>%
-                  dplyr::slice(1))
-               }
-           }))
-         }))
+               
+              ### repLeaderSeq <- calcRepLeaderSeq(leaderSeqTbl2)
+               
+              return(dplyr::mutate(x, 
+                                   UMIs = n_distinct(x$randomLinkerSeq), 
+                                   sonicLengths = n_distinct(x$fragWidth), 
+                                   reads = sum(reads), 
+                                   repLeaderSeq = repLeaderSeq) %>%
+                    dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, UMIs, sonicLengths, reads, repLeaderSeq, vectorFastaFile) %>%
+                    dplyr::slice(1))
+           }
+         })) 
   
-
 # Create a wide view of the replicate level sites and create NA cells 
 # for replicates where specific sites were not found.
   
@@ -204,11 +192,13 @@ write(c(paste(now(), '   Creating a wide view of the replicate level integration
 
 tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sample, sites$posid)), function(x){ 
           o <- bind_cols(lapply(minReplicate:maxReplicate, function(r){
+          
                  o <- subset(x, replicate == r)
         
                  if(nrow(o) == 1){
                    t <- tibble(x1 = o$UMIs, x2 = o$sonicLengths, x3 = o$reads, x4 = o$repLeaderSeq)
                  } else if(nrow(o) > 1){
+                   browser()
                    stop('Row error 1')  
                  } else {
                    t <- tibble(x1 = NA, x2 = NA, x3 = NA, x4 = NA)
@@ -231,6 +221,8 @@ tbl1$i <- dplyr::ntile(1:nrow(tbl1), opt$buildSites_CPUs)
 tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
 #tbl2 <- bind_rows(lapply(split(tbl1, tbl1$i), function(p){
           library(dplyr)
+          library(Biostrings)
+          library(stringdist)
           source(file.path(opt$softwareDir, 'lib.R'))
   
           bind_rows(lapply(1:nrow(p), function(n){
@@ -238,28 +230,25 @@ tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
 
              f <- subset(frags, trial == x$trial & subject == x$subject & sample == x$sample & posid == x$posid)
   
-             if(nrow(f) == 1){
+             leaderSeqTbl  <- bind_rows(lapply(strsplit(unlist(strsplit(f$leaderSeqs, '\\|')), ','), function(x){ tibble(seq = x[1], reads = x[2]) }))
+             leaderSeqTbl2 <- group_by(leaderSeqTbl, seq) %>% 
+                              summarise(count = n(), reads = sum(as.integer(reads))) %>% 
+                              ungroup() %>% arrange(desc(count), desc(reads))
+
+             repLeaderSeq <- leaderSeqTbl2$seq[1]
+             
+             if(nrow(f) == 1 & nrow(leaderSeqTbl2) == 1){
                k <- tibble(UMIs = n_distinct(f$randomLinkerSeq), 
                            sonicLengths = n_distinct(f$fragWidth), 
                            reads = f$reads, 
-                           maxLeaderSeqDist = f$maxLeaderSeqDist, 
-                           repLeaderSeq = f$repLeaderSeq) 
+                           repLeaderSeq = repLeaderSeq) 
     
              } else {
-               s <- unlist(f$leaderSeqs)
                
-               if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
-                 set.seed(1)
-                 s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
-               }
-    
-               r <- representativeSeq(s, tmpDir = file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp'))
-    
                k <- tibble(UMIs = n_distinct(f$randomLinkerSeq), 
                            sonicLengths = n_distinct(f$fragWidth), 
                            reads = sum(f$reads), 
-                           maxLeaderSeqDist = max(stringdist::stringdistmatrix(s)), 
-                           repLeaderSeq = r[[2]])
+                           repLeaderSeq = repLeaderSeq)
              }
   
              k$nRepsObs <- sum(! is.na(unlist(x[, which(grepl('\\-repLeaderSeq', names(x)))])))
@@ -267,7 +256,6 @@ tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
           }))
 }))
 
-if(any(is.infinite(tbl2$maxLeaderSeqDist))) tbl2[is.infinite(tbl2$maxLeaderSeqDist),]$maxLeaderSeqDist <- NA
 tbl2$i <- NULL
 
 tbl2 <- arrange(tbl2, desc(sonicLengths))
@@ -275,16 +263,7 @@ tbl2 <- arrange(tbl2, desc(sonicLengths))
 s <- unique(paste0(tbl2$trial, '~', tbl2$subject, '~', tbl2$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
-# Path for adding different abundance metrics for dual detections.
-#
-# if(nrow(dualDetections) > 0){
-#   tbl2 <- left_join(tbl2, select(dualDetections, posid, maxUMIs, maxFrags), by = 'posid')
-#   tbl2$UMIs <- ifelse(is.na(tbl2$maxUMIs), tbl2$UMIs, tbl2$maxUMIs)
-#   tbl2$sonicLengths <- ifelse(is.na(tbl2$maxFrags), tbl2$sonicLengths, tbl2$maxFrags)
-#   tbl2 <- select(tbl2, -maxUMIs, -maxFrags)
-# }
-
-saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'))
+saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'), compress = opt$compressDataFiles)
 openxlsx::write.xlsx(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
 readr::write_tsv(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.tsv.gz'))
 write(date(), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.done'))

@@ -12,6 +12,8 @@ sites <- readRDS(file.path(opt$outputDir, opt$buildAAVremnantPlots_inputFile))
 
 x <- lapply(split(sites, sites$sample), function(x){
         message('sample: ', x$sample[1])
+  
+        if(x$sample[1] == 'GTSP5773') browser()
 
         range <- seq(0, opt$buildAAVremnantPlots_ITRlength, opt$buildAAVremnantPlots_NTbinSize)
   

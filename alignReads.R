@@ -97,10 +97,6 @@ incomingSamples <- unique(reads$uniqueSample)
 cluster <- makeCluster(opt$alignReads_CPUs)
 clusterExport(cluster, c('opt', 'tmpFile'))
 
-
-
-
-
 blat <- function(y, ref, dir){
   f <- file.path(dir, tmpFile())
   write(paste0('>', y$id, '\n', y$seq), f)
@@ -115,7 +111,7 @@ blat <- function(y, ref, dir){
   write('done', paste0(f, '.done'))
 }
 
-reads$refGenome <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(reads$refGenome, '.2bit'))
+reads$refGenome <- file.path(opt$softwareDir, 'data', 'referenceGenomes', paste0(reads$refGenome, '.2bit'))
 
 anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
   s <- data.table(seq = unique(x$anchorReadSeq))
@@ -275,8 +271,8 @@ adriftReadAlignments$refGenome <- sapply(adriftReadAlignments$refGenome, lpe)
 adriftReadAlignments$refGenome <- sub('\\.2bit$', '', adriftReadAlignments$refGenome)
 
 # Save anchor and adrift read alignments.
-saveRDS(dplyr::distinct(anchorReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'anchorReadAlignments.rds'), compress = FALSE)  
-saveRDS(dplyr::distinct(adriftReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'adriftReadAlignments.rds'), compress = FALSE) 
+saveRDS(dplyr::distinct(anchorReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'anchorReadAlignments.rds'), compress = opt$compressDataFiles)  
+saveRDS(dplyr::distinct(adriftReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'adriftReadAlignments.rds'), compress = opt$compressDataFiles) 
 
 unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), recursive = TRUE)
 unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'), recursive = TRUE)
