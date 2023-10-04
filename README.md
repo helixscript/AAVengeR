@@ -1,18 +1,3 @@
-# Installing additional AAVengeR genomes and genome annotations   
-
-Due to GitHub size restrictions, only the sacCer3 genome and annotation files are provided 
-with the software. Additional genomes and genome annotations are available: hg38, mm9, canFam3, macFas5, and GCA_009914755.4.
-
-Use the commands below to install these genomes after updating the first two lines to reflect 
-your installation path and genome of interest.  
-
-```
-export AAVengeR_GENOME='hg38'
-export AAVengeR_HOME='/home/ubuntu/AAVengeR'
-wget -qO- http://bushmanlab.org/data/AAVengeR/genomeData/$AAVengeR_GENOME.tar | tar x
-rsync -a $AAVengeR_GENOME/ $AAVengeR_HOME/data/
-```
-
 # Overview  
 
 Gene therapy introduces new genetic material to patient cells designed to augment the expression of genes or encode machinery to make specific changes to cellular genomes. Several therapies, specifically those that make use of retroviral vectors, can result in millions of genomic integrations throughout the genome which raises the concern of genotoxity.  Integrated vectors, by means of disrupting regulatory elements, promotor insertion, interrupting transcript splicing, can disrupt the normal transcription patterns of genes. Therapies that make use of non-intgegrating vectors, such as Adenosine-associated Virus (AAV), are not immune to integration events where episomal constructs are captured by nonhomologous end joining pathways during double strand break repair. The identification of integrated genomic positions and estimation of clonal population with specific integrations is critical to the field of molecular medicine.  
@@ -35,4 +20,18 @@ Figure 2. AAVengeR core pipeline.
 AAVengeR is written in the R programming language and is designed to run on a single server with modest resources while its modular design can be easily adapted to more distributive solutions such as Nextflow and cloud computing platforms. The software is driven by two configuration files, one that defines processing parameters for each module and a second that describes experimental samples. The sample configuration file contains sample specific details such as barcode and linker sequences, vector details, and reference genomes.  AAVengeR modules can be chained together to create custom pipelines and custom modules can be used by simply adding them to module chain lists and adding their parameters to the software configuration file.
 
 
+# Installing additional AAVengeR genomes and genome annotations   
+
+Due to GitHub size restrictions, only the sacCer3 genome and annotation files are provided 
+with the software. Additional genomes and genome annotations are available: hg38, mm9, canFam3, macFas5, and GCA_009914755.4.
+
+Use the commands below to install these genomes after updating the first two lines to reflect 
+your installation path and genome of interest.  
+
+```
+export AAVengeR_GENOME='hg38'
+export AAVengeR_HOME='/home/ubuntu/AAVengeR'
+wget -qO- http://bushmanlab.org/data/AAVengeR/genomeData/$AAVengeR_GENOME.tar | tar x
+rsync -a $AAVengeR_GENOME/ $AAVengeR_HOME/data/
+```
 
