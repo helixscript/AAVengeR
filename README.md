@@ -1,4 +1,4 @@
-# AAVengeR
+# Installing additional AAVengeR genomes and genome annotations   
 
 Due to GitHub size restrictions, only the sacCer3 genome and annotation files are provided 
 with the software. Additional genomes and genome annotations are available: hg38, mm9, canFam3, macFas5, and GCA_009914755.4.
