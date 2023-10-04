@@ -17,7 +17,7 @@ dir.create(file.path(opt$outputDir, 'core', 'subject_analyses'))
 write(paste0(date(), ' - start'), file = file.path(opt$outputDir, 'core', 'log'))
 
 # Gather select sections from the configuration file.
-o <- opt[grepl('^mode|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^demultiplex', names(opt))]
+o <- opt[grepl('^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^demultiplex', names(opt))]
 o$outputDir <- file.path(opt$outputDir, 'core')
 
 # Run demultiplex module.
@@ -134,6 +134,8 @@ while(! all(jobTable$done == TRUE)){
   jobStatus(searchPattern = 'fragments.done', outputFileName = 'replicateJobTable')
   Sys.sleep(5)
 }
+
+invisible(file.remove(list.files(file.path(opt$outputDir, 'core', 'replicate_analyses'), recursive = TRUE, pattern = 'CORE_TMP', full.names = TRUE)))
 
 # Bundle together fragment output files.
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'fragments.rds', recursive = TRUE, full.names = TRUE)
@@ -254,6 +256,8 @@ for(x in list.files(file.path(opt$outputDir, 'core', 'subject_analyses'))){
     write(paste0(' ',readLines(file.path(opt$outputDir, 'core', 'subject_analyses', x, 'buildSites', 'log'))), file = file.path(opt$outputDir, 'core', 'log'), append = TRUE)
   }
 }
+
+invisible(file.remove(list.files(file.path(opt$outputDir, 'core', 'subject_analyses'), recursive = TRUE, pattern = 'CORE_TMP', full.names = TRUE)))
 
 # Bundle together multi-hit cluster output files.
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'multiHitClusters.rds', recursive = TRUE, full.names = TRUE)
