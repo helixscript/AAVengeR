@@ -38,5 +38,50 @@ AAVengeR provides six core modules to call integration sites from raw sequencing
 Figure 2. AAVengeR core pipeline. 
 <p align="center"><img src="figures/pipeline_overview1.png"></p>
 
+# Structure  
+
+```
+AAVengeR
+└── data
+    ├── genomeAnnotations
+    │   ├── sacCer3.TUs.rds
+    │   ├── sacCer3.exons.rds
+    │   └── sacCer3.repeatTable.gz
+    ├── hmms
+    │   ├── HIV1_1-100_U3.hmm
+    │   ├── HIV1_1-100_U3.settings
+    │   ├── HIV1_1-100_U5.hmm
+    │   ├── HIV1_1-100_U5.settings
+    │   ├── HXB2_U5.hmm
+    │   └── HXB2_U5.settings
+    ├── referenceGenomes
+    │   └── sacCer3.2bit
+    └── vectors 
+        └── HXB2.fasta
+```
+
+
+```
+prepReads_HMMsearchReadStartPos: 1
+prepReads_HMMsearchReadEndPos:  16
+prepReads_HMMmaxStartPos: 3
+prepReads_HMMminFullBitScore: 5
+prepReads_HMMmatchEnd: TRUE
+prepReads_HMMmatchTerminalSeq: CA
+```
+
+
+```
+SW_score        percent_div     percent_del     percent_ins     query_seq       query_start     query_end       query_after     strand  repeat_name     repeat_class    repeat_start    repeat_end      repeat_after    ID      alt
+34      0       0       0       chrIX   11364   11392   (428496)        +       (TA)n   Simple_repeat   1       29      (0)     1       NA
+18      8.5     0       0       chrIX   22808   22832   (417056)        +       (A)n    Simple_repeat   1       25      (0)     2       NA
+14      15.9    0       0       chrIX   27205   27232   (412656)        +       (TGA)n  Simple_repeat   1       28      (0)     3       NA
+17      14.2    3.2     0       chrIX   28527   28557   (411331)        +       (TA)n   Simple_repeat   1       32      (0)     4       NA
+19      28.2    4.9     0       chrIX   39531   39612   (400276)        +       A-rich  Low_complexity  1       86      (0)     5       NA
+19      23.3    0       0       chrIX   44119   44168   (395720)        +       (ACCTCC)n       Simple_repeat   1       50      (0)     6       NA
+14      9.6     0       0       chrIX   44279   44301   (395587)        +       (CCA)n  Simple_repeat   1       23      (0)     7       NA
+15      11.2    3.5     0       chrIX   46885   46913   (392975)        +       (TAA)n  Simple_repeat   1       30      (0)     8       NA
+```
+
 
 
