@@ -73,6 +73,9 @@ prepReads_HMMmatchEnd: TRUE
 prepReads_HMMmatchTerminalSeq: CA
 ```
 
+The referenceGenomes folder contains [2bit](https://genome.ucsc.edu/goldenPath/help/twoBit.html) formated reference genomes that are referenced in the [sample configuration file](sampleData.tsv). 
+These data files are created from FASTA formatted genomes using the [faToTwoBit](http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64) conversion tool. 
+
 
 ```
 SW_score        percent_div     percent_del     percent_ins     query_seq       query_start     query_end       query_after     strand  repeat_name     repeat_class    repeat_start    repeat_end      repeat_after    ID      alt
