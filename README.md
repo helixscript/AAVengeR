@@ -76,8 +76,27 @@ prepReads_HMMmatchTerminalSeq: CA
 The referenceGenomes folder contains [2bit](https://genome.ucsc.edu/goldenPath/help/twoBit.html) formated reference genomes that are referenced in the [sample configuration file](sampleData.tsv). 
 These data files are created from FASTA formatted genomes using the [faToTwoBit](http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64) conversion tool. 
 
+The genomeAnnotaions folder contains annotations for transription unit boundaries (*.TUs.rds) and exon boundaries (*.exons.rds). These boundaries are extracted from [UCSC genome annotations](https://hgdownload.soe.ucsc.edu)
+and are stored as GenomicRange objects saved as as R rds files. 
 
 ```
+GRanges object with 6125 ranges and 12 metadata columns:
+         seqnames        ranges strand |       bin           name  cdsStart    cdsEnd exonCount     exonStarts       exonEnds     score       name2 cdsStartStat  cdsEndStat  exonFrames
+            <Rle>     <IRanges>  <Rle> | <integer>    <character> <integer> <integer> <integer>    <character>    <character> <integer> <character>  <character> <character> <character>
+     [1]     chrI     1806-2169      - |       585 NM_001180043.1      1806      2169         1          1806,          2169,         0        PAU8         cmpl        cmpl          0,
+     [2]     chrI     2479-2707      + |       585 NM_001184582.1      2479      2707         1          2479,          2707,         0   YAL067W-A         cmpl        cmpl          0,
+     [3]     chrI     7234-9016      - |       585 NM_001178208.1      7234      9016         1          7234,          9016,         0        SEO1         cmpl        cmpl          0,
+     [4]     chrI   11564-11951      - |       585 NM_001179897.1     11564     11951         1         11564,         11951,         0     YAL065C         cmpl        cmpl          0,
+     [5]     chrI   12045-12426      + |       585 NM_001180042.1     12045     12426         1         12045,         12426,         0   YAL064W-B         cmpl        cmpl          0,
+     ...      ...           ...    ... .       ...            ...       ...       ...       ...            ...            ...       ...         ...          ...         ...         ...
+  [6121]   chrXVI 939278-939671      - |       592 NM_001184297.1    939278    939671         1        939278,        939671,         0        ARR2         cmpl        cmpl          0,
+  [6122]   chrXVI 939921-941136      + |       592 NM_001184298.1    939921    941136         1        939921,        941136,         0        ARR3         cmpl        cmpl          0,
+  [6123]   chrXVI 943031-943896      + |       592 NM_001184299.1    943031    943896         2 943031,943198, 943050,943896,         0     YPR202W         cmpl        cmpl        0,1,
+  [6124]   chrXVI 943879-944188      + |       592 NM_001184300.1    943879    944188         1        943879,        944188,         0     YPR203W         cmpl        cmpl          0,
+  [6125]   chrXVI 944602-947701      + |       592 NM_001184301.1    944602    947701         1        944602,        947701,         0     YPR204W         cmpl        cmpl          0,```
+```
+Information about repeat regions is determined by the [RepeatMasker software package](https://www.repeatmasker.org) and is stored as compressed tables. 
+
 SW_score        percent_div     percent_del     percent_ins     query_seq       query_start     query_end       query_after     strand  repeat_name     repeat_class    repeat_start    repeat_end      repeat_after    ID      alt
 34      0       0       0       chrIX   11364   11392   (428496)        +       (TA)n   Simple_repeat   1       29      (0)     1       NA
 18      8.5     0       0       chrIX   22808   22832   (417056)        +       (A)n    Simple_repeat   1       25      (0)     2       NA
