@@ -6,10 +6,8 @@ AAVengeR is written in the R programming language and is designed to run on a si
 # Installing additional AAVengeR genomes and genome annotations   
 
 Due to GitHub size restrictions, only the sacCer3 genome and annotation files are provided 
-with the software. Additional genomes and genome annotations are available: hg38, mm9, canFam3, macFas5, and GCA_009914755.4.
-
-Use the commands below to install these genomes after updating the first two lines to reflect 
-your installation path and genome of interest.  
+with the software. Additional genomes and genome annotations are available: hg38, mm9, canFam3, macFas5, and GCA_009914755.4. 
+The importGenomeData.R script can be used to pull reference genomes (2bit format) and supporting genome annotations.
 
 ```
 importGenomeData.R hg38
