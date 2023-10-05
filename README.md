@@ -95,8 +95,7 @@ GRanges object with 6125 ranges and 12 metadata columns:
   [6124]   chrXVI 943879-944188      + |       592 NM_001184300.1    943879    944188         1        943879,        944188,         0     YPR203W         cmpl        cmpl          0,
   [6125]   chrXVI 944602-947701      + |       592 NM_001184301.1    944602    947701         1        944602,        947701,         0     YPR204W         cmpl        cmpl          0,```
 ```
-
-  
+<br/>
 Information about repeat regions is determined by the [RepeatMasker software package](https://www.repeatmasker.org) and is stored as compressed tables (*.repeatTable.gz). 
 
 ```
