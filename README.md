@@ -76,7 +76,7 @@ prepReads_HMMmatchTerminalSeq: CA
 The referenceGenomes folder contains [2bit](https://genome.ucsc.edu/goldenPath/help/twoBit.html) formated reference genomes that are referenced in the [sample configuration file](sampleData.tsv). 
 These data files are created from FASTA formatted genomes using the [faToTwoBit](http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64) conversion tool. 
 
-The genomeAnnotaions folder contains annotations for transription unit boundaries (*.TUs.rds) and exon boundaries (*.exons.rds). These boundaries are extracted from [UCSC genome annotations](https://hgdownload.soe.ucsc.edu)
+The genomeAnnotations folder contains annotations for transription unit boundaries (*.TUs.rds) and exon boundaries (*.exons.rds). These boundaries are extracted from [UCSC genome annotations](https://hgdownload.soe.ucsc.edu)
 and are stored as GenomicRange objects saved as as R rds files. 
 
 ```
