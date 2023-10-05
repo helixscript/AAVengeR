@@ -58,8 +58,9 @@ AAVengeR
         └── HXB2.fasta
 ```
 
-The hmms folder contains hmm profiles created with the [HMMER](http://hmmer.org) software package using either multiple sequence alignments or single DNA sequences as inputs. 
-Each profile file has a coresponding settings file that contains the default parameters for evaulating and scoring the HMM. These settings are applied if the the *prepReads_useDefaultHMMsetting* parameter in the main configuration
+The hmms folder contains hmm profiles created with the [HMMER](http://hmmer.org) software package using either multiple sequence alignments or single DNA sequences as inputs and are intended to 
+recognize the ends of integrated DNA elements. The file names in this folder are referenced in the [sample configuration file](sampleData.tsv). Each profile file has a coresponding settings file 
+that contains the default parameters for evaulating and scoring the HMM. These settings are applied if the the *prepReads_useDefaultHMMsetting* parameter in the main configuration
 file is set to *TRUE* otherwise the HMM parameters in the main configuration file are used.
 
 Example of an HMM setting file:
