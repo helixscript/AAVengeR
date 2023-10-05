@@ -40,6 +40,7 @@ Figure 2. AAVengeR core pipeline.
 
 # Structure  
 
+Structure of AAVengeR data folder
 ```
 AAVengeR
 └── data
@@ -48,10 +49,6 @@ AAVengeR
     │   ├── sacCer3.exons.rds
     │   └── sacCer3.repeatTable.gz
     ├── hmms
-    │   ├── HIV1_1-100_U3.hmm
-    │   ├── HIV1_1-100_U3.settings
-    │   ├── HIV1_1-100_U5.hmm
-    │   ├── HIV1_1-100_U5.settings
     │   ├── HXB2_U5.hmm
     │   └── HXB2_U5.settings
     ├── referenceGenomes
@@ -60,7 +57,11 @@ AAVengeR
         └── HXB2.fasta
 ```
 
+The AAvengeR data folder contains four subfolders. The hmms folder contains hmm files created with the [HMMER](http://hmmer.org) software package using either multiple sequence alignments or single DNA sequences as inputs. 
+Each HMM profile has a coresponding settings file that contains the default parameters for evaulating and scoring the HMM. These settings are applied if the the prepReads_useDefaultHMMsetting parameter in the main configuration
+file is set to TRUE other wise the HMM parameters in the main configuration file are used.
 
+Example of an HMM setting file
 ```
 prepReads_HMMsearchReadStartPos: 1
 prepReads_HMMsearchReadEndPos:  16
