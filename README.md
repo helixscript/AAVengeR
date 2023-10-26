@@ -111,7 +111,7 @@ SW_score        percent_div     percent_del     percent_ins     query_seq       
 15      11.2    3.5     0       chrIX   46885   46913   (392975)        +       (TAA)n  Simple_repeat   1       30      (0)     8       NA
 ```
 
-# Datbase
+# Database
 
 AAVengeR is provided with a database schema designed to capture intermediate results and final integration sites for report generation and retrospective analyses.  The database consists of four tables:<br>
 1.  demultiplex<br>
