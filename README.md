@@ -113,7 +113,7 @@ SW_score        percent_div     percent_del     percent_ins     query_seq       
 
 # Database
 
-AAVengeR is provided with a database schema designed to capture intermediate results and final integration sites for report generation and retrospective analyses.  The database consists of four tables:<br>
+AAVengeR is provided with a [database schema](aavenger.sql) designed to capture intermediate results and final integration sites for report generation and retrospective analyses.  The database consists of four tables:<br>
 1.  demultiplex<br>
 This table stores the demultiplexing data and analysis parameters provided in sample configuration files and associates the data with sequencing run identifiers.
   
