@@ -111,5 +111,36 @@ SW_score        percent_div     percent_del     percent_ins     query_seq       
 15      11.2    3.5     0       chrIX   46885   46913   (392975)        +       (TAA)n  Simple_repeat   1       30      (0)     8       NA
 ```
 
+# Datbase
+
+AAVengeR is provided with a database schema designed to capture intermediate results and final integration sites for report generation and retrospective analyses.  The database consists of four tables:<br>
+1.  demultiplex<br>
+This table stores the demultiplexing data and analysis parameters provided in sample configuration files and associates the data with sequencing run identifiers.
+  
+2. fragments  
+This table stores replicate level, non-standardized, genomic fragments where one end is anchored to integration events. Fragments are stored in a non-standardized form because standardization should be performed with all available subject data. 
+  
+3. multihits  
+Multihit clusters that arise from reads aligning well to more than on position in a reference genome. These clustered are stored in a compressed tabular format in the database for downstream analyses, 
+
+4. sites  
+This table stores the final replicate level integration sites, estimated clonal abundances, and representative leader sequences.
+
+Database credintals need to be stored in a local file named ~/.my.cnf and contain these fields which need to match your database configuration:
+ 
+```
+[AAVengeR]
+user=admin
+password=iAmAdmin
+host=174.139.218.44
+port=3306
+database=AAVengeR
+```
+In order to have AAVengeR populate its database, the database group identifier in the ~/.my.cnf file needs to be included in the configuration file:
+
+```
+databaseGroup: AAVengeR
+```
+
 
 
