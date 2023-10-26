@@ -1,3 +1,27 @@
+# Implementation  
+
+AAVengeR is written in the R programming language and is designed to run on a single server with modest resources while its modular design can be easily adapted to more distributive solutions such as Nextflow and cloud computing platforms. The software is driven by two configuration files, one that defines processing parameters for each module and a second that describes experimental samples. The sample configuration file contains sample specific details such as barcode and linker sequences, vector details, and reference genomes.  AAVengeR modules can be chained together to create custom pipelines and custom modules can be used by simply adding them to module chain lists and adding their parameters to the software configuration file.
+  
+  
+# Installing additional AAVengeR genomes and genome annotations   
+
+Due to GitHub size restrictions, only the sacCer3 genome and annotation files are provided 
+with the software. Additional genomes and genome annotations are available: hg38, mm9, canFam3, macFas5, and GCA_009914755.4. 
+The importGenomeData.R script can be used to pull reference genomes (2bit format) and supporting genome annotations.
+
+```
+importGenomeData.R hg38
+```
+
+# Usage
+
+AAVengeR requires two configuration files. The [first configuration file](config.yml) contains the list of modules to run, module specific processing paramers, paths to resources, and the path to the second configuration file which defines sample specific parameters. The [sample configuration file](sampleData.tsv) contains sample specific information such as barcode sequences for demultiplexing, linker sequences, and reference genome against which reads should be aligned.  
+  
+```
+aavenger.R config.yml
+```
+
+
 # Overview  
 
 Gene therapy introduces new genetic material to patient cells designed to augment the expression of genes or encode machinery to make specific changes to cellular genomes. Several therapies, specifically those that make use of retroviral vectors, can result in millions of genomic integrations throughout the genome which raises the concern of genotoxity.  Integrated vectors, by means of disrupting regulatory elements, promotor insertion, interrupting transcript splicing, can disrupt the normal transcription patterns of genes. Therapies that make use of non-intgegrating vectors, such as Adenosine-associated Virus (AAV), are not immune to integration events where episomal constructs are captured by nonhomologous end joining pathways during double strand break repair. The identification of integrated genomic positions and estimation of clonal population with specific integrations is critical to the field of molecular medicine.  
@@ -14,24 +38,78 @@ AAVengeR provides six core modules to call integration sites from raw sequencing
 Figure 2. AAVengeR core pipeline. 
 <p align="center"><img src="figures/pipeline_overview1.png"></p>
 
+# Structure  
 
-# Implementation  
-
-AAVengeR is written in the R programming language and is designed to run on a single server with modest resources while its modular design can be easily adapted to more distributive solutions such as Nextflow and cloud computing platforms. The software is driven by two configuration files, one that defines processing parameters for each module and a second that describes experimental samples. The sample configuration file contains sample specific details such as barcode and linker sequences, vector details, and reference genomes.  AAVengeR modules can be chained together to create custom pipelines and custom modules can be used by simply adding them to module chain lists and adding their parameters to the software configuration file.
-  
-  
-# Installing additional AAVengeR genomes and genome annotations   
-
-Due to GitHub size restrictions, only the sacCer3 genome and annotation files are provided 
-with the software. Additional genomes and genome annotations are available: hg38, mm9, canFam3, macFas5, and GCA_009914755.4.
-
-Use the commands below to install these genomes after updating the first two lines to reflect 
-your installation path and genome of interest.  
+The AAvengeR data folder contains four subfolders. 
 
 ```
-export AAVengeR_GENOME='hg38'
-export AAVengeR_HOME='/home/ubuntu/AAVengeR'
-wget -qO- http://bushmanlab.org/data/AAVengeR/genomeData/$AAVengeR_GENOME.tar | tar x
-rsync -a $AAVengeR_GENOME/ $AAVengeR_HOME/data/
+AAVengeR
+└── data
+    ├── genomeAnnotations
+    │   ├── sacCer3.TUs.rds
+    │   ├── sacCer3.exons.rds
+    │   └── sacCer3.repeatTable.gz
+    ├── hmms
+    │   ├── HXB2_U5.hmm
+    │   └── HXB2_U5.settings
+    ├── referenceGenomes
+    │   └── sacCer3.2bit
+    └── vectors 
+        └── HXB2.fasta
 ```
+
+The hmms folder contains hmm profiles created with the [HMMER](http://hmmer.org) software package using either multiple sequence alignments or single DNA sequences as inputs and are intended to 
+recognize the ends of integrated DNA elements. The file names in this folder are referenced in the [sample configuration file](sampleData.tsv). Each profile file has a coresponding settings file 
+that contains the default parameters for evaulating and scoring the HMM. These settings are applied if the the *prepReads_useDefaultHMMsetting* parameter in the main configuration
+file is set to *TRUE* otherwise the HMM parameters in the main configuration file are used.
+
+Example of an HMM setting file:
+```
+prepReads_HMMsearchReadStartPos: 1
+prepReads_HMMsearchReadEndPos:  16
+prepReads_HMMmaxStartPos: 3
+prepReads_HMMminFullBitScore: 5
+prepReads_HMMmatchEnd: TRUE
+prepReads_HMMmatchTerminalSeq: CA
+```
+
+The referenceGenomes folder contains [2bit](https://genome.ucsc.edu/goldenPath/help/twoBit.html) formated reference genomes that are referenced in the [sample configuration file](sampleData.tsv). 
+These data files are created from FASTA formatted genomes using the [faToTwoBit](http://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64) conversion tool. 
+
+The genomeAnnotations folder contains annotations for transription unit boundaries (*.TUs.rds) and exon boundaries (*.exons.rds). These boundaries are extracted from [UCSC genome annotations](https://hgdownload.soe.ucsc.edu)
+and are stored as GenomicRange objects saved as as R rds files. 
+
+```
+GRanges object with 6125 ranges and 12 metadata columns:
+         seqnames        ranges strand |       bin           name  cdsStart    cdsEnd exonCount     exonStarts       exonEnds     score       name2 cdsStartStat  cdsEndStat  exonFrames
+            <Rle>     <IRanges>  <Rle> | <integer>    <character> <integer> <integer> <integer>    <character>    <character> <integer> <character>  <character> <character> <character>
+     [1]     chrI     1806-2169      - |       585 NM_001180043.1      1806      2169         1          1806,          2169,         0        PAU8         cmpl        cmpl          0,
+     [2]     chrI     2479-2707      + |       585 NM_001184582.1      2479      2707         1          2479,          2707,         0   YAL067W-A         cmpl        cmpl          0,
+     [3]     chrI     7234-9016      - |       585 NM_001178208.1      7234      9016         1          7234,          9016,         0        SEO1         cmpl        cmpl          0,
+     [4]     chrI   11564-11951      - |       585 NM_001179897.1     11564     11951         1         11564,         11951,         0     YAL065C         cmpl        cmpl          0,
+     [5]     chrI   12045-12426      + |       585 NM_001180042.1     12045     12426         1         12045,         12426,         0   YAL064W-B         cmpl        cmpl          0,
+     ...      ...           ...    ... .       ...            ...       ...       ...       ...            ...            ...       ...         ...          ...         ...         ...
+  [6121]   chrXVI 939278-939671      - |       592 NM_001184297.1    939278    939671         1        939278,        939671,         0        ARR2         cmpl        cmpl          0,
+  [6122]   chrXVI 939921-941136      + |       592 NM_001184298.1    939921    941136         1        939921,        941136,         0        ARR3         cmpl        cmpl          0,
+  [6123]   chrXVI 943031-943896      + |       592 NM_001184299.1    943031    943896         2 943031,943198, 943050,943896,         0     YPR202W         cmpl        cmpl        0,1,
+  [6124]   chrXVI 943879-944188      + |       592 NM_001184300.1    943879    944188         1        943879,        944188,         0     YPR203W         cmpl        cmpl          0,
+  [6125]   chrXVI 944602-947701      + |       592 NM_001184301.1    944602    947701         1        944602,        947701,         0     YPR204W         cmpl        cmpl          0,```
+```
+<br>
+
+Information about repeat regions is determined by the [RepeatMasker](http://www.repeatmasker.org) software package and is stored as compressed tables (*.repeatTable.gz). 
+
+```
+SW_score        percent_div     percent_del     percent_ins     query_seq       query_start     query_end       query_after     strand  repeat_name     repeat_class    repeat_start    repeat_end      repeat_after    ID      alt
+34      0       0       0       chrIX   11364   11392   (428496)        +       (TA)n   Simple_repeat   1       29      (0)     1       NA
+18      8.5     0       0       chrIX   22808   22832   (417056)        +       (A)n    Simple_repeat   1       25      (0)     2       NA
+14      15.9    0       0       chrIX   27205   27232   (412656)        +       (TGA)n  Simple_repeat   1       28      (0)     3       NA
+17      14.2    3.2     0       chrIX   28527   28557   (411331)        +       (TA)n   Simple_repeat   1       32      (0)     4       NA
+19      28.2    4.9     0       chrIX   39531   39612   (400276)        +       A-rich  Low_complexity  1       86      (0)     5       NA
+19      23.3    0       0       chrIX   44119   44168   (395720)        +       (ACCTCC)n       Simple_repeat   1       50      (0)     6       NA
+14      9.6     0       0       chrIX   44279   44301   (395587)        +       (CCA)n  Simple_repeat   1       23      (0)     7       NA
+15      11.2    3.5     0       chrIX   46885   46913   (392975)        +       (TAA)n  Simple_repeat   1       30      (0)     8       NA
+```
+
+
 
