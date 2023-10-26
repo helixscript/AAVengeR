@@ -293,7 +293,7 @@ frags <- bind_rows(lapply(o, function(z){
    r
 }))
 
-# Odd blat calls can lead to duplicate alignment entries, the blat parser is likely leaving odd additional information about the alignments.
+# Odd blat calls can lead to duplicate alignment entries, the blat parser is likely leaving out additional information about the alignments.
 frags <- distinct(frags)
 
 if(nrow(frags) == 0){
@@ -311,17 +311,18 @@ if('buildFragments_duplicateReadFile' %in% names(opt)){
   write(c(paste(now(), '   Reading duplicate read file created by prepReads.R.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
   dups <- readRDS(file.path(opt$outputDir, opt$buildFragments_duplicateReadFile))
   
-  if(nrow(dups) >0){
+  if(nrow(dups) > 0){
     dups <- data.table(dplyr::distinct(dplyr::select(dups, id, n)))
     dups <- subset(dups, id %in% frags$readID)
   
     frags <- left_join(frags, dups, by = c('readID' = 'id'))
-    frags$n <- ifelse(is.na(frags$n), 0, frags$n)
-  }else{
-    frags$n <- 0
+    frags$nDuplicateReads <- ifelse(is.na(frags$n), 0, frags$n)
+    frags$n <- NULL
+  } else {
+    frags$nDuplicateReads <- 0
   }
 } else {
-  frags$n <- 0
+  frags$nDuplicateReads <- 0
 }
 
 frags <- dplyr::rename(frags, leaderSeq = leaderSeq.anchorReads, randomLinkerSeq = randomLinkerSeq.adriftReads, refGenome = refGenome.anchorReads, 
@@ -336,6 +337,8 @@ write(date(), file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.
 if('databaseGroup' %in% names(opt)){
   library(RMariaDB)
   
+  write(c(paste(now(), '   Writing fragment data to the database.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+  
   conn <- tryCatch({
     dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
   },
@@ -345,40 +348,29 @@ if('databaseGroup' %in% names(opt)){
     q(save = 'no', status = 1, runLast = FALSE) 
   })
   
-  invisible(lapply(split(frags, paste(frags$uniqueSample, frags$refGenome)), function(x){
-    x <- unpackUniqueSampleID(x)
+  invisible(lapply(split(frags, frags$uniqueSample), function(x){
+    x <- tidyr::separate(x, uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~')
   
     dbExecute(conn, paste0("delete from fragments where trial='", x$trial[1], "' and subject='", x$subject[1],
                           "' and sample='", x$sample[1], "' and replicate='", x$replicate[1], "' and refGenome='", x$refGenome[1], "'"))
-
-    f <- tmpFile()
-    readr::write_tsv(dplyr::select(x, -trial, -subject, -sample, -replicate), file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', f))
-    system(paste0('xz ', file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', f)))
     
-    fp <- file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', paste0(f, '.xz'))
+    o <- unlist(lapply(1:nrow(x), function(a){
+           r <- x[a,]
+           
+           dbExecute(conn,
+                     "insert into fragments values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     params = list(r$trial, r$subject, r$sample, r$replicate, r$refGenome,
+                                 r$vectorFastaFile, r$flags, r$seqRunID, r$nDuplicateReads, r$readID, 
+                                 r$chromosome, r$strand, r$fragStart, r$fragEnd, r$leaderSeq, r$randomLinkerSeq))
+    }))
     
-    tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
-    
-    invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
-    
-    r <- dbExecute(conn,
-              "insert into fragments values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-              params = list(x$trial[1], x$subject[1], x$sample[1], x$replicate[1], x$refGenome[1],
-                            x$vectorFastaFile[1], x$flags[1], list(serialize(tab, NULL)), as.character(lubridate::today()), x$seqRunID[1]))
-    
-    if(r == 0){
-        write(c(paste(now(), 'Error -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
-        if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-        q(save = 'no', status = 1, runLast = FALSE)
-    } else {
-      write(c(paste(now(), '   Uploaded fragment data for ', x$uniqueSample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
-      }
+    if(any(o == 0)){
+      write(c(paste(now(), '   Error - could not upload all fragment records to the database.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+      q(save = 'no', status = 1, runLast = FALSE) 
+    }
   }))
   
   dbDisconnect(conn)
 }
 
-
-
 q(save = 'no', status = 0, runLast = FALSE) 
-

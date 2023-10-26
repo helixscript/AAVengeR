@@ -17,8 +17,6 @@ opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 setOptimalParameters()
 
-if(! 'demultiplex_exportFASTQ' %in% names(opt)) opt$demultiplex_exportFASTQ <- FALSE
-
 # The launch script creates (if missing) and writes to the output directory.
 # File write permission issues should be caught before starting modules.
 if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
@@ -258,15 +256,6 @@ if('databaseGroup' %in% names(opt)){
   
   write(paste(now(), '   Uploading to database.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
   
-  f <- tmpFile()
-  invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
-  file.copy(configFile, file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', 'config'))
-  file.copy(opt$demultiplex_sampleDataFile, file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', 'sampleData'))
-  system(paste0('tar cfz ', file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.tar.gz')), ' -C ', file.path(opt$outputDir,  opt$demultiplex_outputDir, 'tmp'), ' ', paste0(list.files(file.path(opt$outputDir,  opt$demultiplex_outputDir, 'tmp')), collapse = ' ')))
-  
-  fp <- file.path(opt$outputDir,  opt$demultiplex_outputDir, 'tmp', paste0(f, '.tar.gz'))
-  tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
-  
   conn <- tryCatch({
     dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
   },
@@ -275,15 +264,18 @@ if('databaseGroup' %in% names(opt)){
     q(save = 'no', status = 1, runLast = FALSE) 
   })
   
-  dbExecute(conn, paste0("delete from seqRunConfig where seqRunID='", opt$demultiplex_seqRunID, "'"))
+  dbExecute(conn, paste0("delete from demultiplex where seqRunID='", opt$demultiplex_seqRunID, "'"))
 
-  r <- dbExecute(conn, "insert into seqRunConfig values (?, ?, ?)", params = list(opt$demultiplex_seqRunID, list(serialize(tab, NULL)), readLines(file.path(opt$softwareDir, 'version', 'version'))[1]))
-    
-  if(r == 0){
-      write(c(paste(now(), 'Error -- could not upload configuration data to the database.')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-      q(save = 'no', status = 1, runLast = FALSE)
-  } else {
-      write(c(paste(now(), '   Uploaded configuration data to the database.')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  r <- unlist(lapply(split(samples, 1:nrow(samples)), function(x){
+        dbExecute(conn, "insert into demultiplex values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                   params = list(x$trial, x$subject, x$sample, x$replicate, x$refGenome, lpe(x$vectorFastaFile), x$flags, 
+                                 x$index1Seq, x$adriftReadLinkerSeq, ifelse('leaderSeqHMM' %in% names(x), lpe(x$leaderSeqHMM), 'NA'),
+                                 opt$demultiplex_seqRunID))
+        }))
+  
+  if(any(r == 0)){
+    write(c(paste(now(), '   Error - could not upload all sample records to the database.')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+    q(save = 'no', status = 1, runLast = FALSE) 
   }
   
   dbDisconnect(conn)

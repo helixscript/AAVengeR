@@ -183,7 +183,7 @@ frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample
 
 f <- group_by(frags, fragID) %>% 
      summarise(seqnames = chromosome[1], start = fragStart[1], end = fragEnd[1], strand = strand[1], 
-               reads = n_distinct(readID) + sum(n), fragID = fragID[1], s = leaderSeqGroup[1]) %>%
+               reads = n_distinct(readID) + sum(nDuplicateReads), fragID = fragID[1], s = leaderSeqGroup[1]) %>%
      ungroup()
 
 g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
@@ -505,13 +505,12 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       q(save = 'no', status = 1, runLast = FALSE) 
     })
     
-    o <- unpackUniqueSampleID(sampleMetaData)
     multiHitClusters$i <- paste0(multiHitClusters$trial, '~', multiHitClusters$subject, '~', multiHitClusters$sample)
-    o$i <- paste0(o$trial, '~', o$subject, '~', o$sample)
-    multiHitClusters <- left_join(multiHitClusters, distinct(select(o, i, refGenome)) , by = 'i')
+
+    o <- select(sampleMetaData, uniqueSample, refGenome) %>% mutate(i = sub('~\\d+$', '', uniqueSample)) %>% select(-uniqueSample) %>% distinct()
+    multiHitClusters <- left_join(multiHitClusters, o, by = 'i')
     
     invisible(lapply(split(multiHitClusters, multiHitClusters$i), function(x){
-  
       dbExecute(dbConn, paste0("delete from multihits where trial='", x$trial[1], "' and subject='", x$subject[1],
                             "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
       
@@ -526,11 +525,11 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
       
       r <- dbExecute(dbConn,
-                     "insert into multihits values (?, ?, ?, ?, ?, ?)",
-                     params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], list(serialize(tab, NULL)), as.character(lubridate::today())))
+                     "insert into multihits values (?, ?, ?, ?, ?)",
+                     params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], list(serialize(tab, NULL))))
       
       if(r == 0){
-        write(c(paste(now(), 'Error -- could not upload fragment data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+        write(c(paste(now(), 'Error -- could not upload multihit data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
         if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
         q(save = 'no', status = 1, runLast = FALSE)
       } else {
@@ -556,7 +555,7 @@ if(nrow(b) > 0){
   write(c(paste(now(), '   Bundling fragment reads into fragment records.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
 
   b2 <- bind_rows(lapply(o, function(x){
-         totalReads <- n_distinct(x$readID) + sum(x$n)
+         totalReads <- n_distinct(x$readID) + sum(x$nDuplicateReads)
   
          if(totalReads < opt$buildStdFragments_minReadsPerFrag) return(tibble())
         
@@ -576,7 +575,7 @@ if(nrow(b) > 0){
 if(nrow(a) > 0){
   # Set values for fragments with single reads.
   a2 <- dplyr::group_by(a, fragID) %>%
-        dplyr::mutate(reads = n+1, 
+        dplyr::mutate(reads = nDuplicateReads+1, 
                       repLeaderSeq = repLeaderSeq[1], 
                       leaderSeqs = paste0(leaderSeq, ',1'),
                       readIDs = list(readID)) %>%
@@ -597,7 +596,7 @@ if (nrow(f) > 0) f <- left_join(f, sampleMetaData, by = 'uniqueSample')
 s <- unique(paste0(f$trial, '~', f$subject, '~', f$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
-saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -n, -i, -id, -trialSubject), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
-readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -n, -i, -id, -trialSubject), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
+saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
+readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

@@ -151,7 +151,6 @@ cluster <- makeCluster(opt$buildSites_CPUs)
 clusterExport(cluster, c('opt', 'frags'))
 
 sites <- bind_rows(parLapply(cluster, split(frags, frags$g), function(x){  
-#sites <- bind_rows(lapply(split(frags, frags$g), function(x){    
            library(dplyr)
            library(Biostrings)
            library(stringdist)
@@ -198,7 +197,7 @@ tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sa
                  if(nrow(o) == 1){
                    t <- tibble(x1 = o$UMIs, x2 = o$sonicLengths, x3 = o$reads, x4 = o$repLeaderSeq)
                  } else if(nrow(o) > 1){
-                   browser()
+                   # browser()
                    stop('Row error 1')  
                  } else {
                    t <- tibble(x1 = NA, x2 = NA, x3 = NA, x4 = NA)
@@ -219,7 +218,6 @@ write(c(paste(now(), '   Buiding sample level integration sites.')), file = file
 tbl1$i <- dplyr::ntile(1:nrow(tbl1), opt$buildSites_CPUs)
 
 tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
-#tbl2 <- bind_rows(lapply(split(tbl1, tbl1$i), function(p){
           library(dplyr)
           library(Biostrings)
           library(stringdist)
@@ -279,26 +277,21 @@ if('databaseGroup' %in% names(opt)){
     q(save = 'no', status = 1, runLast = FALSE) 
   })
   
-  invisible(lapply(split(tbl2, paste(tbl2$trial, tbl2$subject, tbl2$sample, tbl2$refGenome)), function(x){
+  invisible(lapply(split(sites, paste(sites$trial, sites$subject, sites$sample, sites$replicate, sites$refGenome)), function(x){
+    
     dbExecute(dbConn, paste0("delete from sites where trial='", x$trial[1], "' and subject='", x$subject[1],
-                          "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
+                          "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "' and replicate='", x$replicate[1], "'"))
     
-    f <- tmpFile()
-    readr::write_tsv(dplyr::select(x, -trial, -subject, -sample, -refGenome), file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp', f))
-    system(paste0('xz ', file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp', f)))
+    o <- unlist(lapply(1:nrow(x), function(n){
+           x <- x[n,]  
     
-    fp <- file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp', paste0(f, '.xz'))
+           r <- dbExecute(dbConn,
+                          "insert into sites values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                           params = list(x$trial, x$subject, x$sample, x$refGenome,
+                                         x$vectorFastaFile, x$flags, x$posid, x$UMIs, x$sonicLengths, x$reads, x$repLeaderSeq, x$replicate))
+    }))
     
-    tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
-    
-    invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
-    
-    r <- dbExecute(dbConn,
-                   "insert into sites values (?, ?, ?, ?, ?, ?, ?, ?)",
-                   params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1],
-                                 x$vectorFastaFile[1], x$flags[1], list(serialize(tab, NULL)), as.character(lubridate::today())))
-    
-    if(r == 0){
+    if(any(o == 0)){
       write(c(paste(now(), 'Error -- could not upload sites data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
       q(save = 'no', status = 1, runLast = FALSE)
     } else {

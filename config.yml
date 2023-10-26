@@ -23,7 +23,7 @@ modules:
 # The databaseGroup prameter should only be provided when the database server is running and prepared to recieve data.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
-#databaseGroup:     AAVengeR                                                    # [character] Database identifier found in ~/.my.cnf file for capturing results. Database server must be active.
+databaseGroup:     AAVengeR                                                    # [character] Database identifier found in ~/.my.cnf file for capturing results. Database server must be active.
 outputDir:         output                                                       # [file path] Path to the output directory which will be created if it does not exists.
 
 compressDataFiles: FALSE
