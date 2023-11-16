@@ -94,6 +94,125 @@ waitForFile <- function(f, seconds = 1){
 }
 
 
+demultiplex <- function(x){
+  library(dplyr)
+  library(ShortRead)
+  source(file.path(opt$softwareDir, 'lib.R'))
+  
+  chunk <- x$n[1]
+  
+  f <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', x$file[grepl('index1', x$file)])
+  if(! file.exists(f)) waitForFile(f)
+  index1Reads <- readFastq(f)
+  invisible(file.remove(f))
+  
+  f <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', x$file[grepl('anchor', x$file)])
+  if(! file.exists(f)) waitForFile(f)
+  anchorReads <- readFastq(f)
+  invisible(file.remove(f))
+  
+  f <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', x$file[grepl('adrift', x$file)])
+  if(! file.exists(f)) waitForFile(f)
+  adriftReads <- readFastq(f)
+  invisible(file.remove(f))
+  
+  anchorReads <- trimTailw(anchorReads, opt$demultiplex_qualtrim_events, opt$demultiplex_qualtrim_code, opt$demultiplex_qualtrim_halfWidth)
+  anchorReads <- anchorReads[width(anchorReads) >= opt$demultiplex_qualtrim_minLength]
+  if(length(anchorReads) == 0) return()
+  
+  adriftReads <- trimTailw(adriftReads, opt$demultiplex_qualtrim_events, opt$demultiplex_qualtrim_code, opt$demultiplex_qualtrim_halfWidth)
+  adriftReads <- adriftReads[width(adriftReads) >= opt$demultiplex_qualtrim_minLength]
+  if(length(adriftReads) == 0) return()
+  
+  index1Reads <- shortRead2DNAstringSet(index1Reads)
+  anchorReads <- shortRead2DNAstringSet(anchorReads)
+  adriftReads <- shortRead2DNAstringSet(adriftReads)
+  
+  reads <- syncReads(index1Reads, anchorReads, adriftReads)
+  index1Reads <- reads[[1]];  anchorReads  <- reads[[2]]; adriftReads  <- reads[[3]]
+  
+  if(length(adriftReads) == 0) return()
+  
+  # Correct Golay encoded barcodes if requested.
+  if(opt$demultiplex_correctGolayIndexReads){
+    tmpDir <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', tmpFile())
+    dir.create(tmpDir)
+    
+    index1Reads.org <- index1Reads
+    index1Reads <- golayCorrection(index1Reads, tmpDirPath = tmpDir)
+    percentChanged <- (sum(! as.character(index1Reads.org) == as.character(index1Reads)) / length(index1Reads))*100
+    message('Golay correction complete.', sprintf("%.2f", percentChanged), '% of reads updated via Golay correction.')
+    rm(index1Reads.org)
+    invisible(unlink(tmpDir, recursive = TRUE))
+    
+    reads <- syncReads(index1Reads, anchorReads, adriftReads)
+    index1Reads <- reads[[1]];  anchorReads  <- reads[[2]]; adriftReads  <- reads[[3]]
+  }
+  
+  # Loop through samples in sample data file to demultiplex and apply read specific filters.
+  invisible(lapply(1:nrow(samples), function(r){
+    r <- samples[r,]
+    
+    v0 <- rep(TRUE, length(anchorReads))
+    if('anchorReadStartSeq' %in% names(r)){
+      v0 <- vcountPattern(r$anchorReadStartSeq, subseq(anchorReads, 1, nchar(r$anchorReadStartSeq)), max.mismatch = opt$demultiplex_anchorReadStartSeq.maxMisMatch) == 1
+    }
+    
+    # Create barcode demultiplexing vectors.
+    v1 <- vcountPattern(r$index1Seq, index1Reads, max.mismatch = opt$demultiplex_index1ReadMaxMismatch) > 0
+    
+    log.report <- tibble(sample = r$uniqueSample, demultiplexedIndex1Reads = sum(v1))
+    
+    # Create break read linker barcode demultiplexing vector.
+    v2 <- rep(TRUE, length(adriftReads))
+    if(opt$demultiplex_useAdriftReadUniqueLinkers){
+      testSeq <- substr(r$adriftReadLinkerSeq, r$adriftRead.linkerBarcode.start, r$adriftRead.linkerBarcode.end)
+      v2 <- vcountPattern(testSeq, subseq(adriftReads, r$adriftRead.linkerBarcode.start, r$adriftRead.linkerBarcode.end), max.mismatch = opt$demultiplex_adriftReadLinkerBarcodeMaxMismatch) > 0
+      log.report$demultiplexedLinkerReads <- sum(v2)
+    } else {
+      log.report$demultiplexedLinkerReads <- NA
+    }
+    
+    # Test to see if any reads demultiplex to this row of the sample table and then subset reads to this sample.
+    i <- Reduce(base::intersect, list(which(v0), which(v1), which(v2)))
+    if(length(i) == 0){
+      log.report$demultiplexedReads <- 0
+    } else {
+      reads <- syncReads(index1Reads[i], anchorReads[i], adriftReads[i])
+      index1Reads <- reads[[1]];  anchorReads  <- reads[[2]]; adriftReads  <- reads[[3]]
+      
+      if(length(index1Reads) == 0){
+        log.report$demultiplexedReads <- 0
+      } else {
+        writeFasta(subseq(adriftReads, r$adriftRead.linkerRandomID.start, r$adriftRead.linkerRandomID.end), 
+                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk, '.randomAdriftReadIDs')), compress = opt$compressDataFiles)
+        
+        writeFasta(anchorReads, file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk, '.anchorReads')), compress = opt$compressDataFiles)
+        writeFasta(adriftReads, file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk, '.adriftReads')), compress = opt$compressDataFiles)
+        log.report$demultiplexedReads <- length(index1Reads)
+      }
+    }
+    
+    write.table(log.report, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs', paste0(r$uniqueSample, '.', chunk, '.logReport')))
+  }))
+}
+
+
+blat <- function(y, ref, dir){
+  f <- file.path(dir, tmpFile())
+  write(paste0('>', y$id, '\n', y$seq), f)
+  
+  system(paste0('blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
+                ' -tileSize=', opt$alignReads_genomeAlignment_blatTileSize, 
+                ' -stepSize=', opt$alignReads_genomeAlignment_blatStepSize, 
+                ' -repMatch=', opt$alignReads_genomeAlignment_repMatch, 
+                ' -out=psl -t=dna -q=dna -minScore=0 -minIdentity=0 -noHead -noTrimA', 
+                ifelse(opt$alignReads_blat_fastMap, ' -fastMap', '')))
+  
+  write('done', paste0(f, '.done'))
+}
+
+
 # Pull non-standardized fragments from a database based on trial and subject ids.
 
 pullDBsubjectFrags <- function(dbConn, trial, subject, tmpDirPath){

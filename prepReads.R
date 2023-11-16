@@ -65,6 +65,7 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
             # Add back trimmed anchor read sequences.
             o <- subset(y, readID %in% names(t))
             trimmed <- data.table(readID = names(t), anchorReadSeq2 = as.character(t))
+            message('f1')
             o <- left_join(o, trimmed, by = 'readID')
          
             # Trim off adrift read adapters.
@@ -97,44 +98,14 @@ reads$adriftReadSeq <- NULL
 reads <- dplyr::rename(reads, anchorReadSeq = anchorReadSeq2, adriftReadSeq = adriftReadSeq2)
 
 
-# Identify and remove identical read pairs.
-write(c(paste(now(), '   Identifying duplicate read pairs.')), file = file.path(opt$outputDir, opt$prepReads_outputDir, 'log'), append = TRUE)
-reads$i <- group_by(reads, uniqueSample, adriftReadRandomID, anchorReadSeq, adriftReadSeq) %>% group_indices() 
-reads <- group_by(reads, i) %>% mutate(n = n()) %>% ungroup()
-
-a <- subset(reads, n == 1) # Non-duplicated read pairs.
-b <- subset(reads, n > 1)  # Duplicated read pairs.
-
-write(c(paste(now(), '   Removing duplicate read pairs.')), file = file.path(opt$outputDir, opt$prepReads_outputDir, 'log'), append = TRUE)
-
-# Create a table of duplicate read pairs where one is chosen (id) to move forward and the others are logged (id2).
-c <- group_by(b, i) %>%
-      summarise(id = readID[1], n = n() - 1, id2 = list(readID[2:n()])) %>%
-      ungroup() %>% select(-i) %>% tidyr::unnest(id2)
-
-saveRDS(c, file.path(opt$outputDir, opt$prepReads_outputDir, 'duplicateReads.rds'), compress = opt$compressDataFiles)
-
-
-# Exclude duplicate read pairs.
-reads <- data.table(bind_rows(a, subset(b, ! readID %in% c$id2)) %>% dplyr::select(-i, -n))
-saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'uniqueReadPairs.rds'), compress = opt$compressDataFiles)
-
-
 # Clean up.
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'), full.names = TRUE)))
-rm(a, b, c)
-gc()
 
 mappings <- tibble()
 vectorHits <- tibble()
 
 # Align the ends of anchor reads to the vector to identify vector reads which should be removed.
-
 reads$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', reads$vectorFastaFile)
-
-# save.image('~/CART_12418_prepReadsDev.RData')
-
-
 
 alignReadEndsToVector <- function(y){
   library(Biostrings)
@@ -153,6 +124,7 @@ alignReadEndsToVector <- function(y){
   }
   
   if(nrow(b) > 0){
+     message('f3')
     b <- left_join(b, data.table(qname = names(s), testSeq = as.character(s)), by = 'qname')
     b$start  <- ifelse(b$sstart > b$send, b$send, b$sstart)
     b$end    <- ifelse(b$sstart > b$send, b$sstart, b$send)
@@ -211,11 +183,11 @@ if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVe
               r$qname <- sub('\\.\\d$', '', r$qname)
               testSeqs$readID <- sub('\\.\\d$', '', testSeqs$readID)
               
-              return(distinct(left_join(r, select(testSeqs, readID, i), by = c('qname' = 'readID')) %>%
-                     left_join(select(testSeqs, readID, i), by = 'i') %>% 
-                     dplyr::select(-qname, -i) %>% 
-                     dplyr::rename(qname = readID) %>%
-                     dplyr::relocate(qname, .before = sseqid)))
+              return(distinct(left_join(r, select(testSeqs, readID, i), by = c('qname' = 'readID'), relationship = 'many-to-many') %>%
+                              left_join(select(testSeqs, readID, i), by = 'i', relationship = 'many-to-many') %>% 
+                              dplyr::select(-qname, -i) %>% 
+                              dplyr::rename(qname = readID) %>%
+                              dplyr::relocate(qname, .before = sseqid)))
             } else {
               return(tibble())
             }
@@ -233,6 +205,7 @@ if(nrow(vectorHits) > 0){
                     summarise(nReads = n_distinct(readID)) %>%
                     ungroup()
 
+   message('f5')
   vectorHitsReport <- left_join(vectorHits, select(reads, uniqueSample, readID), by = c('qname' = 'readID')) %>%
                       mutate(sample = sub('~\\d+$', '', uniqueSample)) %>%
                       left_join(readsPerSample, by = 'sample') %>%
@@ -295,6 +268,7 @@ if(! 'leaderSeqHMM' %in% names(reads)){
            }))
       
       if(nrow(r) > 0){
+      message('f6')
         return(distinct(left_join(r, select(x, readID, i), by = c('qname' = 'readID')) %>%
                         left_join(select(x, readID, i), by = 'i') %>% 
                         dplyr::select(-qname, -i) %>% 
@@ -318,6 +292,7 @@ if(! 'leaderSeqHMM' %in% names(reads)){
     vectorHits2$i <- group_by(vectorHits2, qname) %>% group_indices() 
     o <- tibble(i2 = 1:n_distinct(vectorHits2$i))
     o$n <- ntile(1:nrow(o), opt$prepReads_CPUs)
+ message('f7')
     vectorHits2 <- left_join(vectorHits2, o, by = c('i' = 'i2'))
     
     if(! opt$prepReads_buildReadMaps_blastReconstruction){
@@ -344,7 +319,6 @@ if(! 'leaderSeqHMM' %in% names(reads)){
   clusterExport(cluster, c('opt'))
   
   hmmResults <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
-  #hmmResults <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
     library(Biostrings)
     library(dplyr)
     source(file.path(opt$softwareDir, 'lib.R'))
@@ -380,6 +354,7 @@ if('anchorReadStartSeq' %in% names(reads)){
     
     d <- distinct(select(reads, uniqueSample, anchorReadStartSeq))
     
+     message('f8')
     m2 <- tibble(id = b$readID, leaderMapping.qStart = 1, uniqueSample = b$uniqueSample) %>% left_join(d, by = 'uniqueSample')
     m2$leaderMapping.qEnd <- nchar(m2$anchorReadStartSeq)
     m2$leaderSeqMap <- paste0('1..', m2$leaderMapping.qEnd, '[00+00]')
@@ -396,6 +371,8 @@ if(nrow(reads) == 0){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
+ message('f9')
+# Here -- mult. mappings?
 reads <- left_join(reads, dplyr::select(m, id, leaderMapping.qStart, leaderMapping.qEnd), by = c('readID' = 'id'))
 reads$leaderSeq = substr(reads$anchorReadSeq, 1, reads$leaderMapping.qEnd)
 

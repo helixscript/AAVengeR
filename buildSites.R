@@ -217,7 +217,8 @@ write(c(paste(now(), '   Buiding sample level integration sites.')), file = file
 
 tbl1$i <- dplyr::ntile(1:nrow(tbl1), opt$buildSites_CPUs)
 
-tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
+#tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
+tbl2 <- bind_rows(lapply(split(tbl1, tbl1$i), function(p){
           library(dplyr)
           library(Biostrings)
           library(stringdist)
@@ -249,7 +250,8 @@ tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
                            repLeaderSeq = repLeaderSeq)
              }
   
-             k$nRepsObs <- sum(! is.na(unlist(x[, which(grepl('\\-repLeaderSeq', names(x)))])))
+             k$nRepsObs <- sum(! is.na(unlist(x[, which(grepl('\\-reads', names(x)))])))
+        
              bind_cols(x[,1:5], k, x[,6:length(x)])
           }))
 }))

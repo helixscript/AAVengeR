@@ -17,7 +17,7 @@ dir.create(file.path(opt$outputDir, 'core', 'subject_analyses'))
 write(paste0(date(), ' - start'), file = file.path(opt$outputDir, 'core', 'log'))
 
 # Gather select sections from the configuration file.
-o <- opt[grepl('^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^demultiplex', names(opt))]
+o <- opt[grepl('^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
 o$outputDir <- file.path(opt$outputDir, 'core')
 
 # Run demultiplex module.
@@ -33,6 +33,7 @@ system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, 
 
 # Read in demultiplex result.
 reads <- readRDS(file.path(opt$outputDir, 'core', 'demultiplex', 'reads.rds'))
+
 
 jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.txt'){
   f <- list.files(file.path(opt$outputDir, 'core'), pattern = searchPattern, full = TRUE, recursive = TRUE)
@@ -58,19 +59,25 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
   if(nrow(o) > 0){
     # Increase core_maxPercentCPUs near the end of the job table.
     core_maxPercentCPUs <- opt$core_maxPercentCPUs
-    if(100/nrow(o) > core_maxPercentCPUs) core_maxPercentCPUs <- ceiling(100/nrow(o)) 
+
+    ### if(100/nrow(o) > core_maxPercentCPUs) core_maxPercentCPUs <- ceiling(100/nrow(o)) 
+    ### if(nrow(o) == 1) core_maxPercentCPUs <- 100   
   
     # The job with the most reads will evaluate to 1 * core_maxPercentCPUs and recieve core_maxPercentCPUs cores.
     o$CPUs <- as.integer(ceiling((((o$reads / max(o$reads)) * core_maxPercentCPUs) / 100) * opt$core_CPUs))
-  
+    
     o$CPUs <- ifelse(o$CPUs == 1, 2, o$CPUs) # Each job must get at least 2 CPUs.
-  
-    jobTable[match(o$id, jobTable$id),]$CPUs <- o$CPUs
+    
+    jobTable[match(o$id, jobTable$id),]$CPUs <<- o$CPUs
   }
   
   tab <- pandoc.table.return(arrange(jobTable, desc(done), desc(active)), style = "simple", split.tables = Inf, plain.ascii = TRUE)
   write(c(date(), paste0('Available CPUs: ', (opt$core_CPUs - CPUs_used)), tab), file = file.path(opt$outputDir, 'core', outputFileName), append = FALSE)
 }
+
+
+
+
 
 # Build a jobs table for prepReads, alignReads, and buildFragments.
 jobTable <- data.frame(table(reads$uniqueSample)) %>% dplyr::rename(id = Var1) %>% dplyr::rename(reads = Freq)
@@ -97,7 +104,7 @@ while(! all(jobTable$done == TRUE)){
   }
   
   # Gather select sections from the configuration file and set CPU values.
-  o <- opt[grepl('^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^prepReads|^alignReads|^buildFragments', names(opt))]
+  o <- opt[grepl('^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
   o$prepReads_CPUs <- as.integer(tab$CPUs)
   o$alignReads_CPUs <- as.integer(tab$CPUs)
   o$buildFragments_CPUs <- as.integer(tab$CPUs)
@@ -135,7 +142,7 @@ while(! all(jobTable$done == TRUE)){
   Sys.sleep(5)
 }
 
-invisible(file.remove(list.files(file.path(opt$outputDir, 'core', 'replicate_analyses'), recursive = TRUE, pattern = 'CORE_TMP', full.names = TRUE)))
+### invisible(file.remove(list.files(file.path(opt$outputDir, 'core', 'replicate_analyses'), recursive = TRUE, pattern = 'CORE_TMP', full.names = TRUE)))
 
 # Bundle together fragment output files.
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'fragments.rds', recursive = TRUE, full.names = TRUE)
@@ -180,8 +187,6 @@ jobTable$endTime <- NA
 jobTable$done <- FALSE
 jobTable$duration <- NA
 
-### frags$trialSubject <- sub('~[^~]+~\\d+$', '', frags$uniqueSample)
-
 d <- tibble(uniqueSample = unique(frags$uniqueSample)) %>% tidyr::separate(uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~', remove = FALSE)
 d$trialSubject <- paste0(d$trial, '~', d$subject)
 frags <- left_join(frags, distinct(dplyr::select(d, uniqueSample, trialSubject)), by = 'uniqueSample')
@@ -201,7 +206,7 @@ while(! all(jobTable$done == TRUE)){
   }
 
   # Gather select sections from the configuration file and set CPU values.
-  o <- opt[grepl('^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^buildStdFragments|^buildSites', names(opt))]
+  o <- opt[grepl('^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^buildStdFragments|^buildSites|^demultiplex', names(opt))]
   o$buildStdFragments_CPUs <- as.integer(tab$CPUs)
   o$buildSites_CPUs <- as.integer(tab$CPUs)
   o$outputDir <- file.path(opt$outputDir, 'core', 'subject_analyses', tab$id)
@@ -257,7 +262,7 @@ for(x in list.files(file.path(opt$outputDir, 'core', 'subject_analyses'))){
   }
 }
 
-invisible(file.remove(list.files(file.path(opt$outputDir, 'core', 'subject_analyses'), recursive = TRUE, pattern = 'CORE_TMP', full.names = TRUE)))
+### invisible(file.remove(list.files(file.path(opt$outputDir, 'core', 'subject_analyses'), recursive = TRUE, pattern = 'CORE_TMP', full.names = TRUE)))
 
 # Bundle together multi-hit cluster output files.
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'multiHitClusters.rds', recursive = TRUE, full.names = TRUE)

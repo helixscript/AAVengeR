@@ -59,13 +59,15 @@ demultiplex_useAdriftReadUniqueLinkers: TRUE                                    
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1                               # [integer]   (evaluated if demultiplex_useAdriftReadUniqueLinkers = TRUE) Max. number of mismatches allowed in R1 unique linker sequences.
 demultiplex_anchorReadStartSeq.maxMisMatch: 1                                   # [integer]   (evaluated if anchorReadStartSeq column provided in sampleData file) Max. number of mismatches allowed in anchor read start sequences.
 demultiplex_exportFASTQ: FALSE                                                  # [bollean]   Export demultiplexed reads as FASTQ to the demultiplex output folder.
-
+demultiplex_excludeAdriftReadLinkerUMIs: FALSE
                                                                                 # (*) evaluated if repReads_buildReadMaps_blastReconstruction = TRUE
                                                                                 # (^) evaluated if leaderSeqHMM is a column in the sampleDetails file
                                                                                 # (@) path relative to output directory 
 prepReads_CPUs: 30                                                              # [integer]   Number of CPUs to use when preparing reads for alignment to a reference genome.
 prepReads_outputDir: prepReads                                                  # [character] prepReads ouput directory name that will be created in the output directory.
 prepReads_readsTable:  demultiplex/reads.rds                                    # [file path] (@) Path to input reads data object created by demultiplex.R.
+prepReads_mergeSimilarReadPairs: TRUE
+prepReads_mergeSimilarReadPairsParams: '-c 0.98 -d 0 -M 0 -G 1 -aS 0.95 -aL 0.95 -s 0.95 -n 10 -gap -1000'
 prepReads_excludeAnchorReadVectorHits: TRUE                                     # [boolean]   Exclude anchor reads whoes ends align strongly to the vector sequence.
 prepReads_excludeAdriftReadVectorHits: FALSE                                    # [boolean]   Exclude adrift reads whoes ends align strongly to the vector sequence.
 prepReads_vectorAlignmentTestLength: 25                                         # [integer]   Length of NTs to from ends of reads to align to vectors to test for vector alignments.
@@ -116,7 +118,8 @@ buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90                
 
 buildStdFragments_CPUs: 30                                                      # [integer]   Number of CPUs to use when generating standardized fragments.
 buildStdFragments_autoPullTrialSamples: FALSE                                   # [boolean]   Automatically pull additional trial samples from the database to co-standardize with data found in buildStdFragments_inputFile.
-buildStdFragments_leaderSeqGroupingDist: 5                                      # [integer]   Distance to look left and right for another fragment start boundary. If found, alternative repLeaderSeq indices will be created if required. 
+                                   
+buildStdFragments_remnantClusterParams: '-c 0.8 -d 0 -M 0 -G 1 -aS 0.85 -aL 0.85 -s 0.85  -n 5'
 buildStdFragments_randomIDdupReadMult: 5                                        # [integer]   When evaluating UMI sequences, if the most common position id associated with anUMI is x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
 buildStdFragments_randomIDdupAbundMult: 3                                       # [integer]   When evaluating UMI sequences, if the most common position id associated with an UMI has a sonicLength abundance x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
 buildStdFragments_minReadsPerFrag: 1                                            # [integer]   Min number of reads required to reatin a UMI specific fragment.

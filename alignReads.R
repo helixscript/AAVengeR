@@ -5,7 +5,7 @@ library(data.table)
 library(Biostrings)
 options(stringsAsFactors = FALSE)
 
-# Read in configuration file.
+# Read in configuration file and set parameters.
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
@@ -13,8 +13,8 @@ source(file.path(opt$softwareDir, 'lib.R'))
 setMissingOptions()
 setOptimalParameters()
 
-# Create the required directory structure.
 
+# Create the required directory structure.
 dir.create(file.path(opt$outputDir, opt$alignReads_outputDir))
 write(c(paste(lubridate::now(), '   Creating required directories and CPU cluster.')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = FALSE)
 dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'tmp'))
@@ -22,30 +22,21 @@ dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'))
 dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'))
 
 
+# Read in sequencing data.
 reads <- readRDS(file.path(opt$outputDir, opt$alignReads_inputFile))
-
 incomingSamples <- unique(reads$uniqueSample)
+
 
 # Create a CPU cluster.
 cluster <- makeCluster(opt$alignReads_CPUs)
 clusterExport(cluster, c('opt', 'tmpFile'))
 
-blat <- function(y, ref, dir){
-  f <- file.path(dir, tmpFile())
-  write(paste0('>', y$id, '\n', y$seq), f)
-  
-  system(paste0('blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
-                ' -tileSize=', opt$alignReads_genomeAlignment_blatTileSize, 
-                ' -stepSize=', opt$alignReads_genomeAlignment_blatStepSize, 
-                ' -repMatch=', opt$alignReads_genomeAlignment_repMatch,
-                ' -minIdentity=', (opt$alignReads_genomeAlignment_minPercentID - 1), 
-                ' -out=psl -noHead'))
-  
-  write('done', paste0(f, '.done'))
-}
 
+# Expand reference genome id to full path.
 reads$refGenome <- file.path(opt$softwareDir, 'data', 'referenceGenomes', paste0(reads$refGenome, '.2bit'))
 
+
+# Align anchor reads.
 anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
   s <- data.table(seq = unique(x$anchorReadSeq))
   s$id <- paste0('s', 1:nrow(s))
@@ -56,7 +47,18 @@ anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   write(c(paste0(now(), '    Aligning ', nrow(s), ' anchor reads against ', x$refGenome[1], '.')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = TRUE)
   
   dir <- file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1')
-  invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome[1], dir))
+  
+  if(opt$alignReads_aligner == 'bwa2'){
+    f <- file.path(dir, tmpFile())
+    write(paste0('>', s$id, '\n', s$seq), f)
+    system(paste0('bwa-mem2 mem -t ', opt$alignReads_CPUs  ,' -c 100000 -a ', sub('\\.2bit$', '', x$refGenome[1]), ' ', f, ' > ', f, '.sam'))
+    system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', f, '.sam -o ', f, '.psl'))
+    invisible(file.remove(paste0(f, '.sam')))
+    write('done', paste0(f, '.done'))
+  } else {
+    invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome[1], dir))
+    #invisible(lapply(split(s, s$n), blat, x$refGenome[1], dir))
+  }
   
   b <- rbindlist(lapply(list.files(dir, pattern = '*.psl', full.names = TRUE), function(x){
          b <- data.table(parseBLAToutput(x))
@@ -107,6 +109,8 @@ write(c(paste0(now(), '    ', sprintf("%.2f%%", (1 - n_distinct(anchorReadAlignm
 # Subset reads to those with good anchor read alignments.
 reads <- subset(reads, readID %in% anchorReadAlignments$readID)
 
+
+# Align adrift reads that had an anchor mate that aligned well.
 adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
   s <- data.table(seq = unique(x$adriftReadSeq))
   s$id <- paste0('s', 1:nrow(s))
@@ -117,7 +121,19 @@ adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   write(c(paste0(now(), '    Aligning ', nrow(s), ' adrift reads against ', x$refGenome[1], '.')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = TRUE)
   
   dir <- file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2')
-  invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome[1], dir))
+  
+  if(opt$alignReads_aligner == 'bwa2'){
+    f <- file.path(dir, tmpFile())
+    write(paste0('>', s$id, '\n', s$seq), f)
+    system(paste0('bwa-mem2 mem -t ', opt$alignReads_CPUs  ,' -c 100000 -a ', sub('\\.2bit$', '', x$refGenome[1]), ' ', f, ' > ', f, '.sam'))
+    system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', f, '.sam -o ', f, '.psl'))
+    invisible(file.remove(paste0(f, '.sam')))
+    write('done', paste0(f, '.done'))
+  } else {
+    invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome[1], dir))
+    #invisible(lapply(split(s, s$n), blat, x$refGenome[1], dir))
+  }
+  
   
   b <- rbindlist(lapply(list.files(dir, pattern = '*.psl', full.names = TRUE), function(x){
     b <- data.table(parseBLAToutput(x))
@@ -183,6 +199,8 @@ write(c(paste0(now(), '    ', sprintf("%.2f%%", (1 - n_distinct(adriftReadAlignm
 
 write(c(paste(now(), '   Finding read pairs where both anchor and adrift read pair mates aligned well.')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = TRUE)
 
+
+# Select read pairs that have both a good anchor and adrift alignment.
 i <- base::intersect(anchorReadAlignments$readID, adriftReadAlignments$readID)
 anchorReadAlignments <- anchorReadAlignments[anchorReadAlignments$readID %in% i,]
 adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$readID %in% i,]
@@ -197,9 +215,9 @@ anchorReadAlignments <- left_join(anchorReadAlignments, select(reads, readID, an
 anchorReadAlignments$leaderSeq <- paste0(anchorReadAlignments$leaderSeq, substr(anchorReadAlignments$anchorReadSeq, 1, anchorReadAlignments$qStart))
 anchorReadAlignments <- dplyr::select(anchorReadAlignments, -anchorReadSeq)
 
+# Remove .2bit suffixes.
 anchorReadAlignments$refGenome <- sapply(anchorReadAlignments$refGenome, lpe)
 anchorReadAlignments$refGenome <- sub('\\.2bit$', '', anchorReadAlignments$refGenome)
-
 adriftReadAlignments$refGenome <- sapply(adriftReadAlignments$refGenome, lpe)
 adriftReadAlignments$refGenome <- sub('\\.2bit$', '', adriftReadAlignments$refGenome)
 

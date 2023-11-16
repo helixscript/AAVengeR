@@ -44,3 +44,8 @@ Added requirement for cd-hit-est which is used by buildStdFrags.R to more quickl
 Modified multiple code blocks to increase processing speed.
 Updated scheduler in the core module.
 Added compressDataFiles option to the config file in order to increase processing speed by not compressing rds files.
+1.20
+Added bwa2 support.
+Added new demultiplexing module.
+Added support for read clustering.
+Added pre-blat read filtering using bwa2.

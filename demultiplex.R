@@ -10,6 +10,7 @@ library(parallel)
 library(lubridate)
 library(dplyr)
 library(data.table)
+library(dtplyr)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
@@ -20,9 +21,8 @@ setOptimalParameters()
 # The launch script creates (if missing) and writes to the output directory.
 # File write permission issues should be caught before starting modules.
 if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
-dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'))
-dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))
 dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'))
+dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))
 
 if(! file.exists(opt$demultiplex_sampleDataFile)){
   write(c(paste(now(), '   Error - the sample configuration file could not be found')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
@@ -47,9 +47,21 @@ if(! file.exists(opt$demultiplex_index1ReadsFile)){
   q(save = 'no', status = 1, runLast = FALSE) 
 } 
 
+I1 <- ShortRead::readFastq(opt$demultiplex_index1ReadsFile)
+dataSetLength <- length(I1)
+
 if(opt$demultiplex_RC_I1_barcodes_auto){
   write(c(paste(now(), '   Determining if I1 barcodes should be switched to RC.')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-  r <- determine_RC_I1()
+  d <- data.table(select(samples, subject, sample, replicate, index1Seq))
+  i <- as.character(I1@sread)
+  
+  o <- rbindlist(lapply(split(d, 1:nrow(d)), function(x){
+         x$barcodePercent <- sum(i %in% x$index1Seq)/length(i) * 100
+         x$barcodePercentRC <- sum(i %in% as.character(Biostrings::reverseComplement(Biostrings::DNAString(x$index1Seq))))/length(i) * 100
+         x
+       }))
+  
+  r <- ifelse(sum(o$barcodePercent) > sum(o$barcodePercentRC), FALSE, TRUE)
   write(paste(now(), '   Setting demultiplex_RC_I1_barcodes to', r), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
   opt$demultiplex_RC_I1_barcodes <- r
 }
@@ -57,141 +69,64 @@ if(opt$demultiplex_RC_I1_barcodes_auto){
 # Reverse compliment index1 sequences if requested.
 if(opt$demultiplex_RC_I1_barcodes) samples$index1Seq <- as.character(reverseComplement(DNAStringSet(samples$index1Seq)))
 
-write(c(paste(now(), '   Reading in index 1 sequencing data.')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-index1Reads <- shortRead2DNAstringSet(readFastq(opt$demultiplex_index1ReadsFile))
-
 cluster <- makeCluster(opt$demultiplex_CPUs)
 clusterExport(cluster, c('opt', 'samples'))
 
-# Correct Golay encoded barcodes if requested.
-if(opt$demultiplex_correctGolayIndexReads){
-  write(paste(now(), '   Starting Golay correction.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-  index1Reads.org <- index1Reads
-  index1Reads <- Reduce('append', parLapply(cluster, split(index1Reads, ntile(1:length(index1Reads), opt$demultiplex_CPUs)), 
-                                            golayCorrection, tmpDirPath = file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp')))
-  percentChanged <- (sum(! as.character(index1Reads.org) == as.character(index1Reads)) / length(index1Reads))*100
-  write(paste(now(), '   Golay correction complete.', sprintf("%.2f", percentChanged), '% of reads updated via Golay correction.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-  rm(index1Reads.org)
+index1.strm <- FastqStreamer(opt$demultiplex_index1ReadsFile, n = as.integer(opt$demultiplex_sequenceChunkSize))
+anchor.strm <- FastqStreamer(opt$demultiplex_anchorReadsFile, n = as.integer(opt$demultiplex_sequenceChunkSize))
+adrift.strm <- FastqStreamer(opt$demultiplex_adriftReadsFile, n = as.integer(opt$demultiplex_sequenceChunkSize))
+
+n <- 1
+k <- 1
+processedReads <- 0
+
+date()
+repeat {
+  message('n: ', n, ' k: ', k)
+  index1.fq <- yield(index1.strm)
+  if(length(index1.fq) == 0) break
+  anchor.fq <- yield(anchor.strm)
+  adrift.fq <- yield(adrift.strm)
+  
+  id <- paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''))
+  
+  writeFastq(index1.fq, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0('index1_fastqChunk', '.', id)), compress = FALSE)
+  writeFastq(anchor.fq, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0('anchor_fastqChunk', '.', id)), compress = FALSE)
+  writeFastq(adrift.fq, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0('adrift_fastqChunk', '.', id)), compress = FALSE)
+  
+  processedReads <- processedReads + length(index1.fq)
+  
+  if(n == opt$demultiplex_CPUs | length(index1.fq) < opt$demultiplex_sequenceChunkSize){
+    o <- data.table(file = list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = 'fastqChunk'))
+    o$n <- unlist(lapply(stringr::str_split(o$file, '\\.'), '[', 2))
+    
+    invisible(parLapply(cluster, split(o, o$n), demultiplex))
+    #invisible(lapply(split(o, o$n), demultiplex))
+    
+    message('Processed ', sprintf("%.2f%%", (processedReads / dataSetLength)*100), ' reads')
+    
+    n <- 0
+  }
+  
+  n <- n + 1
+  k <- k + 1
 }
+date()
 
-
-# Quality trim anchor and adrift reads.
-write(paste(now(), '   Trimming anchor and adrift reads.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-invisible(parLapply(cluster,     
-                    list(c(opt$demultiplex_adriftReadsFile,  opt$demultiplex_sequenceChunkSize, 'adriftReads',  file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks')),
-                         c(opt$demultiplex_anchorReadsFile,  opt$demultiplex_sequenceChunkSize, 'anchorReads',  file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'))), 
-                    function(x){
-                      library(ShortRead)
-                      source(file.path(opt$softwareDir, 'lib.R'))
-                      qualTrimReads(x[[1]], x[[2]], x[[3]], x[[4]])
-                    }))
-
-write(paste(now(), '   Syncing anchor and adrift reads post-trimming.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-
-# Collate fastq files created from sequence chunks and convert to DNAstring objects.
-adriftReads <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), pattern = 'adriftReads', full.names = TRUE), function(x) shortRead2DNAstringSet(readFastq(x))))
-anchorReads <- Reduce('append', lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), pattern = 'anchorReads', full.names = TRUE), function(x) shortRead2DNAstringSet(readFastq(x))))
-
-# Sync reads since some may have been removed during quality trimming.
-reads <- syncReads(shortRead2DNAstringSet(readFastq(opt$demultiplex_index1ReadsFile)), anchorReads, adriftReads)
-index1Reads <- reads[[1]];  anchorReads  <- reads[[2]];  adriftReads  <- reads[[3]]
-
-invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE)))
-rm(reads)
-gc()
-
-
-# Split the trimmed reads into chunks for parallel processing.
-write(paste(now(), '   Dividing sequencing data into chunks.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-chunkNum <- 1
-d <- tibble(i = ntile(1:length(index1Reads), opt$demultiplex_CPUs), n = 1:length(index1Reads))
-invisible(lapply(split(d, d$i), function(x){
-  index1Reads <- index1Reads[min(x$n):max(x$n)]
-  anchorReads <- anchorReads[min(x$n):max(x$n)]
-  adriftReads <- adriftReads[min(x$n):max(x$n)]
-  save(index1Reads, anchorReads, adriftReads, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks', chunkNum))
-  chunkNum <<- chunkNum + 1
-}))
-
-# Clean up and free up memory. 
-rm(d, chunkNum, index1Reads, anchorReads, adriftReads)
-gc()
-
-write(paste(now(), '   Demultiplexing sequence chunks.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-if('anchorReadStartSeq' %in% names(samples)) write(paste(now(), '   Anchor read start sequence filter enabled.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-
-# Demultiplex samples for each sequence chunk. 
-
-invisible(parLapply(cluster, list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), full.names = TRUE), function(f){
-  library(ShortRead)
-  library(dplyr)
-  library(stringr)
-  source(file.path(opt$softwareDir, 'lib.R'))
-  
-  load(f)
- 
-  # Capture the chunk identifier.
-  chunk.n <- unlist(str_match_all(f, '(\\d+)$'))[2]
-  
-  # Loop through samples in sample data file to demultiplex and apply read specific filters.
-  invisible(lapply(1:nrow(samples), function(r){
-    r <- samples[r,]
-
-    v0 <- rep(TRUE, length(anchorReads))
-    if('anchorReadStartSeq' %in% names(r)){
-      v0 <- vcountPattern(r$anchorReadStartSeq, subseq(anchorReads, 1, nchar(r$anchorReadStartSeq)), max.mismatch = opt$demultiplex_anchorReadStartSeq.maxMisMatch) == 1
-    }
-       
-    # Create barcode demultiplexing vectors.
-    v1 <- vcountPattern(r$index1Seq, index1Reads, max.mismatch = opt$demultiplex_index1ReadMaxMismatch) > 0
-    
-    log.report <- tibble(sample = r$uniqueSample, demultiplexedIndex1Reads = sum(v1))
-    
-    # Create break read linker barcode demultiplexing vector.
-    v2 <- rep(TRUE, length(adriftReads))
-    if(opt$demultiplex_useAdriftReadUniqueLinkers){
-      testSeq <- substr(r$adriftReadLinkerSeq, r$adriftRead.linkerBarcode.start, r$adriftRead.linkerBarcode.end)
-      v2 <- vcountPattern(testSeq, subseq(adriftReads, r$adriftRead.linkerBarcode.start, r$adriftRead.linkerBarcode.end), max.mismatch = opt$demultiplex_adriftReadLinkerBarcodeMaxMismatch) > 0
-      log.report$demultiplexedLinkerReads <- sum(v2)
-    } else {
-      log.report$demultiplexedLinkerReads <- NA
-    }
-    
-    # Test to see if any reads demultiplex to this row of the sample table and then subset reads to this sample.
-    i <- Reduce(base::intersect, list(which(v0), which(v1), which(v2)))
-    if(length(i) == 0){
-      log.report$demultiplexedReads <- 0
-    } else {
-      reads <- syncReads(index1Reads[i], anchorReads[i], adriftReads[i])
-      index1Reads <- reads[[1]];  anchorReads  <- reads[[2]]; adriftReads  <- reads[[3]]
-      
-      if(length(index1Reads) == 0){
-          log.report$demultiplexedReads <- 0
-      } else {
-          writeFasta(subseq(adriftReads, r$adriftRead.linkerRandomID.start, r$adriftRead.linkerRandomID.end), 
-                     file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.randomAdriftReadIDs.gz')), compress = TRUE)
-        
-        writeFasta(anchorReads, file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.anchorReads.gz')), compress = TRUE)
-        writeFasta(adriftReads, file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(r$uniqueSample, '.', chunk.n, '.adriftReads.gz')), compress = TRUE)
-        log.report$demultiplexedReads <- length(index1Reads)
-      }
-    }
-  
-    write.table(log.report, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs', paste0(r$uniqueSample, '.', chunk.n, '.logReport')))
-  }))
-}))
-
-stopCluster(cluster)
-
-invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'seqChunks'), recursive = TRUE))
 
 # Collate chunked reads and write out sample read files.
 write(paste(now(), '   Colating data files.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
 
+counter <- 1
+totalRepSamples <- n_distinct(samples$uniqueSample)
+
 reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
-  f1 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.anchorReads'), full.names = TRUE)
-  f2 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.adriftReads'), full.names = TRUE)
-  f3 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.\\d+\\.randomAdriftReadIDs'), full.names = TRUE)
+  message(counter, '/', totalRepSamples)
+  counter <<- counter + 1
+  
+  f1 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.[^\\.]+\\.anchorReads'), full.names = TRUE)
+  f2 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.[^\\.]+\\.adriftReads'), full.names = TRUE)
+  f3 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.[^\\.]+\\.randomAdriftReadIDs'), full.names = TRUE)
   if(length(f1) == 0 | length(f2) == 0 | length(f1) != length(f2)) return()
 
   write(paste0(now(), '    Colating reads for ', x), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
@@ -264,8 +199,10 @@ if('databaseGroup' %in% names(opt)){
     q(save = 'no', status = 1, runLast = FALSE) 
   })
   
-  dbExecute(conn, paste0("delete from demultiplex where seqRunID='", opt$demultiplex_seqRunID, "'"))
-
+  invisible(lapply(split(samples, samples$uniqueSample), function(x){
+    dbExecute(conn, paste0("delete from demultiplex where trial='", x$trial, "' and subject='", x$subject, "' and sample='", x$sample, "' and replicate='", x$replicate, "'"))
+  }))
+  
   r <- unlist(lapply(split(samples, 1:nrow(samples)), function(x){
         dbExecute(conn, "insert into demultiplex values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
                    params = list(x$trial, x$subject, x$sample, x$replicate, x$refGenome, lpe(x$vectorFastaFile), x$flags, 
@@ -283,7 +220,126 @@ if('databaseGroup' %in% names(opt)){
 
 reads$seqRunID <- opt$demultiplex_seqRunID
 
-write(paste(now(), '   Writing reads data object.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+if(! opt$demultiplex_processAdriftReadLinkerUMIs){
+  reads$adriftReadRandomID <- 'AAAAAAAAAAAA'
+  
+  reads <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
+             start <- subset(samples, uniqueSample == x$uniqueSample[1])$adriftRead.linkerRandomID.start
+             stop  <- subset(samples, uniqueSample == x$uniqueSample[1])$adriftRead.linkerRandomID.end
+             substr(x$adriftReadSeq, start, stop) <- 'AAAAAAAAAAAA'
+             x
+            }))
+}
+
+
+
+if(opt$demultiplex_level == 'all'){
+  reads$nDuplicateReads <- 0
+} else if(opt$demultiplex_level == 'unique'){
+  reads$adriftReadSeq2 <- substr(reads$adriftReadSeq, reads$adriftLinkerSeqEnd+1, nchar(reads$adriftReadSeq))
+
+  reads <- lazy_dt(reads, immutable = FALSE) %>% 
+           dplyr::group_by(uniqueSample, adriftReadRandomID, anchorReadSeq, adriftReadSeq2) %>%
+           dplyr::mutate(nDuplicateReads = n() - 1) %>% 
+           dplyr::slice(1) %>% 
+           dplyr::ungroup() %>%
+           dplyr::select(-adriftReadSeq2) %>%
+           as.data.table()
+  
+} else if(opt$demultiplex_level == 'clustered'){
+  o <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
+         o <- DNAStringSet(paste0(x$anchorReadSeq, substr(x$adriftReadSeq, x$adriftLinkerSeqEnd+1, nchar(x$adriftReadSeq))))
+         names(o) <- x$readID
+         f <- tmpFile()
+         writeFasta(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', f))
+  
+         system(paste0("cd-hit-est -i ", file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', f), 
+                       " -o ",  file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.out')), " -T ", opt$demultiplex_CPUs, 
+                       " ", opt$demultiplex_mergeSimilarReadPairsParams))
+  
+         r <- paste0(readLines(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.out.clstr'))), collapse = '')
+       
+         invisible(file.remove(c(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', f),
+                                 file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.out')),
+                                 file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.out.clstr')))))
+  
+        m <- rbindlist(lapply(unlist(strsplit(r, '>Cluster')), function(x){
+                e <- sub('>', '', unlist(stringr::str_extract_all(x, '>[^\\.]+')))
+        
+                if(length(e) > 0){
+                  repSeq <- sub('^>', '', stringr::str_extract(stringr::str_extract(x, '>[^\\.]+\\.+\\s+\\*'), '>[^\\.]+'))
+                  return(data.table(readID = e, rep = repSeq))
+                } else {
+                return(data.table())
+                }
+              })) 
+  
+        m <- left_join(m, select(reads, readID, adriftReadRandomID), by = 'readID')
+  
+        rbindlist(lapply(split(m, m$rep), function(x){
+          rbindlist(lapply(split(x, x$adriftReadRandomID), function(x2){
+            data.table(readID = ifelse(x$rep[1] %in% x2$readID, x$rep[1], x2[1,]$readID), nDuplicateReads = nrow(x2) - 1)
+          }))
+       }))
+  }))
+
+  reads <- subset(reads, readID %in% o$readID)
+  reads <- left_join(reads, o, by = 'readID')
+} else {
+  # error
+}
+
+
+if(opt$demultiplex_quickAlignFilter){
+  reads <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
+             o <- DNAStringSet(substr(x$adriftReadSeq, x$adriftLinkerSeqEnd+1, nchar(x$adriftReadSeq)))
+             names(o) <- x$readID
+             writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'))
+
+             system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 100000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
+                    file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'), ' > ',
+                    file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam')))
+
+             system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', 
+                    file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'), ' -o ',
+                    file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl')))
+           
+             a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'))
+             a <- dplyr::filter(a, alignmentPercentID >= 97, tNumInsert <= 1, 
+                                qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= 5, matches >= 30)
+           
+             invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'), 
+                                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'),
+                                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl')))
+           
+             x <- subset(x, readID %in% a$qName)
+           
+             o <- DNAStringSet(substr(x$anchorReadSeq, 15, nchar(x$anchorReadSeq)))
+             names(o) <- x$readID
+             writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'))
+           
+             system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 100000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
+                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'), ' > ',
+                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam')))
+           
+             system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', 
+                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam'), ' -o ',
+                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
+           
+             a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'))
+             a <- dplyr::filter(a, alignmentPercentID >= 97, tNumInsert <= 1, 
+                                qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, matches >= 30)
+           
+             invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam'), 
+                                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'),
+                                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
+           
+             x <- subset(x, readID %in% a$qName)
+           
+             x
+           }))
+}
+
 saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = opt$compressDataFiles)
 
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))

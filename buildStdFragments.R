@@ -94,6 +94,7 @@ if(nrow(frags) == 0){
 
 incomingSamples <- unique(sub('~\\d+$', '', frags$uniqueSample))
 
+
 # Set aside meta data till the end to save memory and add data back at the end 
 # and unpack the uniqueSample ids.
 # --------------------------------------------------------------------------------------------------------------
@@ -124,48 +125,63 @@ frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterExport(cluster, 'opt')
 
-# Create a table of unique leader sequences to cluster.
-u <- tibble(leaderSeq = unique(frags$leaderSeq)) %>% arrange(nchar(leaderSeq))
-u$id <- paste0('s', 1:nrow(u))
 
-o <- DNAStringSet(u$leaderSeq)
-names(o) <- u$id
-writeXStringSet(o, file.path(opt$outputDir, 'uniqueLeaderSeqs.fasta'))
+frags <- bind_rows(lapply(split(frags, paste(frags$trial, frags$subject, frags$sample)), function(k){
 
-system(paste0("cd-hit-est -i ", file.path(opt$outputDir, 'uniqueLeaderSeqs.fasta'), 
-              " -o ",  file.path(opt$outputDir, 'uniqueLeaderSeqsClusters'), " -T ", opt$buildStdFragments_CPUs, 
-              " -c 0.8 -d 0 -M 0 -G 1 -aS 0.85 -aL 0.85 -s 0.85  -n 5"))
+  # Create a table of unique leader sequences to cluster.
+  u <- tibble(leaderSeq = unique(k$leaderSeq)) %>% arrange(nchar(leaderSeq))
+  u$id <- paste0('s', 1:nrow(u))
 
-r <- paste0(readLines(file.path(opt$outputDir, 'uniqueLeaderSeqsClusters.clstr')), collapse = '')
-r <- unlist(strsplit(r, '>Cluster'))
+  o <- DNAStringSet(u$leaderSeq)
+  names(o) <- u$id
+  writeXStringSet(o, file.path(opt$outputDir, 'uniqueLeaderSeqs.fasta'))
 
-n <- 0
-m <- bind_rows(lapply(r, function(x){
-       e <- unlist(stringr::str_extract_all(x, 's\\d+'))
-       if(length(e) > 0){
-         n <<- n + 1
-         return(tibble(id = e, 
-                       leaderSeqGroupNum = n, 
-                       clusterRepSeq = stringr::str_extract(stringr::str_extract(x, 's\\d+\\.+\\s+\\*'), 's\\d+')))
-       } else {
-         return(tibble())
-       }
-     }))
+  system(paste0("cd-hit-est -i ", file.path(opt$outputDir, 'uniqueLeaderSeqs.fasta'), 
+                " -o ",  file.path(opt$outputDir, 'uniqueLeaderSeqsClusters'), " -T ", opt$buildStdFragments_CPUs, 
+                " ", opt$buildStdFragments_remnantClusterParams))
 
-m <- left_join(m, u, by = c('clusterRepSeq' = 'id')) %>% 
-     dplyr::select(-clusterRepSeq) %>% 
-     dplyr::rename(repLeaderSeq = leaderSeq)
+  r <- paste0(readLines(file.path(opt$outputDir, 'uniqueLeaderSeqsClusters.clstr')), collapse = '')
+  r <- unlist(strsplit(r, '>Cluster'))
 
-u <- left_join(u, m, by = 'id') %>% dplyr::select(-id)
+  n <- 0
+  m <- bind_rows(lapply(r, function(x){
+         e <- unlist(stringr::str_extract_all(x, 's\\d+'))
+         if(length(e) > 0){
+           n <<- n + 1
+           return(tibble(id = e, 
+                         leaderSeqGroupNum = n, 
+                         clusterRepSeq = stringr::str_extract(stringr::str_extract(x, 's\\d+\\.+\\s+\\*'), 's\\d+')))
+         } else {
+           return(tibble())
+         }
+       }))
 
-i <- is.na(u$leaderSeqGroupNum)
-if(any(i)) u[i,]$leaderSeqGroupNum <- 0
+  m <- left_join(m, u, by = c('clusterRepSeq' = 'id')) %>% 
+       dplyr::select(-clusterRepSeq) %>% 
+       dplyr::rename(repLeaderSeq = leaderSeq)
 
-frags <- left_join(frags, u, by = 'leaderSeq')
+  u <- left_join(u, m, by = 'id') %>% dplyr::select(-id)
+
+  i <- is.na(u$leaderSeqGroupNum)
+  if(any(i)) u[i,]$leaderSeqGroupNum <- 0
+
+  left_join(k, u, by = 'leaderSeq')
+}))
+
+
+# Leader seq group numbers do not represent the most common, often driven by the longest.
+# Reorder to reflect occurrence.
+
+o <- sort(table(frags$leaderSeqGroupNum), decreasing = TRUE)
+d <- tibble(leaderSeqGroupNum = as.integer(names(o)), leaderSeqGroupNum2 = 1:length(o))
+frags <- left_join(frags, d, by = 'leaderSeqGroupNum')
+frags$leaderSeqGroupNum <- frags$leaderSeqGroupNum2
+frags$leaderSeqGroupNum2 <- NULL
+
 frags$leaderSeqGroup <- paste0(frags$trial, '~', frags$subject, '~', frags$leaderSeqGroupNum)
 frags$leaderSeqGroupNum <- NULL
 
-rm(n, m, o, u , r)
+rm(o, d)
 gc()
 
 # Define fragment ids including ITR/LTR grouping ids and random ids.
@@ -180,6 +196,7 @@ frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample
 # frags is on the read level, here we create f which tallies read counts for each fragment and we 
 # standardize within subjects + ITR/LTR groupings. This will prevent closely spaced events with 
 # different ITR/LTR remnants from being merged. Updated positions can be joined and updated via fragID.
+#------------------------------------------------------------------------------------------------------
 
 f <- group_by(frags, fragID) %>% 
      summarise(seqnames = chromosome[1], start = fragStart[1], end = fragEnd[1], strand = strand[1], 
@@ -219,23 +236,58 @@ g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s
 
 g <- data.frame(g)
 
+# Join updated positions to the input data frame.
+frags <- left_join(frags, select(g, start, end, fragID), by = 'fragID')
+
+# Assign the new integration positions.
+frags$fragStart <- frags$start
+frags$fragEnd   <- frags$end
+frags <- select(frags, -start, -end)
+
+
+# Update position and fragment ids.
+frags$posid <- paste0(frags$chromosome, frags$strand, 
+                      ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd),
+                      '.', stringr::str_extract(frags$leaderSeqGroup, '\\d+$'))
+
+rm(g)
+
+frags$s <- paste0(frags$leaderSeqGroup, '~', frags$sample, '~', frags$replicate)
+
+f <- group_by(frags, fragID) %>% 
+     summarise(seqnames = chromosome[1], start = fragStart[1], end = fragEnd[1], strand = strand[1], 
+              reads = n_distinct(readID) + sum(nDuplicateReads), fragID = fragID[1], s = s[1]) %>%
+     ungroup()
+
+g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
+
+g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
+  library(dplyr)
+  library(GenomicRanges)
+  source(file.path(opt$softwareDir, 'lib.R'))
+  source(file.path(opt$softwareDir, 'stdPos.lib.R'))
+  
+  x$breakPointsRefined <- FALSE
+  
+  out <- tryCatch({
+    o <- refine_breakpoints(x, counts.col = 'reads', sata.gap = 3)
+    o$breakPointsRefined <- TRUE
+    o
+  },
+  error=function(cond) {
+    x
+  },
+  warning=function(cond) {
+    o
+  })
+  
+  return(out)
+})))
+
+g <- data.frame(g)
 
 # Join updated positions to the input data frame.
 frags <- left_join(frags, select(g, start, end, fragID), by = 'fragID')
-rm(g)
-
-
-# Report percent of fragments 
-pIntSitePosUpdated <- sprintf("%.2f%%", (sum(unlist(lapply(split(frags, frags$strand), function(x){
-       if(x$strand[1] == '+'){
-         return(sum(x$fragStart != x$start))
-       } else {
-         return(sum(x$fragEnd != x$end))
-       }
-     }))) / nrow(frags))*100)
-
-write(c(paste(now(), '   ', pIntSitePosUpdated, ' of read records updated with corrected intSite positions.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
-
 
 # Assign the new integration positions.
 frags$fragStart <- frags$start
@@ -249,90 +301,120 @@ frags$posid <- paste0(frags$chromosome, frags$strand,
                       '.', stringr::str_extract(frags$leaderSeqGroup, '\\d+$'))
 
 
+
+
+
+
+
+
+
+
+
+
+# # Report percent of fragments 
+pIntSitePosUpdated <- sprintf("%.2f%%", (sum(unlist(lapply(split(frags, frags$strand), function(x){
+       if(x$strand[1] == '+'){
+         return(sum(x$fragStart != x$start))
+       } else {
+         return(sum(x$fragEnd != x$end))
+       }
+     }))) / nrow(frags))*100)
+
+write(c(paste(now(), '   ', pIntSitePosUpdated, ' of read records updated with corrected intSite positions.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+
+
+
+
+
+
+
+
 # Determine which read level fragment records map to multiple position ids.
 u <- group_by(frags, readID) %>% mutate(nPosIDs = n_distinct(posid)) %>% ungroup() %>% filter(nPosIDs == 1) %>% pull(readID)
 frags_uniqPosIDs <- frags[frags$readID %in% u,]   # (!) May have sonic break position chatter.
 frags_multPosIDs <- frags[! frags$readID %in% u,]
 
 
-# Remove UMIs found in unique frags from multiHit frags.
-# UMIs will server as an abundance metrics in multihits.
-
-# Check w/ real data...
-
 
 # Create quick look-up index.
 frags_uniqPosIDs$i <- paste(frags_uniqPosIDs$trial, frags_uniqPosIDs$subject, frags_uniqPosIDs$sample)
 
-# Identify random ids that span more than one integration position.
-r <- group_by(frags_uniqPosIDs, trial, subject, sample, randomLinkerSeq) %>% 
-     mutate(n = n_distinct(posid)) %>% 
-     ungroup() %>%
-     filter(n > 1) %>%
-     select(trial, subject, sample, randomLinkerSeq) %>%
-     mutate(i = paste(trial, subject, sample))
 
-if(nrow(r) > 0){
-  # Quick sonicAbundance table based on non-standardized break points.
-  f <- mutate(frags_uniqPosIDs, fragWidth = (fragEnd - fragStart) + 1) %>%
-       select(trial, subject, sample, posid, fragWidth) %>%
-       group_by(trial, subject, sample, posid) %>% 
-       summarise(estAbund = n_distinct(fragWidth)) %>% 
-       ungroup() %>% 
+if(opt$demultiplex_processAdriftReadLinkerUMIs){
+
+  # Identify random ids that span more than one integration position.
+  r <- group_by(frags_uniqPosIDs, trial, subject, sample, randomLinkerSeq) %>% 
+       mutate(n = n_distinct(posid)) %>% 
+       ungroup() %>%
+       filter(n > 1) %>%
+       select(trial, subject, sample, randomLinkerSeq) %>%
        mutate(i = paste(trial, subject, sample))
+
+  if(nrow(r) > 0){
+    # Quick sonicAbundance table based on non-standardized break points.
+    f <- mutate(frags_uniqPosIDs, fragWidth = (fragEnd - fragStart) + 1) %>%
+         select(trial, subject, sample, posid, fragWidth) %>%
+         group_by(trial, subject, sample, posid) %>% 
+         summarise(estAbund = n_distinct(fragWidth)) %>% 
+         ungroup() %>% 
+         mutate(i = paste(trial, subject, sample))
   
-  invisible(lapply(split(r, r$randomLinkerSeq), function(x){
-          # Retrieve all reads for this duplicated random linker sequence
-          o <- subset(frags_uniqPosIDs, i == x$i[1] & randomLinkerSeq == x$randomLinkerSeq[1])
-          t <- data.frame(sort(table(o$posid), decreasing = TRUE)) %>%
-               left_join(subset(f, i == x$i[1]), by = c('Var1' = 'posid')) %>% 
-               arrange(desc(Freq))
+    invisible(lapply(split(r, r$randomLinkerSeq), function(x){
+            # Retrieve all reads for this duplicated random linker sequence
+            o <- subset(frags_uniqPosIDs, i == x$i[1] & randomLinkerSeq == x$randomLinkerSeq[1])
+            t <- data.frame(sort(table(o$posid), decreasing = TRUE)) %>%
+                 left_join(subset(f, i == x$i[1]), by = c('Var1' = 'posid')) %>% 
+                 arrange(desc(Freq))
           
-          # The top posid associated with this random id is read x times greater than the second - assign all to the first.
-          if(nrow(t) > 1 & t[1,]$Freq >= t[2,]$Freq * opt$buildStdFragments_randomIDdupReadMult){
-            ind <- which(frags_uniqPosIDs$posid != t[1,]$Var1 & frags_uniqPosIDs$randomLinkerSeq == x$randomLinkerSeq[1])
-            frags_uniqPosIDs <<- frags_uniqPosIDs[-ind,]
-            return()
-          }
+            # The top posid associated with this random id is read x times greater than the second - assign all to the first.
+            if(nrow(t) > 1 & t[1,]$Freq >= t[2,]$Freq * opt$buildStdFragments_randomIDdupReadMult){
+              ind <- which(frags_uniqPosIDs$posid != t[1,]$Var1 & frags_uniqPosIDs$randomLinkerSeq == x$randomLinkerSeq[1])
+              frags_uniqPosIDs <<- frags_uniqPosIDs[-ind,]
+              return()
+            }
           
-          # The top posid associated with this random id is more than x times abundant than the second - assign all to the first.
-          t <- arrange(t, desc(estAbund))
-          if(nrow(t) > 1 & t[1,]$estAbund >= t[2,]$estAbund * opt$buildStdFragments_randomIDdupAbundMult){
-            ind <- which(frags_uniqPosIDs$posid != t[1,]$Var1 & frags_uniqPosIDs$randomLinkerSeq == x$randomLinkerSeq[1])
-            frags_uniqPosIDs <<- frags_uniqPosIDs[-ind,]
-            return()
-          }
+            # The top posid associated with this random id is more than x times abundant than the second - assign all to the first.
+            t <- arrange(t, desc(estAbund))
+            if(nrow(t) > 1 & t[1,]$estAbund >= t[2,]$estAbund * opt$buildStdFragments_randomIDdupAbundMult){
+              ind <- which(frags_uniqPosIDs$posid != t[1,]$Var1 & frags_uniqPosIDs$randomLinkerSeq == x$randomLinkerSeq[1])
+              frags_uniqPosIDs <<- frags_uniqPosIDs[-ind,]
+              return()
+            }
                   
-         # We can not reasonably determine the true source of this random identifier, remove reads with this random id.
-         ind <- which(frags_uniqPosIDs$randomLinkerSeq == x$randomLinkerSeq[1])
-         frags_uniqPosIDs <<- frags_uniqPosIDs[-ind,]
+           # We can not reasonably determine the true source of this random identifier, remove reads with this random id.
+           ind <- which(frags_uniqPosIDs$randomLinkerSeq == x$randomLinkerSeq[1])
+           frags_uniqPosIDs <<- frags_uniqPosIDs[-ind,]
          
-         return()
-       }))
-}
-
-# Determine if any random tags have more than one width.
-f <- mutate(frags_uniqPosIDs, fragWidth = fragEnd - fragStart + 1) %>%
-     group_by(trial, subject, sample, randomLinkerSeq) %>% 
-     summarise(n = n_distinct(fragWidth), i = i[1]) %>% 
-     ungroup()
-
-
-# Use read counts to determine the most likely random fragment boundary.
-if(any(f$n > 1)){
-  f2 <- subset(f, n > 1)
+           return()
+         }))
+  }
   
-  invisible(lapply(split(f2, f2$randomLinkerSeq), function(x){
-    ind <- which(frags_uniqPosIDs$i == x$i & frags_uniqPosIDs$randomLinkerSeq == x$randomLinkerSeq)
-    o <- frags_uniqPosIDs[ind,]
+  # Determine if any random tags have more than one width.
+  f <- mutate(frags_uniqPosIDs, fragWidth = fragEnd - fragStart + 1) %>%
+    group_by(trial, subject, sample, randomLinkerSeq) %>% 
+    summarise(n = n_distinct(fragWidth), i = i[1]) %>% 
+    ungroup()
+  
+  
+  # Use read counts to determine the most likely random fragment boundary.
+  if(any(f$n > 1)){
+    f2 <- subset(f, n > 1)
     
-    if(o$strand[1] == '+'){
-      frags_uniqPosIDs[ind,]$fragEnd <<- as.integer(names(sort(table(o$fragEnd), decreasing = TRUE))[1])
-    } else {
-      frags_uniqPosIDs[ind,]$fragStart <<- as.integer(names(sort(table(o$fragStart), decreasing = TRUE))[1])
-    }
-  }))
+    invisible(lapply(split(f2, f2$randomLinkerSeq), function(x){
+      ind <- which(frags_uniqPosIDs$i == x$i & frags_uniqPosIDs$randomLinkerSeq == x$randomLinkerSeq)
+      o <- frags_uniqPosIDs[ind,]
+      
+      if(o$strand[1] == '+'){
+        frags_uniqPosIDs[ind,]$fragEnd <<- as.integer(names(sort(table(o$fragEnd), decreasing = TRUE))[1])
+      } else {
+        frags_uniqPosIDs[ind,]$fragStart <<- as.integer(names(sort(table(o$fragStart), decreasing = TRUE))[1])
+      }
+    }))
+  }
+  
 }
+
+  
 
 # Correct for instances where a read maps to more than fragment but all fragments have the same integration position.
 # These are instances of fuzzy break points and here we select the shortest fragments lengths.
