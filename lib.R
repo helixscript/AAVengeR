@@ -202,15 +202,50 @@ blat <- function(y, ref, dir){
   f <- file.path(dir, tmpFile())
   write(paste0('>', y$id, '\n', y$seq), f)
   
+  occFlag <- ''
+  if(opt$alignReads_blatUseOocFile){
+    occFlag <- paste0(' -ooc=', file.path(opt$outputDir, opt$alignReads_outputDir, paste0(opt$alignReads_genomeAlignment_blatTileSize, '.ooc'))) 
+  }
+  
   system(paste0('blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
                 ' -tileSize=', opt$alignReads_genomeAlignment_blatTileSize, 
                 ' -stepSize=', opt$alignReads_genomeAlignment_blatStepSize, 
-                ' -repMatch=', opt$alignReads_genomeAlignment_repMatch, 
-                ' -out=psl -t=dna -q=dna -minScore=0 -minIdentity=0 -noHead -noTrimA', 
-                ifelse(opt$alignReads_blat_fastMap, ' -fastMap', '')))
+                ' -repMatch=', opt$alignReads_genomeAlignment_blatRepMatch, 
+                ' -out=psl -t=dna -q=dna -minScore=0 -minIdentity=0 -noHead -noTrimA',
+                occFlag, ifelse(opt$alignReads_blat_fastMap, ' -fastMap', '')))
   
   write('done', paste0(f, '.done'))
 }
+
+
+alignReadEndsToVector <- function(y){
+  library(Biostrings)
+  library(data.table)
+  library(dplyr)
+  library(lubridate)
+  
+  s <- DNAStringSet(y$testSeq)
+  names(s) <- y$readID
+  
+  b <- blastReads(s, tmpDirPath = file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'), dbPath = file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'))
+  
+  if(nrow(b) > 0){
+    b$alignmentLength <- b$qend - b$qstart + 1
+    b <- dplyr::filter(b, pident >= opt$prepReads_vectorAlignmentTest_minPercentID, alignmentLength >= floor(opt$prepReads_vectorAlignmentTestLength * (opt$prepReads_vectorAlignmentTest_minPercentCoverage/100)), gapopen <= 1)
+  }
+  
+  if(nrow(b) > 0){
+    message('f3')
+    b <- left_join(b, data.table(qname = names(s), testSeq = as.character(s)), by = 'qname')
+    b$start  <- ifelse(b$sstart > b$send, b$send, b$sstart)
+    b$end    <- ifelse(b$sstart > b$send, b$sstart, b$send)
+    b$strand <- ifelse(b$sstart > b$send, '-', '+')
+    b <- group_by(b, qname) %>% dplyr::top_n(1, wt = bitscore) %>% dplyr::arrange(desc(strand)) %>% dplyr::slice(1) %>% ungroup()
+  }
+  
+  b
+}
+
 
 
 # Pull non-standardized fragments from a database based on trial and subject ids.
@@ -321,7 +356,7 @@ loadSamples <- function(){
   }
   
   if('refGenome' %in% names(samples)){
-    if(! all(sapply(unique(file.path(opt$softwareDir, 'data', 'referenceGenomes', paste0(samples$refGenome, '.2bit'))), file.exists))){
+    if(! all(sapply(unique(file.path(opt$softwareDir, 'data', 'referenceGenomes', 'blat', paste0(samples$refGenome, '.2bit'))), file.exists))){
       write(c(paste(now(), "Error - one or more blat database files could not be found in AAVengeR's data/referenceGenomes directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
       q(save = 'no', status = 1, runLast = FALSE) 
     }
@@ -420,9 +455,14 @@ loadSamples <- function(){
 }
 
 
-parseBLAToutput <- function(f){
+parseBLAToutput <- function(f, convertToBlatPSL = FALSE){
   if(! file.exists(f) | file.info(f)$size == 0) return(tibble::tibble())
   b <- readr::read_delim(f, delim = '\t', col_names = FALSE, col_types = readr::cols())
+  
+  if(convertToBlatPSL){
+    b$X12 <- ifelse(b$X9 == '-', b$X11 - b$X13, b$X12)
+    b$X13 <- ifelse(b$X9 == '-', b$X11 - b$X12, b$X13)
+  }
   
   names(b) <- c('matches', 'misMatches', 'repMatches', 'nCount', 'qNumInsert', 'qBaseInsert', 'tNumInsert', 'tBaseInsert', 'strand',
                 'qName', 'qSize', 'qStart', 'qEnd', 'tName', 'tSize', 'tStart', 'tEnd', 'blockCount', 'blockSizes', 'qStarts', 'tStarts')
@@ -1094,7 +1134,7 @@ setOptimalParameters <- function(){
   }
 
   if(grepl('quick', opt$mode, ignore.case = TRUE)){
-    opt$alignReads_genomeAlignment_repMatch <<- 1000
+    opt$alignReads_genomeAlignment_blatRepMatch <<- 1000
     opt$buildStdFragments_createMultiHitClusters <<- FALSE
   }
 }

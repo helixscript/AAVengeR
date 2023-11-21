@@ -31,6 +31,7 @@ write(c('#!/usr/bin/sh',
 system(paste('chmod 755', file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh')))
 system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, show.output.on.console = FALSE)
 
+
 # Read in demultiplex result.
 reads <- readRDS(file.path(opt$outputDir, 'core', 'demultiplex', 'reads.rds'))
 

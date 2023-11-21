@@ -18,20 +18,22 @@ opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 setOptimalParameters()
 
-# The launch script creates (if missing) and writes to the output directory.
-# File write permission issues should be caught before starting modules.
-if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
-dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'))
-dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))
-
 if(! file.exists(opt$demultiplex_sampleDataFile)){
   write(c(paste(now(), '   Error - the sample configuration file could not be found')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
+# Create required directory structure.
+if(! dir.exists(file.path(opt$outputDir))) dir.create(file.path(opt$outputDir))
+if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
+if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp')))  dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'))
+if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))
+
+# Read in sample data.
 write(c(paste(now(), '   Loading sample data')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = FALSE)
 samples <- loadSamples()
 
+# Throw errors if expected files are missing.
 if(! file.exists(opt$demultiplex_adriftReadsFile)){
   write(c(paste(now(), 'Error - the adrift reads file could not be found')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE) 
@@ -46,6 +48,11 @@ if(! file.exists(opt$demultiplex_index1ReadsFile)){
   write(c(paste(now(), '   Error - the anchor reads file could not be found')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
   q(save = 'no', status = 1, runLast = FALSE) 
 } 
+
+
+
+# Read in the I1 fastq file which will be used to determine the length of the data set
+# and to determine if the reverse compliment of I1 should be used.
 
 I1 <- ShortRead::readFastq(opt$demultiplex_index1ReadsFile)
 dataSetLength <- length(I1)
@@ -69,18 +76,24 @@ if(opt$demultiplex_RC_I1_barcodes_auto){
 # Reverse compliment index1 sequences if requested.
 if(opt$demultiplex_RC_I1_barcodes) samples$index1Seq <- as.character(reverseComplement(DNAStringSet(samples$index1Seq)))
 
+
+# Create CPU clusters.
 cluster <- makeCluster(opt$demultiplex_CPUs)
 clusterExport(cluster, c('opt', 'samples'))
 
+
+# Create FASTQ file streamer objects.
 index1.strm <- FastqStreamer(opt$demultiplex_index1ReadsFile, n = as.integer(opt$demultiplex_sequenceChunkSize))
 anchor.strm <- FastqStreamer(opt$demultiplex_anchorReadsFile, n = as.integer(opt$demultiplex_sequenceChunkSize))
 adrift.strm <- FastqStreamer(opt$demultiplex_adriftReadsFile, n = as.integer(opt$demultiplex_sequenceChunkSize))
 
+
+
+# Stream chunks of FASTQ for I1, R1, and R2, write chunks to disk, then process in parallel.
 n <- 1
 k <- 1
 processedReads <- 0
 
-date()
 repeat {
   message('n: ', n, ' k: ', k)
   index1.fq <- yield(index1.strm)
@@ -111,12 +124,12 @@ repeat {
   n <- n + 1
   k <- k + 1
 }
-date()
 
 
-# Collate chunked reads and write out sample read files.
+
+# Collate demultiplexed chunks into a single data table.
+
 write(paste(now(), '   Colating data files.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-
 counter <- 1
 totalRepSamples <- n_distinct(samples$uniqueSample)
 
@@ -154,7 +167,10 @@ if(nrow(reads) == 0){
 write(paste(now(), '   Clearing tmp files.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
 
+
+
 # Collect all the logs from the different computational nodes and create a single report.
+
 write(paste(now(), '   Colating log files.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
 
 logReport <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'), pattern = '*.logReport$', full.names = TRUE), function(f){
@@ -178,6 +194,10 @@ write(paste(now(), '   Writing attrition table.'), file = file.path(opt$outputDi
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'), recursive = TRUE))
 write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))
 
+
+
+# Expand read table with additional columns when appropriate.
+
 if('anchorReadStartSeq' %in% names(samples)){
   reads <- left_join(reads, select(samples, uniqueSample, anchorReadStartSeq), by = 'uniqueSample')
 }
@@ -185,6 +205,11 @@ if('anchorReadStartSeq' %in% names(samples)){
 if('leaderSeqHMM' %in% names(samples)){
   reads <- left_join(reads, select(samples, uniqueSample, leaderSeqHMM), by = 'uniqueSample')
 }
+
+
+
+# If a database group is defined in the configuration file, make connect to the database 
+# and save the contents of the sample details file save a record of linker and barcodes. 
 
 if('databaseGroup' %in% names(opt)){
   library(RMariaDB)
@@ -218,7 +243,10 @@ if('databaseGroup' %in% names(opt)){
   dbDisconnect(conn)
 }
 
-reads$seqRunID <- opt$demultiplex_seqRunID
+
+
+# If UMI processing is disabled, set all random UMI sequences to poly-A and updated
+# adrift reads by replacing the random UMI sequences with poly-A.
 
 if(! opt$demultiplex_processAdriftReadLinkerUMIs){
   reads$adriftReadRandomID <- 'AAAAAAAAAAAA'
@@ -232,6 +260,89 @@ if(! opt$demultiplex_processAdriftReadLinkerUMIs){
 }
 
 
+# Align demultiplexed reads to the reference genome with bwa2-mem and only 
+# retain reads that align. These alignments will not be as accurate and blat's
+# alignments but removing reads that blat will likely not be able to align 
+# greatly increase the speed of the pipeline.
+
+# Here we are aligning reads before collapsing reads to unique or clustered groupings.
+# This puts more of a burden on bwa2 but helps with tracking reads since running this 
+# alignment after grouping the reads would cause groups of reads to fall out of the analysis 
+# and disrupt read counts. 
+
+if(opt$demultiplex_quickAlignFilter){
+  readsLengthPreFilter <- n_distinct(reads$readID)
+  
+  write(paste(now(), '   Prefiltering', readsLengthPreFilter, 'reads with bwa2.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  
+  reads <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
+    
+    o <- DNAStringSet(substr(x$adriftReadSeq, x$adriftLinkerSeqEnd+1, nchar(x$adriftReadSeq)))
+    names(o) <- x$readID
+    writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'))
+    
+    system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 100000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
+                  file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'), ' > ',
+                  file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam')))
+    
+    system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', 
+                  file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'), ' -o ',
+                  file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl')))
+    
+    a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'), convertToBlatPSL = TRUE)
+    a <- dplyr::filter(a, alignmentPercentID >= opt$demultiplex_quickAlignFilter_minPercentID, tNumInsert <= 1, 
+                       qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= 5, matches >= opt$demultiplex_quickAlignFilter_minMatches)
+    
+    invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'), 
+                          file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'),
+                          file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl')))
+    
+    x <- subset(x, readID %in% a$qName)
+    
+    o <- DNAStringSet(substr(x$anchorReadSeq, opt$demultiplex_quickAlignFilter_minEstLeaderSeqLength, nchar(x$anchorReadSeq)))
+    names(o) <- x$readID
+    writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'))
+    
+    system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 100000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
+                  file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'), ' > ',
+                  file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam')))
+    
+    system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', 
+                  file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam'), ' -o ',
+                  file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
+    
+    p <- readr::read_tsv(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'), col_names = FALSE)
+    invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
+    
+    p$X12 <- ifelse(p$X9 == '-', p$X11 - p$X13, p$X12)
+    p$X13 <- ifelse(p$X9 == '-', p$X11 - p$X12, p$X13)
+    readr::write_tsv(p, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'), col_names = FALSE)
+    
+    a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'))
+    a <- dplyr::filter(a, alignmentPercentID >= opt$demultiplex_quickAlignFilter_minPercentID, tNumInsert <= 1, 
+                       qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, matches >= opt$demultiplex_quickAlignFilter_minMatches)
+    
+    invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam'), 
+                          file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'),
+                          file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
+    
+    x <- subset(x, readID %in% a$qName)
+    
+    x
+  }))
+  
+  d <- sprintf("%.2f%%", (1 - (n_distinct(reads$readID)/readsLengthPreFilter))*100)
+  
+  write(paste(now(), '   Prefiltering done.', d, 'reads removed.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+}
+
+
+
+
+
+# Filter reads based on the requested demultiplex level.
+# All reads, unique reads (R1 [minus linker] + R2), or clustered reads can be retained.
+# Read clustering is performed with CD-HIT-EST using the parameters passed in with demultiplex_mergeSimilarReadPairsParams.
 
 if(opt$demultiplex_level == 'all'){
   reads$nDuplicateReads <- 0
@@ -290,60 +401,13 @@ if(opt$demultiplex_level == 'all'){
 }
 
 
-if(opt$demultiplex_quickAlignFilter){
-  reads <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
-             o <- DNAStringSet(substr(x$adriftReadSeq, x$adriftLinkerSeqEnd+1, nchar(x$adriftReadSeq)))
-             names(o) <- x$readID
-             writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'))
-
-             system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 100000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
-                    file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'), ' > ',
-                    file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam')))
-
-             system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', 
-                    file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'), ' -o ',
-                    file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl')))
-           
-             a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'))
-             a <- dplyr::filter(a, alignmentPercentID >= 97, tNumInsert <= 1, 
-                                qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= 5, matches >= 30)
-           
-             invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'), 
-                                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'),
-                                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl')))
-           
-             x <- subset(x, readID %in% a$qName)
-           
-             o <- DNAStringSet(substr(x$anchorReadSeq, 15, nchar(x$anchorReadSeq)))
-             names(o) <- x$readID
-             writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'))
-           
-             system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 100000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
-                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'), ' > ',
-                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam')))
-           
-             system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', 
-                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam'), ' -o ',
-                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
-           
-             a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'))
-             a <- dplyr::filter(a, alignmentPercentID >= 97, tNumInsert <= 1, 
-                                qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, matches >= 30)
-           
-             invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam'), 
-                                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'),
-                                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
-           
-             x <- subset(x, readID %in% a$qName)
-           
-             x
-           }))
-}
-
+# Save demultiplexed reads and clean up.
+reads$seqRunID <- opt$demultiplex_seqRunID
 saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = opt$compressDataFiles)
-
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
 
+
+# FASTQ export if requested in the configuration file.
 if(opt$demultiplex_exportFASTQ){
   
   dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'fastq'))

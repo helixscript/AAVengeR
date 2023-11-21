@@ -15,11 +15,10 @@ setOptimalParameters()
 
 
 # Create the required directory structure.
-dir.create(file.path(opt$outputDir, opt$alignReads_outputDir))
-write(c(paste(lubridate::now(), '   Creating required directories and CPU cluster.')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = FALSE)
-dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'tmp'))
-dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'))
-dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'))
+if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir))
+if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'tmp'))
+if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'))
+if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'))
 
 
 # Read in sequencing data.
@@ -31,9 +30,97 @@ incomingSamples <- unique(reads$uniqueSample)
 cluster <- makeCluster(opt$alignReads_CPUs)
 clusterExport(cluster, c('opt', 'tmpFile'))
 
+alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
+  
+  if(opt$alignReads_aligner == 'bwa2' | opt$alignReads_blatPreAlignWithBWA2){
+        refGenomePath <-  file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', refGenome)
+        f <- file.path(dir, tmpFile())
+        write(paste0('>', r$id, '\n', r$seq), f)
+        system(paste0('bwa-mem2 mem -t ', opt$alignReads_CPUs  ,' -c 100000 -a ', refGenomePath, ' ', f, ' > ', f, '.sam'))
+        system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', f, '.sam -o ', f, '.psl'))
+        invisible(file.remove(paste0(f, '.sam')))
+  }
+  
+  # If a pre-blat BWA2 alignment was requested, read in the result and find near perfect single alignments
+  # then remove these aligned sequences from the blat input.
+  
+  bwa2PassingAlignments <- tibble()
+  
+  if(opt$alignReads_blatPreAlignWithBWA2){
 
-# Expand reference genome id to full path.
-reads$refGenome <- file.path(opt$softwareDir, 'data', 'referenceGenomes', paste0(reads$refGenome, '.2bit'))
+      b <- parseBLAToutput(list.files(dir, pattern = '.psl$', full.names = TRUE), convertToBlatPSL = TRUE)
+      
+      # Remove the bwa2 pre-alignment files. 
+      # Never combine alignReads_aligner == 'bwa2' & alignReads_blatPreAlignWithBWA2 == TRUE otherwise the BWA result will be lost.
+      invisible(file.remove(list.files(dir, full.names = TRUE)))  
+
+      if(nrow(b)){
+        # Here we accept alignments that are singular and cover all or almost all of the aligned sequences.
+        bwa2PassingAlignments <- dplyr::filter(b, alignmentPercentID >= minPercentSeqID , tNumInsert <= 1,
+                                               qNumInsert <= 1, tBaseInsert <= 1, qBaseInsert <= 2, qStart <= 2, qEnd >= qSize-2) %>%
+                                 dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
+
+        # Only select single alignments.
+        bwa2PassingAlignments <- subset(bwa2PassingAlignments, ! qName %in% bwa2PassingAlignments$qName[duplicated(bwa2PassingAlignments$qName)])
+
+        nReadsPreFilter <- n_distinct(r$id)
+        r <- subset(r, ! id %in% bwa2PassingAlignments$qName)
+        message(sprintf("%.2f%%", (1 - (n_distinct(r$id) / nReadsPreFilter))*100), ' reads aligned by bwa2 pre-filtered')
+      }
+  } 
+  
+  
+  # If blat is requested as the aligner, run blat on sequence chunks with parLapply().
+  if(opt$alignReads_aligner == 'blat' & nrow(r) > 0){
+
+    refGenomePath <-  file.path(opt$softwareDir, 'data', 'referenceGenomes', 'blat', paste0(refGenome, '.2bit'))
+      
+    # Create an OOC file if requested
+    if(opt$alignReads_blatUseOocFile){
+      system(paste0('blat ', refGenomePath, ' /dev/null /dev/null -repMatch=',
+                    opt$alignReads_genomeAlignment_blatRepMatch, ' -makeOoc=',
+                    file.path(opt$outputDir, opt$alignReads_outputDir, paste0(opt$alignReads_genomeAlignment_blatTileSize, '.ooc'))))
+    }
+
+    # Create a split vector that attempts to equally distributes different length sequences between CPUs.
+    r$cut <- cut(nchar(r$seq), c(-Inf, seq(0, max(nchar(r$seq)), by = 10), Inf), labels = FALSE)
+    r <- group_by(r, cut) %>% mutate(n = ntile(1:n(), opt$alignReads_CPUs)) %>% ungroup()
+    invisible(parLapply(cluster, split(r, r$n), blat, refGenomePath, dir))
+  }
+  
+  
+  # Read in and parse the psl files created by either bwa2 or blat.
+  b <- tibble()
+  f <- list.files(dir, pattern = '*.psl', full.names = TRUE)
+  if(length(f) > 0){
+    b <- rbindlist(lapply(f, function(x){
+    
+           if(opt$alignReads_aligner == 'bwa2'){
+             # bwa2 will yield a single psl file (converted from sam) to parse.
+             b <- data.table(parseBLAToutput(x, convertToBlatPSL = TRUE))
+           } else {
+             b <- data.table(parseBLAToutput(x))
+           }
+
+           if(nrow(b) == 0) return(data.table())
+         
+           dplyr::filter(b, alignmentPercentID >= minPercentSeqID, tNumInsert <= 1, qNumInsert <= 1, 
+                            tBaseInsert <= 2, qBaseInsert <= 2, qStart <= maxQstart) %>%
+           dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
+        }))
+  }
+
+  # Files need to be removed otherwise the join below will keep joining files from previous genomes.
+  invisible(file.remove(list.files(dir, full.names = TRUE)))
+
+  message(n_distinct(b$qName), ' aligned in psl file.')
+  
+  # Add back near-perfect pre-aligned reads.
+  b <- bind_rows(b, bwa2PassingAlignments)
+
+  message(n_distinct(b$qName), ' reads aligned.')
+  b
+}
 
 
 # Align anchor reads.
@@ -41,52 +128,25 @@ anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   s <- data.table(seq = unique(x$anchorReadSeq))
   s$id <- paste0('s', 1:nrow(s))
   
-  s$cut <- cut(nchar(s$seq), c(-Inf, seq(0, max(nchar(s$seq)), by = 10), Inf), labels = FALSE)
-  s <- group_by(s, cut) %>% mutate(n = ntile(1:n(), opt$alignReads_CPUs)) %>% ungroup()
-  
-  write(c(paste0(now(), '    Aligning ', nrow(s), ' anchor reads against ', x$refGenome[1], '.')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = TRUE)
-  
-  dir <- file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1')
-  
-  if(opt$alignReads_aligner == 'bwa2'){
-    f <- file.path(dir, tmpFile())
-    write(paste0('>', s$id, '\n', s$seq), f)
-    system(paste0('bwa-mem2 mem -t ', opt$alignReads_CPUs  ,' -c 100000 -a ', sub('\\.2bit$', '', x$refGenome[1]), ' ', f, ' > ', f, '.sam'))
-    system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', f, '.sam -o ', f, '.psl'))
-    invisible(file.remove(paste0(f, '.sam')))
-    write('done', paste0(f, '.done'))
-  } else {
-    invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome[1], dir))
-    #invisible(lapply(split(s, s$n), blat, x$refGenome[1], dir))
-  }
-  
-  b <- rbindlist(lapply(list.files(dir, pattern = '*.psl', full.names = TRUE), function(x){
-         b <- data.table(parseBLAToutput(x))
-         
-         if(nrow(b) == 0) return(data.table())
-    
-         dplyr::filter(b, alignmentPercentID >= opt$alignReads_genomeAlignment_minPercentID, tNumInsert <= 1, 
-                       qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= opt$alignReads_genomeAlignment_anchorRead_maxStartPos) %>%
-         dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
-  }))
-  
-  # Files need to be removed otherwise the join below will keep joining files from previous genomes.
-  invisible(file.remove(list.files(dir, full.names = TRUE)))
+  b <- alignReads(s, x$refGenome[1], opt$alignReads_genomeAlignment_minPercentID, opt$alignReads_genomeAlignment_anchorRead_maxStartPos,  file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'))
   
   if(nrow(b) > 0){
-    # Use the unique sequences to map alignments back to sequences 
+    # Use the unique sequences to map alignments back to sequences
     b <- left_join(b, distinct(dplyr::select(s, id, seq)), by = c('qName' = 'id'))
+    
+    # Select reads that have an alignment.
     x2 <- dplyr::select(x, uniqueSample, readID, refGenome, anchorReadSeq) %>% dplyr::filter(anchorReadSeq %in% b$seq)
-    b <- left_join(x2, b, by = c('anchorReadSeq' = 'seq')) %>% dplyr::select(-anchorReadSeq, -qName)
-  } 
+    
+    # Join alignments to all reads using aligned sequences as keys.
+    b <- left_join(x2, b, by = c('anchorReadSeq' = 'seq'), relationship = 'many-to-many') %>% dplyr::select(-anchorReadSeq, -qName)
+  }
   
   b
 }))
 
+
 write(c(paste0(now(), '    ', sprintf("%.2f%%", (n_distinct(anchorReadAlignments$readID)/n_distinct(reads$readID))*100), 
                ' of prepped anchor reads aligned to the reference genome.')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = TRUE)
-
-
 
 # Select anchor reads where the ends align to the genome.
 i <- (anchorReadAlignments$qSize - anchorReadAlignments$qEnd) <= opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned
@@ -110,51 +170,27 @@ write(c(paste0(now(), '    ', sprintf("%.2f%%", (1 - n_distinct(anchorReadAlignm
 reads <- subset(reads, readID %in% anchorReadAlignments$readID)
 
 
-# Align adrift reads that had an anchor mate that aligned well.
+# Align adrift reads.
 adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
   s <- data.table(seq = unique(x$adriftReadSeq))
   s$id <- paste0('s', 1:nrow(s))
   
-  s$cut <- cut(nchar(s$seq), c(-Inf, seq(0, max(nchar(s$seq)), by = 10), Inf), labels = FALSE)
-  s <- group_by(s, cut) %>% mutate(n = ntile(1:n(), opt$alignReads_CPUs)) %>% ungroup() %>% data.table()
+  b <- alignReads(s, x$refGenome[1], opt$alignReads_genomeAlignment_minPercentID, opt$alignReads_genomeAlignment_adriftRead_maxStartPos,  file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'))
   
-  write(c(paste0(now(), '    Aligning ', nrow(s), ' adrift reads against ', x$refGenome[1], '.')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = TRUE)
-  
-  dir <- file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2')
-  
-  if(opt$alignReads_aligner == 'bwa2'){
-    f <- file.path(dir, tmpFile())
-    write(paste0('>', s$id, '\n', s$seq), f)
-    system(paste0('bwa-mem2 mem -t ', opt$alignReads_CPUs  ,' -c 100000 -a ', sub('\\.2bit$', '', x$refGenome[1]), ' ', f, ' > ', f, '.sam'))
-    system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', f, '.sam -o ', f, '.psl'))
-    invisible(file.remove(paste0(f, '.sam')))
-    write('done', paste0(f, '.done'))
-  } else {
-    invisible(parLapply(cluster, split(s, s$n), blat, x$refGenome[1], dir))
-    #invisible(lapply(split(s, s$n), blat, x$refGenome[1], dir))
-  }
-  
-  
-  b <- rbindlist(lapply(list.files(dir, pattern = '*.psl', full.names = TRUE), function(x){
-    b <- data.table(parseBLAToutput(x))
-    if(nrow(b) == 0) return(data.table())
-    
-    dplyr::filter(b, alignmentPercentID >= opt$alignReads_genomeAlignment_minPercentID, tNumInsert <= 1, 
-                  qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= opt$alignReads_genomeAlignment_adriftRead_maxStartPos) %>%
-      dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
-  }))
-  
-  invisible(file.remove(list.files(dir, full.names = TRUE)))
-  
-  # Use the unique sequences to map alignments back to sequences 
   if(nrow(b) > 0){
+    # Use the unique sequences to map alignments back to sequences
     b <- left_join(b, distinct(dplyr::select(s, id, seq)), by = c('qName' = 'id'))
+    
+    # Select reads that have an alignment.
     x2 <- dplyr::select(x, uniqueSample, readID, refGenome, adriftReadSeq) %>% dplyr::filter(adriftReadSeq %in% b$seq)
-    b <- left_join(x2, b, by = c('adriftReadSeq' = 'seq')) %>% dplyr::select(-adriftReadSeq, -qName)
-  } 
+    
+    # Join alignments to all reads using aligned sequences as keys.
+    b <- left_join(x2, b, by = c('adriftReadSeq' = 'seq'), relationship = 'many-to-many') %>% dplyr::select(-adriftReadSeq, -qName)
+  }
   
   b
 }))
+
 
 # Select adrift reads where the ends align to the genome.
 i <- (adriftReadAlignments$qSize - adriftReadAlignments$qEnd) <= opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned
@@ -187,7 +223,6 @@ if(sum(i) == 0){
 alignedReadIDsBeforeFilter <- n_distinct(adriftReadAlignments$readID)
 adriftReadAlignments <- adriftReadAlignments[i,]
 
-
 write(c(paste0(now(), '    ', sprintf("%.2f%%", (1 - n_distinct(adriftReadAlignments$readID) / alignedReadIDsBeforeFilter)*100), 
                ' of anchor reads removed because their alignments ended more than ',
                opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned,
@@ -215,11 +250,6 @@ anchorReadAlignments <- left_join(anchorReadAlignments, select(reads, readID, an
 anchorReadAlignments$leaderSeq <- paste0(anchorReadAlignments$leaderSeq, substr(anchorReadAlignments$anchorReadSeq, 1, anchorReadAlignments$qStart))
 anchorReadAlignments <- dplyr::select(anchorReadAlignments, -anchorReadSeq)
 
-# Remove .2bit suffixes.
-anchorReadAlignments$refGenome <- sapply(anchorReadAlignments$refGenome, lpe)
-anchorReadAlignments$refGenome <- sub('\\.2bit$', '', anchorReadAlignments$refGenome)
-adriftReadAlignments$refGenome <- sapply(adriftReadAlignments$refGenome, lpe)
-adriftReadAlignments$refGenome <- sub('\\.2bit$', '', adriftReadAlignments$refGenome)
 
 # Save anchor and adrift read alignments.
 saveRDS(dplyr::distinct(anchorReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'anchorReadAlignments.rds'), compress = opt$compressDataFiles)  

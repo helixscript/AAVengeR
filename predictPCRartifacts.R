@@ -24,7 +24,7 @@ sites$uniqueSite <- paste0(sites$trial, '~', sites$subject, '~', sites$sample, '
 cluster <- makeCluster(opt$predictPCRartifacts_CPUs)
 clusterExport(cluster, c('opt', 'tmpFile'))
 
-sites$refGenome <- file.path(opt$softwareDir, 'data', 'blatDBs', paste0(sites$refGenome, '.2bit'))
+sites$refGenome <- file.path(opt$softwareDir, 'data', 'referenceGenomes', 'blat', paste0(sites$refGenome, '.2bit'))
 sites$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', sites$vectorFastaFile)
 
 sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
