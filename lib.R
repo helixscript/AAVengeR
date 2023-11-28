@@ -64,6 +64,23 @@ checkSoftware <- function(){
 }
 
 
+CD_HIT_clusters <- function(x, dir, params){
+  f <- tmpFile()
+
+  writeXStringSet(x, file.path(dir, paste0(f, '.fasta')))
+  
+  system(paste0("cd-hit-est -i ", file.path(dir, paste0(f, '.fasta')), 
+                " -o ", file.path(dir, f), " -T ", opt$buildStdFragments_CPUs, 
+                " ", params, ' 1> /dev/null'))
+  
+  r <- paste0(readLines(paste0(file.path(dir, f), '.clstr')), collapse = '')
+  invisible(file.remove(list.files(dir, pattern = f, full.names = TRUE)))
+  o <- unlist(strsplit(r, '>Cluster'))
+  o[2:length(o)]
+}
+
+
+
 # Last Path Element -- return the last element of a file path delimited by slashes.
 
 lpe <- function(x){
@@ -496,36 +513,7 @@ parseCutadaptLog <- function(f){
   }
 }
 
-alignRemnantSeqs <- function(s, tmpDirPath = NA){
-    
-    if(length(s) > opt$buildStdFragments_representativeSeqCalc_maxReads){
-      set.seed(1)
-      s <- sample(s, opt$buildStdFragments_representativeSeqCalc_maxReads)
-    }
 
-    # Align sequences in order to handle potential indels.
-    f <- tmpFile()
-    inputFile <- file.path(tmpDirPath, paste0(f, '.fasta'))
-    fileConn <- file(inputFile)
-    write(paste0('>', paste0('s', 1:length(s)), '\n', s), file = fileConn)
-    close(fileConn)
-
-    # Align sequences.
-    outputFile <- file.path(tmpDirPath, paste0(f, '.representativeSeq.muscle'))
-    system(paste('muscle -quiet -maxiters 1 -diags -in ', inputFile, ' -out ', outputFile))
-
-    if(! file.exists(outputFile)) waitForFile(outputFile)
-    
-    r <- Biostrings::readDNAMultipleAlignment(outputFile)
-    
-    # Close the connection created by readDNAStringSet which are sometimes left often.
-    g <- grepl(f, showConnections(all = TRUE)[,1])
-    if(any(g)) close.connection(getConnection(which(grepl(f, g)) - 1))
-    
-    invisible(file.remove(c(inputFile, outputFile)))
-    
-    r
-}
 
 
 calcRepLeaderSeq <- function(d, threads = 2){

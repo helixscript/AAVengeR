@@ -151,6 +151,7 @@ cluster <- makeCluster(opt$buildSites_CPUs)
 clusterExport(cluster, c('opt', 'frags'))
 
 sites <- bind_rows(parLapply(cluster, split(frags, frags$g), function(x){  
+#sites <- bind_rows(lapply(split(frags, frags$g), function(x){    
            library(dplyr)
            library(Biostrings)
            library(stringdist)
@@ -161,7 +162,7 @@ sites <- bind_rows(parLapply(cluster, split(frags, frags$g), function(x){
                               summarise(count = n(), reads = sum(as.integer(reads))) %>% 
                               ungroup() %>% arrange(desc(count), desc(reads))
            
-           repLeaderSeq <- leaderSeqTbl2$seq[1]
+           x$repLeaderSeq <- leaderSeqTbl2$seq[1]
  
            if(nrow(x) == 1 & nrow(leaderSeqTbl2) == 1){
               return(dplyr::mutate(x, UMIs = n_distinct(x$randomLinkerSeq), 

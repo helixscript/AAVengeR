@@ -3,19 +3,20 @@ mode: AAV    # integrase, AAV, transposase, or manual
 
 outputDir: output
 compressDataFiles: FALSE
-core_CPUs: 15
-core_maxPercentCPUs: 20
+core_CPUs: 30
+core_maxPercentCPUs: 33
 demultiplex_seqRunID: xxx
 demultiplex_anchorReadsFile: data/Undetermined_S0_R2_001.fastq.gz
 demultiplex_adriftReadsFile: data/Undetermined_S0_R1_001.fastq.gz
 demultiplex_index1ReadsFile: data/Undetermined_S0_I1_001.fastq.gz
-demultiplex_sampleDataFile:  data/sampleData.tsv
-demultiplex_level: unique  # all, unique, or clustered
+demultiplex_sampleDataFile:  data/sampleData_GTSP5467.tsv
+demultiplex_level: unique  # [all, unique, or clustered]
 demultiplex_quickAlignFilter: TRUE
 demultiplex_useAdriftReadUniqueLinkers: FALSE
 demultiplex_processAdriftReadLinkerUMIs: FALSE
-alignReads_aligner: blat # blat or bwa2
+alignReads_aligner: blat  # [blat or bwa2]
 alignReads_blatUseOocFile: TRUE
+alignReads_blatPreAlignWithBWA2: FALSE
 
 modules:
     - core
@@ -41,7 +42,7 @@ demultiplex_index1ReadMaxMismatch: 1                                            
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1                               # [integer]   (evaluated if demultiplex_useAdriftReadUniqueLinkers = TRUE) Max. number of mismatches allowed in R1 unique linker sequences.
 demultiplex_anchorReadStartSeq.maxMisMatch: 1                                   # [integer]   (evaluated if anchorReadStartSeq column provided in sampleData file) Max. number of mismatches allowed in anchor read start sequences.
 demultiplex_exportFASTQ: FALSE                                                  # [bollean]   Export demultiplexed reads as FASTQ to the demultiplex output folder.
-demultiplex_mergeSimilarReadPairsParams: '-c 0.98 -d 0 -M 0 -G 1 -aS 0.95 -aL 0.95 -s 0.95 -n 10 -gap -1000'
+demultiplex_mergeSimilarReadPairsParams: '-c 0.98 -d 0 -M 0 -G 1 -aS 0.98 -aL 0.98 -s 0.98 -n 10 -gap -1000'
 demultiplex_quickAlignFilter_minPercentID: 97
 demultiplex_quickAlignFilter_minMatches: 30
 demultiplex_quickAlignFilter_minEstLeaderSeqLength: 15
@@ -104,10 +105,10 @@ buildFragments_maxFragLength: 3000                                              
 buildFragments_randomLinkerID_minReadCountToSegreagate: 10                      # [integer]   When testing random linker ids for sample crossover, only consider resolving crossovers if a random id was seen this many times.
 buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90                # [integer]   When testing random linker ids for sample crossover, a single sample must have this majority percentage for a correction to occur.
 
+
 buildStdFragments_CPUs: 30                                                      # [integer]   Number of CPUs to use when generating standardized fragments.
-buildStdFragments_remnantClusterParams: '-c 0.8 -d 0 -M 0 -G 1 -aS 0.85 -aL 0.85 -s 0.85  -n 5'
+buildStdFragments_remnantClusterParams: '-c 0.85 -d 0 -M 0 -G 1 -aS 0.95 -aL 0.95 -s 0.95 -n 4'
 buildStdFragments_autoPullTrialSamples: FALSE                                   # [boolean]   Automatically pull additional trial samples from the database to co-standardize with data found in buildStdFragments_inputFile.
-buildStdFragments_leaderSeqGroupingDist: 5                                      # [integer]   Distance to look left and right for another fragment start boundary. If found, alternative repLeaderSeq indices will be created if required. 
 buildStdFragments_randomIDdupReadMult: 5                                        # [integer]   When evaluating UMI sequences, if the most common position id associated with anUMI is x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
 buildStdFragments_randomIDdupAbundMult: 3                                       # [integer]   When evaluating UMI sequences, if the most common position id associated with an UMI has a sonicLength abundance x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
 buildStdFragments_minReadsPerFrag: 1                                            # [integer]   Min number of reads required to reatin a UMI specific fragment.
@@ -115,16 +116,13 @@ buildStdFragments_createMultiHitClusters: FALSE                                 
 buildStdFragments_inputFile: buildFragments/fragments.rds                       # [file path relative to output path] Path to initial fragment RDS file (ouput of buildFragments module).
 # buildStdFragments_trialSubjectList: Sabatino;pM50|Sabatino;pLinus             # [string]    delimited string containing trial and subject names of records to pull from the database: trialA;subjectA|trialB;subjectB.
 buildStdFragments_outputDir: buildStdFragments                                  # [character] buildStdFragments ouput directory name that will be created in the output directory.
-buildStdFragments_representativeSeqCalc_maxReads: 1000                          # [integer]   When determining representative leader sequences for fragments, subsample leader sequences for fragments that have more than this many candidates.
-buildStdFragments_representativeSeqCalc_CPUs: 5                                 # [integer]   Number of CPUs to use for each calculation when determining representative leader sequences for fragments.
-buildStdFragments_categorize_anchorReadRemnants_stepSize: 10                    # [float]     When assigning leader sequences to subject specific groups, the inclusion edit distance is calculated as (length of the seed sequence / this value) + 1 rounded up.
 
 buildSites_CPUs: 30
 buildSites_inputFile: buildStdFragments/stdFragments.rds
 buildSites_outputDir: buildSites
 
 predictPCRartifacts_CPUs: 30
-predictPCRartifacts_inputFile: buildSites/sites.rds
+predictPCRartifacts_inputFile: core/sites.rds
 predictPCRartifacts_outputDir: predictPCRartifacts
 predictPCRartifacts_adjacentSeqLength: 14
 predictPCRartifacts_minReportHalfMatches: 5
