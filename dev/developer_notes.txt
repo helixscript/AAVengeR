@@ -1,0 +1,11 @@
+Bushman group yeast positive controls 
+
+ID   posid            ITR remnant / following gDNA seq
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Y7   chrXII+514047    tctgcgcgctcgctcgctcactgaggc TATACGCGTTTGCACAATATACTCTATCTTATCCGTATCTATACGAGCCG
+Y8   chrIII+51720     tctgcgcgctcgctcgctcactgaggccgggcgacca AATGAGCTCAAGCACTTGCCTACTACTAAGTATGACGTCGTAATTGACCA
+Y9   chrXII+1012894   tctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccga CCTCAAGATAAAGCCATCATTCTGGGTGCCGAGGGTAACTTCCACGGGAG
+Y10  chrIX+53124      tctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccgacgcccgggctt TTTGGACAGTAGGTATGATTTTTTCAAGTTTTGGGAACCGGCAAAGAAAT
+Y11  chrVII+384526    tctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccgacgcccgggctttgcccgggcg ATACATTCCGAGGGCGCCCGCACAAGGCCTATTATTAGAGGGACCTGTGT
+Y12  chrIII+51517     tctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccgacgcccgggctttgcccgggcggcctcagtgagcgagcgagcgcgcagctgcctgcagg GCTACACGTCCGATAACACGGACTCAATGACGTCCGGAGAAATCTCGGAG
+

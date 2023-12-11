@@ -32,7 +32,7 @@ clusterExport(cluster, c('opt', 'tmpFile'))
 
 alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
   
-  if(opt$alignReads_aligner == 'bwa2' | opt$alignReads_blatPreAlignWithBWA2){
+  if(opt$alignReads_aligner == 'bwa2'){
         refGenomePath <-  file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', refGenome)
         f <- file.path(dir, tmpFile())
         write(paste0('>', r$id, '\n', r$seq), f)
@@ -40,38 +40,9 @@ alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
         system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', f, '.sam -o ', f, '.psl'))
         invisible(file.remove(paste0(f, '.sam')))
   }
-  
-  # If a pre-blat BWA2 alignment was requested, read in the result and find near perfect single alignments
-  # then remove these aligned sequences from the blat input.
-  
-  bwa2PassingAlignments <- tibble()
-  
-  if(opt$alignReads_blatPreAlignWithBWA2){
 
-      b <- parseBLAToutput(list.files(dir, pattern = '.psl$', full.names = TRUE), convertToBlatPSL = TRUE)
-      
-      # Remove the bwa2 pre-alignment files. 
-      # Never combine alignReads_aligner == 'bwa2' & alignReads_blatPreAlignWithBWA2 == TRUE otherwise the BWA result will be lost.
-      invisible(file.remove(list.files(dir, full.names = TRUE)))  
-
-      if(nrow(b)){
-        # Here we accept alignments that are singular and cover all or almost all of the aligned sequences.
-        bwa2PassingAlignments <- dplyr::filter(b, alignmentPercentID >= minPercentSeqID , tNumInsert <= 1,
-                                               qNumInsert <= 1, tBaseInsert <= 1, qBaseInsert <= 2, qStart <= 2, qEnd >= qSize-2) %>%
-                                 dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
-
-        # Only select single alignments.
-        bwa2PassingAlignments <- subset(bwa2PassingAlignments, ! qName %in% bwa2PassingAlignments$qName[duplicated(bwa2PassingAlignments$qName)])
-
-        nReadsPreFilter <- n_distinct(r$id)
-        r <- subset(r, ! id %in% bwa2PassingAlignments$qName)
-        message(sprintf("%.2f%%", (1 - (n_distinct(r$id) / nReadsPreFilter))*100), ' reads aligned by bwa2 pre-filtered')
-      }
-  } 
-  
-  
   # If blat is requested as the aligner, run blat on sequence chunks with parLapply().
-  if(opt$alignReads_aligner == 'blat' & nrow(r) > 0){
+  if(opt$alignReads_aligner == 'blat'){
 
     refGenomePath <-  file.path(opt$softwareDir, 'data', 'referenceGenomes', 'blat', paste0(refGenome, '.2bit'))
       
@@ -88,10 +59,10 @@ alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
     invisible(parLapply(cluster, split(r, r$n), blat, refGenomePath, dir))
   }
   
-  
   # Read in and parse the psl files created by either bwa2 or blat.
   b <- tibble()
   f <- list.files(dir, pattern = '*.psl', full.names = TRUE)
+  
   if(length(f) > 0){
     b <- rbindlist(lapply(f, function(x){
     
@@ -113,12 +84,6 @@ alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
   # Files need to be removed otherwise the join below will keep joining files from previous genomes.
   invisible(file.remove(list.files(dir, full.names = TRUE)))
 
-  message(n_distinct(b$qName), ' aligned in psl file.')
-  
-  # Add back near-perfect pre-aligned reads.
-  b <- bind_rows(b, bwa2PassingAlignments)
-
-  message(n_distinct(b$qName), ' reads aligned.')
   b
 }
 
@@ -244,7 +209,7 @@ adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$readID %in% i,
 # Add refGenome, vector, and flags.
 anchorReadAlignments <- left_join(anchorReadAlignments, distinct(select(reads, readID, vectorFastaFile, seqRunID, flags)), by = 'readID')
 
-
+# Here 
 # Expand predicted leaderSeq sequences by extending with delayed alignment sequences. 
 anchorReadAlignments <- left_join(anchorReadAlignments, select(reads, readID, anchorReadSeq, leaderSeq), by = 'readID')
 anchorReadAlignments$leaderSeq <- paste0(anchorReadAlignments$leaderSeq, substr(anchorReadAlignments$anchorReadSeq, 1, anchorReadAlignments$qStart))

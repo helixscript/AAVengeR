@@ -270,6 +270,8 @@ if(! opt$demultiplex_processAdriftReadLinkerUMIs){
 # alignment after grouping the reads would cause groups of reads to fall out of the analysis 
 # and disrupt read counts. 
 
+reads$quickFilterStartPos <- NA
+
 if(opt$demultiplex_quickAlignFilter){
   readsLengthPreFilter <- n_distinct(reads$readID)
   
@@ -303,7 +305,8 @@ if(opt$demultiplex_quickAlignFilter){
     names(o) <- x$readID
     writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'))
     
-    system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 100000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
+    # -B -O flags makes bwa-mem2 more tolerant of mismatches near the ends of alignments.
+    system(paste0('bwa-mem2 mem -B 2 -O 4 -t ', opt$demultiplex_CPUs, ' -c 100000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'), ' > ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam')))
     
@@ -319,6 +322,7 @@ if(opt$demultiplex_quickAlignFilter){
     readr::write_tsv(p, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'), col_names = FALSE)
     
     a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'))
+    
     a <- dplyr::filter(a, alignmentPercentID >= opt$demultiplex_quickAlignFilter_minPercentID, tNumInsert <= 1, 
                        qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, matches >= opt$demultiplex_quickAlignFilter_minMatches)
     
@@ -328,7 +332,16 @@ if(opt$demultiplex_quickAlignFilter){
     
     x <- subset(x, readID %in% a$qName)
     
-    x
+    minAlnStarts <- group_by(a, qName) %>% 
+                    slice_max(matches, with_ties = TRUE) %>% 
+                    slice_min(qStart, with_ties = FALSE) %>%
+                    select(qName, qStart) %>% 
+                    ungroup() %>%
+                    mutate(quickFilterStartPos = qStart + opt$demultiplex_quickAlignFilter_minEstLeaderSeqLength) %>%
+                    select(-qStart)
+    
+    x$quickFilterStartPos <- NULL
+    left_join(x, minAlnStarts, by = c('readID' = 'qName'))
   }))
   
   d <- sprintf("%.2f%%", (1 - (n_distinct(reads$readID)/readsLengthPreFilter))*100)

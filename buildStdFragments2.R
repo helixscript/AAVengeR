@@ -127,6 +127,16 @@ frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample
 
 # Find sites that are near one another with GRanges expanded +/- 100 and then 
 # categorize LTR / ITR remnants.
+#
+# Step 1. Expand position ids +/- 2x the standardization collection window then
+# use Reduce with revmap to collapse overlapping ranges. Ranges that overlap will 
+# near one another an will need special care to standardize. Within each reduced
+# fragment that contains 2 or more positions, use cd-hit-est to cluster the ITR/LTR
+# remnant sequences and assign grouping numbers. 
+#
+# Step 2. Standardize positions within the groupings determined in Step 1. This will 
+# prevent proximal sites with different remnant sequences from being standardized together.
+
 #-------------------------------------------------------------------------------
 
 frags <- data.table(frags)
@@ -158,8 +168,8 @@ frags <- rbindlist(lapply(split(frags, paste(frags$trial, frags$subject, frags$s
              ke <- k[, c('readID', 'leaderSeq')]
              clusterExport(cluster, c('opt', 'ke', 'CD_HIT_clusters', 'tmpFile'), envir = environment())
     
-             u <- rbindlist(parLapply(cluster, split(o, ntile(1:nrow(o), opt$buildStdFragments_CPUs)), function(d){
-             #u <- rbindlist(lapply(split(o, ntile(1:nrow(o), opt$buildStdFragments_CPUs)), function(d){
+             #u <- rbindlist(parLapply(cluster, split(o, ntile(1:nrow(o), opt$buildStdFragments_CPUs)), function(d){
+             u <- rbindlist(lapply(split(o, ntile(1:nrow(o), opt$buildStdFragments_CPUs)), function(d){
                     library(GenomicRanges)
                     library(data.table)
                     library(Biostrings)
@@ -274,7 +284,6 @@ g <- data.frame(g)
 # Join updated positions to the input data frame.
 frags <- left_join(frags, select(g, start, end, fragID), by = 'fragID')
 
-
 # Assign the new integration positions.
 frags$fragStart <- frags$start
 frags$fragEnd   <- frags$end
@@ -342,6 +351,114 @@ frags$posid <- paste0(frags$chromosome, frags$strand,
                       '.', stringr::str_extract(frags$leaderSeqGroup, '\\d+$'))
 
 
+
+#-----
+# The previous remant grouping was not perfect because the longest fragments are 
+# used in a greedy algorithm and shorter fragments in broad collections of similiar
+# fragments may be artifically shunted to other grouping. Here we look at groups of 
+# very close positions and merge them if there remnats are similiar to one another. 
+
+frags <- data.table(frags)
+positionExpansion <- 1
+
+frags <- rbindlist(lapply(split(frags, paste(frags$trial, frags$subject, frags$sample)), function(k){
+  
+  k$start <- ifelse(k$strand == '+', k$fragStart - positionExpansion, k$fragEnd - positionExpansion)
+  k$end   <- k$start + positionExpansion
+  k$i <- 1:nrow(k)
+  
+  # Find the position ids with broad overlap.
+  g <- makeGRangesFromDataFrame(distinct(select(k, posid, chromosome, strand, start, end, i)), keep.extra.columns = TRUE)
+  g <- g[g$i]  # Ensure the same order as k.
+  
+  gr <- GenomicRanges::reduce(g, with.revmap = TRUE)
+  
+  o <- rbindlist(lapply(gr$revmap, function(x){
+    if(length(x) > 1){
+      return(data.table(n = list(x)))
+    } else {
+      return(NULL)
+    }
+  }))
+  
+  k$leaderSeqGroupNum <- 1
+  
+  if(nrow(o) > 0){
+    ke <- k[, c('readID', 'posid', 'leaderSeq')]
+  ###  clusterExport(cluster, c('opt', 'ke', 'CD_HIT_clusters', 'tmpFile'), envir = environment())
+    
+    #u <- rbindlist(parLapply(cluster, split(o, ntile(1:nrow(o), opt$buildStdFragments_CPUs)), function(d){
+    u <- rbindlist(lapply(split(o, ntile(1:nrow(o), opt$buildStdFragments_CPUs)), function(d){
+      library(GenomicRanges)
+      library(data.table)
+      library(Biostrings)
+      library(dplyr)
+      
+      rbindlist(lapply(split(d, 1:nrow(d)), function(j){
+        a <- ke[unlist(j$n)]
+        
+        if(n_distinct(a$posid) > 1){ 
+      
+          d <- DNAStringSet(a$leaderSeq)
+          names(d) <- a$readID
+          clstrs <- CD_HIT_clusters(d, opt$outputDir, opt$buildStdFragments_remnantClusterParams)
+          
+          n <- 0
+          m <- rbindlist(lapply(clstrs, function(x){
+            e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
+            
+            if(length(e) > 0){
+              n <<- n + 1
+              return(data.table(readID = sub('^>', '', e), leaderSeqGroupNum2 = n))
+            } else {
+              return(data.table())
+            }
+          }))
+          
+          # Fail safe, should not be tripped.
+          if(any(duplicated(m$readID))) m <- m[! duplicated(m$readID),]
+          
+          r <- left_join(a, distinct(m), by = 'readID')
+          
+          i <- is.na(r$leaderSeqGroupNum2)
+          if(any(i)) r[is.na(r), ] <- 0
+          
+          r$leaderSeqGroupNum <- r$leaderSeqGroupNum2
+          
+          return(data.table(distinct(select(r, readID, leaderSeqGroupNum))))
+        }
+      }))
+    }))
+    
+    if(nrow(u) > 0){
+      k$leaderSeqGroupNum <- NULL
+      k <- left_join(k, distinct(u), by = 'readID', relationship = 'many-to-many') %>% dplyr::select(-start, -end, -i)
+      k[is.na(k), ] <- 1  # Handle instances where u does not contain a read IDs. 
+    }
+  }
+  
+  k
+}))
+
+
+
+
+#------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Determine which read level fragment records map to multiple position ids.
 #-------------------------------------------------------------------------------
 u <- group_by(frags, readID) %>% 
@@ -360,11 +477,28 @@ if(nrow(frags_uniqPosIDs) == 0){
 }
 
 
+buildConsensusSeq <- function(x){
+  return(names(sort(table(x), decreasing = TRUE)[1]))
+  
+  # f <- file.path(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), 
+  #                paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.fasta'))
+  # o <- DNAStringSet(unique(x))
+  # names(o) <- paste0('s', 1:length(o))
+  # writeXStringSet(o, file = f)
+  # system(paste0('muscle -in ', f, ' -out ', paste0(f, '.out'), ' -quiet -diags -maxiters 10'))
+  # r <-as.character(consensusString(readDNAMultipleAlignment(paste0(f, '.out'), format = 'fasta')))
+  # invisible(file.remove(c(f, paste0(f, '.out'))))
+  # r <- sub('^\\-+', '', r)
+  # r <- sub('\\-+$', '', r)
+  # r
+}
+
+
+
 frags_uniqPosIDs <- tidyr::unite(frags_uniqPosIDs, fragID, trial, subject, sample, replicate, 
                                  chromosome, strand, fragStart, fragEnd, leaderSeqGroup, sep = ':', remove = FALSE)
 
 # Multihits
-# This block is here because some reads may be returned to frags_uniqPosIDs.
 if(nrow(frags_multPosIDs) > 0){
   
   frags_multPosIDs$s <- paste(frags_multPosIDs$trial, frags_multPosIDs$subject)
@@ -449,15 +583,11 @@ if(length(z) > 0){
 
 # Ensure that the read level fragments for each sample position id have similar remnant sequences.
 # Set leaderSeqGroups to 1 and enumerate if different remnants are found. This is a more rigorous
-# clean-up from the original sorting before we standardized. 
-
-
-buildConsensusSeq <- function(x){
-  names(sort(table(x), decreasing = TRUE)[1])
-}
+# clean-up from the original sorting before we standardized. Here we are removing deviations between
+# read level records within posids by replacing leaderSeqs with consensus sequences.
 
 leaderSeqGroupIDs <- list()
-
+# JKE
 frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPosIDs$trialSubject, frags_uniqPosIDs$sample, frags_uniqPosIDs$posid)), function(x){
   b <- sub('\\.\\d+$', '', x$posid[1])
   
@@ -519,8 +649,7 @@ frags_uniqPosIDs$posid <- paste0(frags_uniqPosIDs$chromosome, frags_uniqPosIDs$s
 frags_uniqPosIDs$leaderSeqGroupNum <- NULL
 
 
-
-
+# HERE ...
 
 
 
@@ -719,6 +848,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   }
 }
 
+# Here...
 # Frags are still read level. 
 # Switch frags to a data frame because tibbles refuse to store single character vectors as lists.
 
@@ -775,7 +905,86 @@ if (nrow(f) > 0) f <- left_join(f, sampleMetaData, by = 'uniqueSample')
 s <- unique(paste0(f$trial, '~', f$subject, '~', f$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
-saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
-readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
+stdFragments <- select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i)
+
+
+#----
+
+positionExpansion <- 1
+stdFragments <- data.table(stdFragments)
+frags <- rbindlist(lapply(split(stdFragments, paste(stdFragments$trial, stdFragments$subject, stdFragments$sample)), function(k){
+  
+  k$start <- ifelse(k$strand == '+', k$fragStart - positionExpansion, k$fragEnd - positionExpansion)
+  k$end   <- k$start + positionExpansion
+  k$i <- 1:nrow(k)
+  
+  # Find the position ids with broad overlap.
+  g <- makeGRangesFromDataFrame(distinct(select(k, posid, chromosome, strand, start, end, i)), keep.extra.columns = TRUE)
+  g <- g[g$i]  # Ensure the same order as k.
+  
+  gr <- GenomicRanges::reduce(g, with.revmap = TRUE)
+  
+  o <- rbindlist(lapply(gr$revmap, function(x){
+    if(length(x) > 1){
+      return(data.table(n = list(x)))
+    } else {
+      return(NULL)
+    }
+  }))
+  
+  k$leaderSeqGroupNum <- 1
+  
+  if(nrow(o) > 0){
+
+      u <- rbindlist(lapply(split(o, 1:nrow(o)), function(j){
+
+        a <- distinct(k[unlist(j$n)])
+        
+        if(n_distinct(a$posid) > 1){
+          d <- DNAStringSet(stringr::str_extract(a$leaderSeqs, '[^,]+'))
+          names(d) <- paste0('s', 1:length(d))
+          clstrs <- CD_HIT_clusters(d, opt$outputDir, opt$buildStdFragments_remnantClusterCleanupParams)
+          
+          n <- 0
+          m <- rbindlist(lapply(clstrs, function(x){
+                 e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
+            
+                 if(length(e) > 0){
+                   n <<- n + 1
+                   return(data.table(readID = sub('^>', '', e), leaderSeqGroupNum2 = n))
+                 } else {
+                 return(data.table())
+                 }
+               }))
+          
+          if(n_distinct(m$leaderSeqGroupNum2) == 1){
+            browser()
+          }
+        }
+      }))
+
+  
+  }
+  
+  k
+}))
+
+
+#----
+
+
+
+
+
+
+
+
+
+
+saveRDS(stdFragments, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
+readr::write_tsv(stdFragments, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
+
+
+
 
 q(save = 'no', status = 0, runLast = FALSE) 

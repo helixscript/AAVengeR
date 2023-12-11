@@ -124,6 +124,10 @@ while(! all(jobTable$done == TRUE)){
   # Define modules to run in replicate level configuration file and write out file.
   o$modules <- list()
   o[['modules']] <- c('prepReads', 'alignReads', 'buildFragments')
+  
+  # Leader seq limit file.
+  o$prepReads_leaderSeqLimitFile <- list.files(opt$outputDir, pattern = 'minAlnStarts', recursive = TRUE, full.names = TRUE)[1]
+   
   yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))
   
   # Create AAVengeR launching script since system(x, wait = TRUE) does not wait for commands w/ arguments.

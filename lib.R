@@ -1,3 +1,37 @@
+setOptimalParameters <- function(){
+  if(grepl('integrase', opt$mode, ignore.case = TRUE)){
+    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
+    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
+    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
+    opt$prepReads_HMMmatchEnd <<- TRUE
+    opt$prepReads_HMMmatchTerminalSeq <<- 'CA'
+    opt$prepReads_limitLeaderSeqsWithQuickAlignFilter <<- FALSE
+  } else if(grepl('AAV', opt$mode, ignore.case = TRUE)){
+    opt$demultiplex_quickAlignFilter <<- TRUE
+    opt$prepReads_limitLeaderSeqsWithQuickAlignFilter <<- TRUE
+    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 300
+    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
+    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 10
+  } else if(grepl('transposase', opt$mode, ignore.case = TRUE)){
+    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
+    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
+    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
+    opt$prepReads_HMMmatchEnd <<- TRUE
+    opt$prepReads_HMMmatchTerminalSeq <<- 'TA'
+  }
+  else if(grepl('manual', opt$mode, ignore.case = TRUE)){
+    # No action
+  } else {
+    stop('Error -- mode set to an unknown value.')
+  }
+  
+  if(grepl('quick', opt$mode, ignore.case = TRUE)){
+    opt$alignReads_genomeAlignment_blatRepMatch <<- 1000
+    opt$buildStdFragments_createMultiHitClusters <<- FALSE
+  }
+}
+
+
 percentSysMemUsed <- function(){
   m <- as.integer(unlist(strsplit(system('free', intern = TRUE)[2], '\\s+'))[2:3])
   (m[2] / m[1]) * 100
@@ -69,12 +103,14 @@ CD_HIT_clusters <- function(x, dir, params){
 
   writeXStringSet(x, file.path(dir, paste0(f, '.fasta')))
   
-  system(paste0("cd-hit-est -i ", file.path(dir, paste0(f, '.fasta')), 
+  comm <- paste0("cd-hit-est -i ", file.path(dir, paste0(f, '.fasta')), 
                 " -o ", file.path(dir, f), " -T ", opt$buildStdFragments_CPUs, 
-                " ", params, ' 1> /dev/null'))
+                " ", params, ' 1> /dev/null')
+  system(comm)
   
   r <- paste0(readLines(paste0(file.path(dir, f), '.clstr')), collapse = '')
   invisible(file.remove(list.files(dir, pattern = f, full.names = TRUE)))
+
   o <- unlist(strsplit(r, '>Cluster'))
   o[2:length(o)]
 }
@@ -530,7 +566,7 @@ calcRepLeaderSeq <- function(d, threads = 2){
     repLeaderSeq <- subset(d, seq %in% repLeaderSeq) %>% dplyr::arrange(desc(count), desc(reads)) %>% dplyr::slice(1) %>% dplyr::pull(seq)
   }
   
-  if(length(repLeaderSeq) > 1) browser()
+  # if(length(repLeaderSeq) > 1) browser()
   repLeaderSeq
 }
     
@@ -1097,32 +1133,4 @@ createIntUCSCTrack <- function(d, abundCuts = c(5,10,50),
               sep = '\t', col.names = FALSE, row.names = FALSE, file = outputFile, append = TRUE, quote = FALSE)
 }
 
-setOptimalParameters <- function(){
-  if(grepl('integrase', opt$mode, ignore.case = TRUE)){
-    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
-    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
-    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
-    opt$prepReads_HMMmatchEnd <<- TRUE
-    opt$prepReads_HMMmatchTerminalSeq <<- 'CA'
-  } else if(grepl('AAV', opt$mode, ignore.case = TRUE)){
-    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 300
-    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
-    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 10
-  } else if(grepl('transposase', opt$mode, ignore.case = TRUE)){
-    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
-    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
-    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
-    opt$prepReads_HMMmatchEnd <<- TRUE
-    opt$prepReads_HMMmatchTerminalSeq <<- 'TA'
-  }
-  else if(grepl('manual', opt$mode, ignore.case = TRUE)){
-    # No action
-  } else {
-    stop('Error -- mode set to an unknown value.')
-  }
 
-  if(grepl('quick', opt$mode, ignore.case = TRUE)){
-    opt$alignReads_genomeAlignment_blatRepMatch <<- 1000
-    opt$buildStdFragments_createMultiHitClusters <<- FALSE
-  }
-}

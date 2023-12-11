@@ -304,6 +304,11 @@ if(! 'leaderSeqHMM' %in% names(reads)){
       m <- data.table(id = o$qname, leaderMapping.qStart = 1, leaderMapping.qEnd = o$end, leaderSeqMap = NA)
     }
     
+    if(opt$prepReads_limitLeaderSeqsWithQuickAlignFilter){
+      m <- left_join(m, dplyr::select(reads, readID, quickFilterStartPos) %>% dplyr::filter(readID %in% m$id), by = c('id' = 'readID'))
+      m$leaderMapping.qEnd <- ifelse(m$leaderMapping.qEnd > (m$quickFilterStartPos - 1), (m$quickFilterStartPos - 1), m$leaderMapping.qEnd)
+    }
+    
     parallel::stopCluster(cluster)
     
 } else {
@@ -480,6 +485,8 @@ if('leaderSeqHMM' %in% names(reads)){
 }
 
 unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'), recursive = TRUE) 
+
+if('quickFilterStartPos' %in% names(reads)) reads$quickFilterStartPos <- NULL
 
 saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds'), compress = opt$compressDataFiles)
 
