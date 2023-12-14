@@ -40,98 +40,16 @@ anchorReadAlignments$posid <- paste0(anchorReadAlignments$tName, anchorReadAlign
 anchorReadAlignments$sample <- sub('~\\d+$', '', anchorReadAlignments$uniqueSample)
 adriftReadAlignments$sample <- sub('~\\d+$', '', adriftReadAlignments$uniqueSample)
 
+# (!)
+# add adriftReadAlignments$randomLinkerSeq
 
+r <- dplyr::select(readRDS(file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds')), readID, adriftReadRandomID) %>% 
+     dplyr::rename(randomLinkerSeq = adriftReadRandomID) %>% 
+     data.table()
 
-if(opt$demultiplex_processAdriftReadLinkerUMIs){
+r <- r[readID %in% adriftReadAlignments$readID]
 
-  # Read in all random ids from the prepReads module.
-  r <- dplyr::select(readRDS(file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds')), readID, adriftReadRandomID) %>% dplyr::rename(randomLinkerSeq = adriftReadRandomID) %>% data.table()
-  
-  # Limit random ids to those found in the adrift read alignments.
-  r <- subset(r, readID %in% adriftReadAlignments$readID)
-
-  r <- left_join(r, distinct(dplyr::select(adriftReadAlignments, readID, sample)), by = 'readID')  
-
-  
-  # Correct random ids to the most abundant within samples.
-  # Uncorrectable codes are returned as NNNN and removed.
-
-  write(c(paste(now(), '   Correcting minor differences in random ids.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
-
-  # anchorReadAlignments too large to export to worker nodes.
-  # stringDist uses all cores regardless of nthread option... best not to use parLappy().
-  ara <- dplyr::select(anchorReadAlignments, readID, posid)
-
-
-  r <- rbindlist(lapply(split(r, r$sample), function(x){
-         x$randomLinkerSeqPre <- x$randomLinkerSeq
-         x$randomLinkerSeq    <- conformMinorSeqDiffs(x$randomLinkerSeq, nThreads = opt$buildFragments_CPUs)
-         
-         o <- x[grepl('N', x$randomLinkerSeq),]
-         if(nrow(o) > 0){
-           o <- dplyr::select(dplyr::mutate(o, randomLinkerSeq = randomLinkerSeqPre), -randomLinkerSeqPre)
-           o <- left_join(o, ara, by = 'readID')
-           readr::write_tsv(o, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', paste0('uncorrectableIDs~', x$sample[1], '.tsv')))
-         }     
-         
-         data.table(x[! grepl('N', x$randomLinkerSeq),])
-       }))
-  
-  write(c(paste(now(), '   Determining which random ids span multiple samples.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
-
-  o <- group_by(r, randomLinkerSeq) %>%
-       summarise(nSamples = n_distinct(sample)) %>%
-       ungroup() %>%
-       filter(nSamples > 1)
-
-  write(c(paste(now(), paste0('   ', sprintf("%.2f%%", (n_distinct(o$randomLinkerSeq)/n_distinct(r$randomLinkerSeq))*100), ' random ids seen across two or more samples'))), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
-
-  randomIDsNoIssue   <- dplyr::filter(r, ! randomLinkerSeq %in% o$randomLinkerSeq)
-
-  # Create a vector of random ids seen in more than one sample that need to be resolved.
-  randomIDsToResolve <- dplyr::filter(r, randomLinkerSeq %in% o$randomLinkerSeq) %>% 
-                        dplyr::group_by(randomLinkerSeq) %>% 
-                        dplyr::mutate(n = n()) %>% 
-                        dplyr::ungroup() %>% 
-                        dplyr::filter(n >= opt$buildFragments_randomLinkerID_minReadCountToSegreagate) %>%
-                        dplyr::pull(unique(randomLinkerSeq))
-
-
-  # Create a table of read ids that have no conflicts or resolved conflicts against which we will filter reads.
-  if(length(randomIDsToResolve) > 0){
-    # Split data frame into CPU chunks while not breaking appart random ids.
-    r2 <- subset(r, randomLinkerSeq %in% randomIDsToResolve)
-   
-    randomIDIssuesResolved <- rbindlist(lapply(split(r2, r2$randomLinkerSeq), function(y){
-      y$remove <- TRUE
-          
-      t <- sort(table(y$sample), decreasing = TRUE)
-             if((t[1]/sum(t))*100 >= opt$buildFragments_randomLinkerID_minSingleSampleMajorityPercent){
-                 y[y$sample == names(t)[1],]$remove <- FALSE
-             }
-       
-             y
-     })) %>% dplyr::filter(remove == FALSE) %>% dplyr::select(-remove)
-   
-     o <- subset(r2, ! randomLinkerSeq %in% randomIDIssuesResolved$randomLinkerSeq)
-     if(nrow(o) > 0){
-       o <- left_join(o, distinct(dplyr::select(anchorReadAlignments, readID, posid)), by = 'readID')
-       readr::write_tsv(o, file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads', 'read_IDs_shared_between_samples.tsv'))
-     }
-     
-     r <- bind_rows(randomIDsNoIssue, randomIDIssuesResolved)
-  }
-  
-  # Remove reads where random IDs were in conflict and could not be corrected.
-  adriftReadAlignments <- subset(adriftReadAlignments, readID %in% r$readID)
-  anchorReadAlignments <- subset(anchorReadAlignments, readID %in% r$readID)
-  
-  adriftReadAlignments <- left_join(adriftReadAlignments, distinct(dplyr::select(r, readID, randomLinkerSeq)), by = 'readID')
-  rm(r)
-  gc()
-} else {
-  adriftReadAlignments$randomLinkerSeq <- 'AAAAAAAAAAAA'
-}
+adriftReadAlignments <- left_join(adriftReadAlignments, r, by = 'readID')  
 
 write(c(paste(now(), '   Preparing alignment data for fragment generation.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
 

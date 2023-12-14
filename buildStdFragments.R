@@ -99,7 +99,6 @@ if(nrow(frags) == 0){
 incomingSamples <- unique(sub('~\\d+$', '', frags$uniqueSample))
 
 
-
 # Set aside meta data till the end to save memory and add data back at the end 
 # and unpack the uniqueSample ids.
 # --------------------------------------------------------------------------------------------------------------
@@ -108,6 +107,7 @@ sampleMetaData <- distinct(dplyr::select(frags, uniqueSample, refGenome, vectorF
 frags <- tidyr::separate(frags, uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~', remove = FALSE) %>% 
          dplyr::select(-refGenome, -vectorFastaFile, -seqRunID, -flags)
 
+frags$trialSubject <- paste0(frags$trial, '~', frags$subject)
 
 
 # Categorize ITR/LTR remnant sequences.
@@ -132,7 +132,7 @@ frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample
 frags <- data.table(frags)
 positionExpansion <- opt$buildStdFragments_intSiteStdWindowWidth * 2
 
-frags <- rbindlist(lapply(split(frags, paste(frags$trial, frags$subject, frags$sample)), function(k){
+frags <- rbindlist(lapply(split(frags, paste(frags$trial, frags$subject)), function(k){
   
            k$start <- ifelse(k$strand == '+', k$fragStart - positionExpansion, k$fragEnd - positionExpansion)
            k$end   <- k$start + positionExpansion
@@ -352,7 +352,6 @@ u <- group_by(frags, readID) %>%
 frags_uniqPosIDs <- frags[frags$readID %in% u,] 
 frags_multPosIDs <- frags[! frags$readID %in% u,]
 
-
 if(nrow(frags_uniqPosIDs) == 0){
   write(c(paste(now(), '   Error - No unique position remain after filtering.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
   if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
@@ -453,7 +452,12 @@ if(length(z) > 0){
 
 
 buildConsensusSeq <- function(x){
-  names(sort(table(x), decreasing = TRUE)[1])
+  x$w <- x$fragEnd - x$fragStart
+  tab <- group_by(x, leaderSeq) %>% 
+         summarise(nWidths = n_distinct(fragEnd - fragStart), nReads = n()) %>% 
+         ungroup() %>%
+         arrange(desc(nWidths), desc(nReads))
+  as.character(tab[1, 'leaderSeq'])
 }
 
 leaderSeqGroupIDs <- list()
@@ -476,7 +480,7 @@ frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPos
     clstrs <- CD_HIT_clusters(d, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), opt$buildStdFragments_remnantClusterParams)
     
     if(length(clstrs) == 1 | any(is.na(clstrs))){
-      x$leaderSeq <- buildConsensusSeq(x$leaderSeq)
+      x$leaderSeq <- buildConsensusSeq(x)
     } else {
       n <- leaderSeqGroupIDs[[b]] - 1
       
@@ -499,7 +503,7 @@ frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPos
       leaderSeqGroupIDs[[b]] <<- max(x$leaderSeqGroupNum)
       
       x <- bind_rows(lapply(split(x, x$leaderSeqGroupNum), function(x2){
-             if(nrow(x2) > 1) x2$leaderSeq <- buildConsensusSeq(x2$leaderSeq)
+             if(nrow(x2) > 1) x2$leaderSeq <- buildConsensusSeq(x2)
              x2
            }))
     }
@@ -507,6 +511,26 @@ frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPos
   
   x
 }))
+
+# Here we rearrange leader sequence groups so that the must abundant groups have the lowest identifiers.
+frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPosIDs$trialSubject, frags_uniqPosIDs$sample, sub('\\.\\d+$', '', frags_uniqPosIDs$posid))), function(x){
+  if(n_distinct(x$leaderSeqGroupNum) == 1){
+   x$leaderSeqGroupNum <- 1 
+  } else {
+    x$w <- x$fragEnd - x$fragStart
+    o <- group_by(x, leaderSeqGroupNum) %>% 
+         summarise(nWidths = n_distinct(w), nReads = n()) %>% 
+         ungroup() %>% 
+         arrange(desc(nWidths), desc(nReads)) %>% 
+         mutate(leaderSeqGroupNum2 = 1:n())
+    
+    x <- left_join(x, select(o, -nWidths, -nReads), by = 'leaderSeqGroupNum')
+    x$leaderSeqGroupNum <- x$leaderSeqGroupNum2
+    x <- select(x, -leaderSeqGroupNum2, -w)
+  }
+  x
+}))
+
 
 frags_uniqPosIDs$leaderSeqGroup <- paste0(frags_uniqPosIDs$trialSubject, '~', frags_uniqPosIDs$leaderSeqGroupNum)
 
@@ -517,13 +541,6 @@ frags_uniqPosIDs$posid <- paste0(frags_uniqPosIDs$chromosome, frags_uniqPosIDs$s
                                  '.', frags_uniqPosIDs$leaderSeqGroupNum)
 
 frags_uniqPosIDs$leaderSeqGroupNum <- NULL
-
-
-
-
-
-
-
 
 # Create quick look-up index.
 frags_uniqPosIDs$i <- paste(frags_uniqPosIDs$trial, frags_uniqPosIDs$subject, frags_uniqPosIDs$sample)
@@ -540,7 +557,7 @@ if(opt$demultiplex_processAdriftReadLinkerUMIs){
        mutate(i = paste(trial, subject, sample))
 
   if(nrow(r) > 0){
-    # Quick sonicAbundance table based on non-standardized break points.
+    # Quick sonicAbundance table.
     f <- mutate(frags_uniqPosIDs, fragWidth = (fragEnd - fragStart) + 1) %>%
          select(trial, subject, sample, posid, fragWidth) %>%
          group_by(trial, subject, sample, posid) %>% 
@@ -551,9 +568,20 @@ if(opt$demultiplex_processAdriftReadLinkerUMIs){
     invisible(lapply(split(r, r$randomLinkerSeq), function(x){
             # Retrieve all reads for this duplicated random linker sequence
             o <- subset(frags_uniqPosIDs, i == x$i[1] & randomLinkerSeq == x$randomLinkerSeq[1])
+            
+            # The top posid associated with this random id is more than x times abundant than the second - assign all to the first.
             t <- data.frame(sort(table(o$posid), decreasing = TRUE)) %>%
-                 left_join(subset(f, i == x$i[1]), by = c('Var1' = 'posid')) %>% 
-                 arrange(desc(Freq))
+                 left_join(subset(f, i == x$i[1]), by = c('Var1' = 'posid')) %>%
+                 arrange(desc(estAbund))
+            
+            if(nrow(t) > 1 & t[1,]$estAbund >= t[2,]$estAbund * opt$buildStdFragments_randomIDdupAbundMult){
+              ind <- which(frags_uniqPosIDs$posid != t[1,]$Var1 & frags_uniqPosIDs$randomLinkerSeq == x$randomLinkerSeq[1])
+              frags_uniqPosIDs <<- frags_uniqPosIDs[-ind,]
+              return()
+            }
+            
+            #browser()
+            t <- arrange(t, desc(Freq))
           
             # The top posid associated with this random id is read x times greater than the second - assign all to the first.
             if(nrow(t) > 1 & t[1,]$Freq >= t[2,]$Freq * opt$buildStdFragments_randomIDdupReadMult){
@@ -562,14 +590,6 @@ if(opt$demultiplex_processAdriftReadLinkerUMIs){
               return()
             }
           
-            # The top posid associated with this random id is more than x times abundant than the second - assign all to the first.
-            t <- arrange(t, desc(estAbund))
-            if(nrow(t) > 1 & t[1,]$estAbund >= t[2,]$estAbund * opt$buildStdFragments_randomIDdupAbundMult){
-              ind <- which(frags_uniqPosIDs$posid != t[1,]$Var1 & frags_uniqPosIDs$randomLinkerSeq == x$randomLinkerSeq[1])
-              frags_uniqPosIDs <<- frags_uniqPosIDs[-ind,]
-              return()
-            }
-                  
            # We can not reasonably determine the true source of this random identifier, remove reads with this random id.
            ind <- which(frags_uniqPosIDs$randomLinkerSeq == x$randomLinkerSeq[1])
            frags_uniqPosIDs <<- frags_uniqPosIDs[-ind,]
@@ -580,10 +600,9 @@ if(opt$demultiplex_processAdriftReadLinkerUMIs){
   
   # Determine if any random tags have more than one width.
   f <- mutate(frags_uniqPosIDs, fragWidth = fragEnd - fragStart + 1) %>%
-    group_by(trial, subject, sample, randomLinkerSeq) %>% 
-    summarise(n = n_distinct(fragWidth), i = i[1]) %>% 
-    ungroup()
-  
+       group_by(trial, subject, sample, randomLinkerSeq) %>% 
+       summarise(n = n_distinct(fragWidth), i = i[1]) %>% 
+       ungroup()
   
   # Use read counts to determine the most likely random fragment boundary.
   if(any(f$n > 1)){
@@ -602,7 +621,6 @@ if(opt$demultiplex_processAdriftReadLinkerUMIs){
   }
 }
 
-  
 multiHitClusters <- tibble()
 
 if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
@@ -737,15 +755,16 @@ if(nrow(b) > 0){
   
          if(totalReads < opt$buildStdFragments_minReadsPerFrag) return(tibble())
         
-         tab <- sort(table(x$leaderSeq), decreasing = TRUE)
-         x$leaderSeqs <- paste0(mapply(function(n, x){ paste0(n, ',', x, '|') }, names(tab), tab, SIMPLIFY = FALSE), collapse = '')
-
+         #tab <- sort(table(x$leaderSeq), decreasing = TRUE)
+         #x$leaderSeqs <- paste0(mapply(function(n, x){ paste0(n, ',', x, '|') }, names(tab), tab, SIMPLIFY = FALSE), collapse = '')
+         
+         x$repLeaderSeq <- x$leaderSeq[1]
+         
          readList <- x$readID
          x <- x[1,]
          x$reads <- totalReads
          x$readIDs <- list(readList)
-         
-     
+    
          x
        }))
 } else {
@@ -756,7 +775,7 @@ if(nrow(a) > 0){
   # Set values for fragments with single reads.
   a2 <- dplyr::group_by(a, fragID) %>%
         dplyr::mutate(reads = nDuplicateReads+1, 
-                      leaderSeqs = paste0(leaderSeq, ',1'),
+                      repLeaderSeq = leaderSeq[1],
                       readIDs = list(readID)) %>%
         dplyr::slice(1) %>%
         dplyr::ungroup() %>%
@@ -775,7 +794,7 @@ if (nrow(f) > 0) f <- left_join(f, sampleMetaData, by = 'uniqueSample')
 s <- unique(paste0(f$trial, '~', f$subject, '~', f$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
-saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
-readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
+saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
+readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

@@ -22,6 +22,7 @@ samples <- distinct(tibble(trial = frags$trial, subject = frags$subject, sample 
 
 dualDetections <- tibble()
 
+
 # Process fragments as integrase u5/u3 sites if all samples have a u5/u3 sample flag.
 if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
   
@@ -70,7 +71,7 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
           
           i <- which(frags$fragID %in% c(f1$fragID, f2$fragID))
           frags[i,]$repLeaderSeq <<- paste0(names(sort(table(f1$repLeaderSeq), decreasing = TRUE))[1], '/', names(sort(table(f2$repLeaderSeq), decreasing = TRUE))[1])
-          ### frags[i,]$leaderSeqs <<- list(frags[i,]$repLeaderSeq[1])
+
           frags[i,]$flags <<- 'dual detect'
           
           chr <- stringr::str_extract(a, 'chr[XY\\d+]')
@@ -150,33 +151,23 @@ frags <- group_by(frags, trial, subject, sample, replicate, posid) %>%
 cluster <- makeCluster(opt$buildSites_CPUs)
 clusterExport(cluster, c('opt', 'frags'))
 
-sites <- bind_rows(parLapply(cluster, split(frags, frags$g), function(x){  
-#sites <- bind_rows(lapply(split(frags, frags$g), function(x){    
+#sites <- bind_rows(parLapply(cluster, split(frags, frags$g), function(x){  
+sites <- bind_rows(lapply(split(frags, frags$g), function(x){    
            library(dplyr)
            library(Biostrings)
            library(stringdist)
            source(file.path(opt$softwareDir, 'lib.R'))
   
-           leaderSeqTbl  <- bind_rows(lapply(strsplit(unlist(strsplit(x$leaderSeqs, '\\|')), ','), function(x){ tibble(seq = x[1], reads = x[2]) }))
-           leaderSeqTbl2 <- group_by(leaderSeqTbl, seq) %>% 
-                              summarise(count = n(), reads = sum(as.integer(reads))) %>% 
-                              ungroup() %>% arrange(desc(count), desc(reads))
-           
-           x$repLeaderSeq <- leaderSeqTbl2$seq[1]
- 
-           if(nrow(x) == 1 & nrow(leaderSeqTbl2) == 1){
+           if(nrow(x) == 1){
               return(dplyr::mutate(x, UMIs = n_distinct(x$randomLinkerSeq), 
                                    sonicLengths = n_distinct(x$fragWidth)) %>%
                      dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, UMIs, sonicLengths, reads, repLeaderSeq, vectorFastaFile))
            } else {
-               
-              ### repLeaderSeq <- calcRepLeaderSeq(leaderSeqTbl2)
-               
               return(dplyr::mutate(x, 
                                    UMIs = n_distinct(x$randomLinkerSeq), 
                                    sonicLengths = n_distinct(x$fragWidth), 
                                    reads = sum(reads), 
-                                   repLeaderSeq = repLeaderSeq) %>%
+                                   repLeaderSeq = repLeaderSeq[1]) %>%
                     dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, UMIs, sonicLengths, reads, repLeaderSeq, vectorFastaFile) %>%
                     dplyr::slice(1))
            }
@@ -214,30 +205,26 @@ tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sa
           bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], refGenome = x$refGenome[1], posid = x$posid[1], flags = x$flags[1], vectorFastaFile = x$vectorFastaFile[1]), o)
 }))
 
-write(c(paste(now(), '   Buiding sample level integration sites.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
+#tbl1$i <- dplyr::ntile(1:nrow(tbl1), opt$buildSites_CPUs)
 
-tbl1$i <- dplyr::ntile(1:nrow(tbl1), opt$buildSites_CPUs)
+buildConsensusSeq <- function(x){
+  tab <- group_by(x, repLeaderSeq) %>% 
+         summarise(nWidths = n_distinct(fragWidth), nReads = sum(reads)) %>% 
+         ungroup() %>%
+         arrange(desc(nWidths), desc(nReads))
+  as.character(tab[1, 'repLeaderSeq'])
+}
+
 
 #tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
-tbl2 <- bind_rows(lapply(split(tbl1, tbl1$i), function(p){
-          library(dplyr)
-          library(Biostrings)
-          library(stringdist)
-          source(file.path(opt$softwareDir, 'lib.R'))
-  
-          bind_rows(lapply(1:nrow(p), function(n){
-             x <- p[n,]
+tbl2 <-  bind_rows(lapply(1:nrow(tbl1), function(n){
+             x <- tbl1[n,]
 
              f <- subset(frags, trial == x$trial & subject == x$subject & sample == x$sample & posid == x$posid)
-  
-             leaderSeqTbl  <- bind_rows(lapply(strsplit(unlist(strsplit(f$leaderSeqs, '\\|')), ','), function(x){ tibble(seq = x[1], reads = x[2]) }))
-             leaderSeqTbl2 <- group_by(leaderSeqTbl, seq) %>% 
-                              summarise(count = n(), reads = sum(as.integer(reads))) %>% 
-                              ungroup() %>% arrange(desc(count), desc(reads))
 
-             repLeaderSeq <- leaderSeqTbl2$seq[1]
+             repLeaderSeq <- buildConsensusSeq(f)
              
-             if(nrow(f) == 1 & nrow(leaderSeqTbl2) == 1){
+             if(nrow(f) == 1){
                k <- tibble(UMIs = n_distinct(f$randomLinkerSeq), 
                            sonicLengths = n_distinct(f$fragWidth), 
                            reads = f$reads, 
@@ -255,14 +242,14 @@ tbl2 <- bind_rows(lapply(split(tbl1, tbl1$i), function(p){
         
              bind_cols(x[,1:5], k, x[,6:length(x)])
           }))
-}))
 
-tbl2$i <- NULL
 
 tbl2 <- arrange(tbl2, desc(sonicLengths))
 
 s <- unique(paste0(tbl2$trial, '~', tbl2$subject, '~', tbl2$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
+
+if(! opt$demultiplex_processAdriftReadLinkerUMIs) tbl2$UMIs <- NA
 
 saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'), compress = opt$compressDataFiles)
 openxlsx::write.xlsx(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))

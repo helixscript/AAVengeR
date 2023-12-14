@@ -11,21 +11,23 @@ softwareDir:       /home/ubuntu/AAVengeR                                        
 
 outputDir: output
 
-core_CPUs: 7
-core_maxPercentCPUs: 100
+core_CPUs: 47
+core_maxPercentCPUs: 16                                                         # For 8 CPUs per chunk using 47 CPUs -- (8 / 47)*100; set to 17%
+core_keepIntermediateFiles: TRUE
 
 demultiplex_seqRunID: xxx
-demultiplex_anchorReadsFile: data/testData_R2.fastq.gz
-demultiplex_adriftReadsFile: data/testData_R1.fastq.gz
-demultiplex_index1ReadsFile: data/testData_I1.fastq.gz
-demultiplex_sampleDataFile:  data/testData_sampleData.tsv
+demultiplex_anchorReadsFile: data/Undetermined_S0_R2_001.fastq.gz
+demultiplex_adriftReadsFile: data/Undetermined_S0_R1_001.fastq.gz
+demultiplex_index1ReadsFile: data/Undetermined_S0_I1_001.fastq.gz
+demultiplex_sampleDataFile:  data/sampleData.tsv
 demultiplex_level: unique
 demultiplex_quickAlignFilter: TRUE
 demultiplex_useAdriftReadUniqueLinkers: FALSE
-demultiplex_processAdriftReadLinkerUMIs: FALSE
+demultiplex_processAdriftReadLinkerUMIs: TRUE
 
 modules:
     - core
+    - predictPCRartifacts
 
 # Additional parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
@@ -131,7 +133,7 @@ buildSites_CPUs: 30
 buildSites_inputFile: buildStdFragments/stdFragments.rds
 buildSites_outputDir: buildSites
 
-predictPCRartifacts_CPUs: 30
+predictPCRartifacts_CPUs: 47
 predictPCRartifacts_inputFile: core/sites.rds
 predictPCRartifacts_outputDir: predictPCRartifacts
 predictPCRartifacts_adjacentSeqLength: 14

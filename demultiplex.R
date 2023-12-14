@@ -114,7 +114,6 @@ repeat {
     o$n <- unlist(lapply(stringr::str_split(o$file, '\\.'), '[', 2))
     
     invisible(parLapply(cluster, split(o, o$n), demultiplex))
-    #invisible(lapply(split(o, o$n), demultiplex))
     
     message('Processed ', sprintf("%.2f%%", (processedReads / dataSetLength)*100), ' reads')
     
@@ -257,6 +256,59 @@ if(! opt$demultiplex_processAdriftReadLinkerUMIs){
              substr(x$adriftReadSeq, start, stop) <- 'AAAAAAAAAAAA'
              x
             }))
+} else {
+  tab <- data.frame(sort(table(reads$adriftReadRandomID), decreasing = TRUE))
+  tab$Var1 <- as.character(tab$Var1)
+  names(tab) <- c('adriftReadRandomID', 'n')
+  tab <- tab[! duplicated(tab$adriftReadRandomID),]
+  reads <- left_join(reads, tab, by = 'adriftReadRandomID')
+  reads <- arrange(reads, desc(n))
+  
+  a <- reads[reads$n >= 3,]
+  u <- unique(a$adriftReadRandomID)
+  b <- reads[reads$n < 3,]
+  
+  b <- rbindlist(lapply(split(b, b$adriftReadRandomID), function(x){
+         d <- stringdist::stringdist(x$adriftReadRandomID[1], u)
+  
+         if(any(which(d == 1))){
+           o <- u[which(d == 1)]
+      
+           if(length(o) == 1){
+             x$adriftReadRandomID <- o
+           } else {
+             x$adriftReadRandomID <- 'x'
+           }
+         }
+         x
+       }))
+  
+  b <- b[b$adriftReadRandomID != 'x']
+  reads <- rbindlist(list(a, b))
+  
+  tab <- lazy_dt(reads) %>% 
+         group_by(adriftReadRandomID) %>%
+         summarise(nSamples = n_distinct(uniqueSample)) %>%
+         ungroup() %>%
+         as.data.table()
+  
+  a <- reads[reads$adriftReadRandomID %in% tab[tab$nSamples == 1]$adriftReadRandomID]
+  b <- reads[reads$adriftReadRandomID %in% tab[tab$nSamples > 1]$adriftReadRandomID]
+  
+  b <- rbindlist(lapply(split(b, b$adriftReadRandomID), function(x){
+         tab <- sort(table(x$uniqueSample), decreasing = TRUE)
+       
+         if(tab[1] > tab[2]){
+           x$uniqueSample <- names(tab)[1]
+         } else {
+           x$uniqueSample <- 'x'
+         }
+         x
+       }))
+  
+  b <- b[b$uniqueSample != 'x']
+  
+  reads <- rbindlist(list(a, b))
 }
 
 

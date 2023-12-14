@@ -147,7 +147,7 @@ while(! all(jobTable$done == TRUE)){
   Sys.sleep(5)
 }
 
-### invisible(file.remove(list.files(file.path(opt$outputDir, 'core', 'replicate_analyses'), recursive = TRUE, pattern = 'CORE_TMP', full.names = TRUE)))
+if(! opt$core_keepIntermediateFiles) invisible(file.remove(list.files(file.path(opt$outputDir, 'core', 'replicate_analyses'), recursive = TRUE, pattern = 'CORE_TMP', full.names = TRUE)))
 
 # Bundle together fragment output files.
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'fragments.rds', recursive = TRUE, full.names = TRUE)
@@ -267,7 +267,7 @@ for(x in list.files(file.path(opt$outputDir, 'core', 'subject_analyses'))){
   }
 }
 
-### invisible(file.remove(list.files(file.path(opt$outputDir, 'core', 'subject_analyses'), recursive = TRUE, pattern = 'CORE_TMP', full.names = TRUE)))
+if(! opt$core_keepIntermediateFiles) invisible(file.remove(list.files(file.path(opt$outputDir, 'core', 'subject_analyses'), recursive = TRUE, pattern = 'CORE_TMP', full.names = TRUE)))
 
 # Bundle together multi-hit cluster output files.
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'multiHitClusters.rds', recursive = TRUE, full.names = TRUE)
