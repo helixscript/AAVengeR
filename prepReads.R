@@ -11,6 +11,7 @@ library(parallel)
 library(lubridate)
 library(Biostrings)
 library(data.table)
+library(dtplyr)
 options(stringsAsFactors = FALSE)
 
 
@@ -447,7 +448,7 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
   }))
 }))
 
-stopCluster(cluster)
+
 
 if(nrow(reads) == 0){
   write(c(paste(now(), "Error - no reads remaining after trimming.")), file = file.path(opt$outputDir, opt$prepReads_outputDir, 'log'), append = TRUE)
@@ -481,12 +482,106 @@ if('leaderSeqHMM' %in% names(reads)){
   reads <- bind_rows(lapply(split(reads, reads$leaderSeqHMM), function(x){
              x$leaderSeqHMM <- lpe(x$leaderSeqHMM[1])
              x
-            }))
+           }))
 }
 
 unlink(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'), recursive = TRUE) 
 
 if('quickFilterStartPos' %in% names(reads)) reads$quickFilterStartPos <- NULL
+
+# If UMI processing is disabled, set all random UMI sequences to poly-A and updated
+# adrift reads by replacing the random UMI sequences with poly-A.
+
+if(! opt$processAdriftReadLinkerUMIs){
+  reads$adriftReadRandomID <- 'AAAAAAAAAAAA'
+  
+  reads <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
+    start <- subset(samples, uniqueSample == x$uniqueSample[1])$adriftRead.linkerRandomID.start
+    stop  <- subset(samples, uniqueSample == x$uniqueSample[1])$adriftRead.linkerRandomID.end
+    substr(x$adriftReadSeq, start, stop) <- 'AAAAAAAAAAAA'
+    x
+  }))
+} else {
+  if('n' %in% names(reads)) reads$n <- NULL
+  tab <- data.frame(sort(table(reads$adriftReadRandomID), decreasing = TRUE))
+  tab$Var1 <- as.character(tab$Var1)
+  names(tab) <- c('adriftReadRandomID', 'n')
+  tab <- tab[! duplicated(tab$adriftReadRandomID),]
+  reads <- left_join(reads, tab, by = 'adriftReadRandomID')
+  reads <- arrange(reads, desc(n))
+  
+  # UMIs read three or more times are considered abundant and are used as 
+  # truth for correcting less read UMIs.
+  
+  a <- reads[reads$n >= 3,]
+  u <- unique(a$adriftReadRandomID)
+  b <- reads[reads$n < 3,]
+  
+  clusterExport(cluster, c('u'))
+  b <- data.table(b)
+  
+  b <- rbindlist(parLapply(cluster, split(b, ntile(1:nrow(b), opt$demultiplex_CPUs)), function(k){
+    library(dplyr)
+    library(data.table)
+    library(stringdist)
+    
+    t <- n_distinct(k$adriftReadRandomID)
+    n <- 1
+    f <- paste0('UMI_correction_log_', paste0(paste0(stringi::stri_rand_strings(8, 1, '[A-Za-z0-9_\\-\\!\\%]'), collapse = '')))
+    
+    logFile <- file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp', f)
+    
+    rbindlist(lapply(split(k, k$adriftReadRandomID), function(x){
+      if(n %% 100 == 0) write(sprintf("%.2f%%", (n/t)*100), file = logFile)
+      n <<- n + 1
+      
+      d <- stringdist(x$adriftReadRandomID[1], u, nthread = 1)
+      
+      if(any(which(d == 1))){
+        o <- u[which(d == 1)]
+        
+        if(length(o) == 1){
+          x$adriftReadRandomID <- o
+        } else {
+          # If an UMI is 1 away from two or more unique UMIs then we let it go.
+          x$adriftReadRandomID <- 'x'
+        }
+      }
+      x
+    }))
+  }))
+  
+  b <- b[b$adriftReadRandomID != 'x']
+  reads <- rbindlist(list(a, b))
+  
+  tab <- lazy_dt(reads) %>% 
+         group_by(adriftReadRandomID) %>%
+         summarise(nSamples = n_distinct(uniqueSample)) %>%
+         ungroup() %>%
+         as.data.table()
+  
+  a <- reads[reads$adriftReadRandomID %in% tab[tab$nSamples == 1]$adriftReadRandomID]
+  b <- reads[reads$adriftReadRandomID %in% tab[tab$nSamples > 1]$adriftReadRandomID]
+  
+  if(nrow(b) > 0){
+    b <- rbindlist(lapply(split(b, b$adriftReadRandomID), function(x){
+           tab <- sort(table(x$uniqueSample), decreasing = TRUE)
+    
+           if(tab[1] > tab[2]){
+             x$uniqueSample <- names(tab)[1]
+           } else {
+             x$uniqueSample <- 'x'
+          }
+          x
+          }))
+  
+     b <- b[b$uniqueSample != 'x']
+  }
+  
+  reads <- rbindlist(list(a, b))
+}
+
+stopCluster(cluster)
 
 saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds'), compress = opt$compressDataFiles)
 

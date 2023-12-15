@@ -49,5 +49,5 @@ Added bwa2 support.
 Added new demultiplexing module.
 Added support for read clustering.
 Added pre-blat read filtering using bwa2.
-1.25
+1.30
 ...

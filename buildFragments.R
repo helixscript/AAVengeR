@@ -40,9 +40,6 @@ anchorReadAlignments$posid <- paste0(anchorReadAlignments$tName, anchorReadAlign
 anchorReadAlignments$sample <- sub('~\\d+$', '', anchorReadAlignments$uniqueSample)
 adriftReadAlignments$sample <- sub('~\\d+$', '', adriftReadAlignments$uniqueSample)
 
-# (!)
-# add adriftReadAlignments$randomLinkerSeq
-
 r <- dplyr::select(readRDS(file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds')), readID, adriftReadRandomID) %>% 
      dplyr::rename(randomLinkerSeq = adriftReadRandomID) %>% 
      data.table()

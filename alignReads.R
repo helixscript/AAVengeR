@@ -209,7 +209,7 @@ adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$readID %in% i,
 # Add refGenome, vector, and flags.
 anchorReadAlignments <- left_join(anchorReadAlignments, distinct(select(reads, readID, vectorFastaFile, seqRunID, flags)), by = 'readID')
 
-# Here 
+
 # Expand predicted leaderSeq sequences by extending with delayed alignment sequences. 
 anchorReadAlignments <- left_join(anchorReadAlignments, select(reads, readID, anchorReadSeq, leaderSeq), by = 'readID')
 anchorReadAlignments$leaderSeq <- paste0(anchorReadAlignments$leaderSeq, substr(anchorReadAlignments$anchorReadSeq, 1, anchorReadAlignments$qStart))

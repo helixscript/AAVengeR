@@ -244,72 +244,68 @@ if('databaseGroup' %in% names(opt)){
 
 
 
-# If UMI processing is disabled, set all random UMI sequences to poly-A and updated
-# adrift reads by replacing the random UMI sequences with poly-A.
+# Filter reads based on the requested demultiplex level.
+# All reads, unique reads (R1 [minus linker] + R2), or clustered reads can be retained.
+# Read clustering is performed with CD-HIT-EST using the parameters passed in with demultiplex_mergeSimilarReadPairsParams.
 
-if(! opt$demultiplex_processAdriftReadLinkerUMIs){
-  reads$adriftReadRandomID <- 'AAAAAAAAAAAA'
+if(opt$demultiplex_level == 'all'){
+  reads$nDuplicateReads <- 0
+} else if(opt$demultiplex_level == 'unique'){
+  reads$adriftReadSeq2 <- substr(reads$adriftReadSeq, reads$adriftLinkerSeqEnd+1, nchar(reads$adriftReadSeq))
   
-  reads <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
-             start <- subset(samples, uniqueSample == x$uniqueSample[1])$adriftRead.linkerRandomID.start
-             stop  <- subset(samples, uniqueSample == x$uniqueSample[1])$adriftRead.linkerRandomID.end
-             substr(x$adriftReadSeq, start, stop) <- 'AAAAAAAAAAAA'
-             x
-            }))
-} else {
-  tab <- data.frame(sort(table(reads$adriftReadRandomID), decreasing = TRUE))
-  tab$Var1 <- as.character(tab$Var1)
-  names(tab) <- c('adriftReadRandomID', 'n')
-  tab <- tab[! duplicated(tab$adriftReadRandomID),]
-  reads <- left_join(reads, tab, by = 'adriftReadRandomID')
-  reads <- arrange(reads, desc(n))
+  reads <- lazy_dt(reads, immutable = FALSE) %>% 
+    dplyr::group_by(uniqueSample, adriftReadRandomID, anchorReadSeq, adriftReadSeq2) %>%
+    dplyr::mutate(nDuplicateReads = n() - 1) %>% 
+    dplyr::slice(1) %>% 
+    dplyr::ungroup() %>%
+    dplyr::select(-adriftReadSeq2) %>%
+    as.data.table()
   
-  a <- reads[reads$n >= 3,]
-  u <- unique(a$adriftReadRandomID)
-  b <- reads[reads$n < 3,]
-  
-  b <- rbindlist(lapply(split(b, b$adriftReadRandomID), function(x){
-         d <- stringdist::stringdist(x$adriftReadRandomID[1], u)
-  
-         if(any(which(d == 1))){
-           o <- u[which(d == 1)]
+} else if(opt$demultiplex_level == 'clustered'){
+  o <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
+    o <- DNAStringSet(paste0(x$anchorReadSeq, substr(x$adriftReadSeq, x$adriftLinkerSeqEnd+1, nchar(x$adriftReadSeq))))
+    names(o) <- x$readID
+    f <- tmpFile()
+    writeFasta(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', f))
+    
+    system(paste0("cd-hit-est -i ", file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', f), 
+                  " -o ",  file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.out')), " -T ", opt$demultiplex_CPUs, 
+                  " ", opt$demultiplex_mergeSimilarReadPairsParams))
+    
+    r <- paste0(readLines(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.out.clstr'))), collapse = '')
+    
+    invisible(file.remove(c(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', f),
+                            file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.out')),
+                            file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.out.clstr')))))
+    
+    m <- rbindlist(lapply(unlist(strsplit(r, '>Cluster')), function(x){
+      e <- sub('>', '', unlist(stringr::str_extract_all(x, '>[^\\.]+')))
       
-           if(length(o) == 1){
-             x$adriftReadRandomID <- o
-           } else {
-             x$adriftReadRandomID <- 'x'
-           }
-         }
-         x
-       }))
+      if(length(e) > 0){
+        repSeq <- sub('^>', '', stringr::str_extract(stringr::str_extract(x, '>[^\\.]+\\.+\\s+\\*'), '>[^\\.]+'))
+        return(data.table(readID = e, rep = repSeq))
+      } else {
+        return(data.table())
+      }
+    })) 
+    
+    m <- left_join(m, select(reads, readID, adriftReadRandomID), by = 'readID')
+    
+    rbindlist(lapply(split(m, m$rep), function(x){
+      rbindlist(lapply(split(x, x$adriftReadRandomID), function(x2){
+        data.table(readID = ifelse(x$rep[1] %in% x2$readID, x$rep[1], x2[1,]$readID), nDuplicateReads = nrow(x2) - 1)
+      }))
+    }))
+  }))
   
-  b <- b[b$adriftReadRandomID != 'x']
-  reads <- rbindlist(list(a, b))
-  
-  tab <- lazy_dt(reads) %>% 
-         group_by(adriftReadRandomID) %>%
-         summarise(nSamples = n_distinct(uniqueSample)) %>%
-         ungroup() %>%
-         as.data.table()
-  
-  a <- reads[reads$adriftReadRandomID %in% tab[tab$nSamples == 1]$adriftReadRandomID]
-  b <- reads[reads$adriftReadRandomID %in% tab[tab$nSamples > 1]$adriftReadRandomID]
-  
-  b <- rbindlist(lapply(split(b, b$adriftReadRandomID), function(x){
-         tab <- sort(table(x$uniqueSample), decreasing = TRUE)
-       
-         if(tab[1] > tab[2]){
-           x$uniqueSample <- names(tab)[1]
-         } else {
-           x$uniqueSample <- 'x'
-         }
-         x
-       }))
-  
-  b <- b[b$uniqueSample != 'x']
-  
-  reads <- rbindlist(list(a, b))
+  reads <- subset(reads, readID %in% o$readID)
+  reads <- left_join(reads, o, by = 'readID')
+} else {
+  # error
 }
+
+
+
 
 
 # Align demultiplexed reads to the reference genome with bwa2-mem and only 
@@ -401,77 +397,6 @@ if(opt$demultiplex_quickAlignFilter){
   write(paste(now(), '   Prefiltering done.', d, 'reads removed.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
 }
 
-
-
-
-
-# Filter reads based on the requested demultiplex level.
-# All reads, unique reads (R1 [minus linker] + R2), or clustered reads can be retained.
-# Read clustering is performed with CD-HIT-EST using the parameters passed in with demultiplex_mergeSimilarReadPairsParams.
-
-if(opt$demultiplex_level == 'all'){
-  reads$nDuplicateReads <- 0
-} else if(opt$demultiplex_level == 'unique'){
-  reads$adriftReadSeq2 <- substr(reads$adriftReadSeq, reads$adriftLinkerSeqEnd+1, nchar(reads$adriftReadSeq))
-
-  reads <- lazy_dt(reads, immutable = FALSE) %>% 
-           dplyr::group_by(uniqueSample, adriftReadRandomID, anchorReadSeq, adriftReadSeq2) %>%
-           dplyr::mutate(nDuplicateReads = n() - 1) %>% 
-           dplyr::slice(1) %>% 
-           dplyr::ungroup() %>%
-           dplyr::select(-adriftReadSeq2) %>%
-           as.data.table()
-  
-} else if(opt$demultiplex_level == 'clustered'){
-  o <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
-         o <- DNAStringSet(paste0(x$anchorReadSeq, substr(x$adriftReadSeq, x$adriftLinkerSeqEnd+1, nchar(x$adriftReadSeq))))
-         names(o) <- x$readID
-         f <- tmpFile()
-         writeFasta(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', f))
-  
-         system(paste0("cd-hit-est -i ", file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', f), 
-                       " -o ",  file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.out')), " -T ", opt$demultiplex_CPUs, 
-                       " ", opt$demultiplex_mergeSimilarReadPairsParams))
-  
-         r <- paste0(readLines(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.out.clstr'))), collapse = '')
-       
-         invisible(file.remove(c(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', f),
-                                 file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.out')),
-                                 file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0(f, '.out.clstr')))))
-  
-        m <- rbindlist(lapply(unlist(strsplit(r, '>Cluster')), function(x){
-                e <- sub('>', '', unlist(stringr::str_extract_all(x, '>[^\\.]+')))
-        
-                if(length(e) > 0){
-                  repSeq <- sub('^>', '', stringr::str_extract(stringr::str_extract(x, '>[^\\.]+\\.+\\s+\\*'), '>[^\\.]+'))
-                  return(data.table(readID = e, rep = repSeq))
-                } else {
-                return(data.table())
-                }
-              })) 
-  
-        m <- left_join(m, select(reads, readID, adriftReadRandomID), by = 'readID')
-  
-        rbindlist(lapply(split(m, m$rep), function(x){
-          rbindlist(lapply(split(x, x$adriftReadRandomID), function(x2){
-            data.table(readID = ifelse(x$rep[1] %in% x2$readID, x$rep[1], x2[1,]$readID), nDuplicateReads = nrow(x2) - 1)
-          }))
-       }))
-  }))
-
-  reads <- subset(reads, readID %in% o$readID)
-  reads <- left_join(reads, o, by = 'readID')
-} else {
-  # error
-}
-
-
-# Save demultiplexed reads and clean up.
-reads$seqRunID <- opt$demultiplex_seqRunID
-saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = opt$compressDataFiles)
-invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
-
-
 # FASTQ export if requested in the configuration file.
 if(opt$demultiplex_exportFASTQ){
   
@@ -497,5 +422,10 @@ if(opt$demultiplex_exportFASTQ){
     }))
   }))
 }
+
+# Save demultiplexed reads and clean up.
+reads$seqRunID <- opt$demultiplex_seqRunID
+saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = opt$compressDataFiles)
+invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
 
 q(save = 'no', status = 0, runLast = FALSE) 

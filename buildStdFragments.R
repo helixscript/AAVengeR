@@ -546,7 +546,7 @@ frags_uniqPosIDs$leaderSeqGroupNum <- NULL
 frags_uniqPosIDs$i <- paste(frags_uniqPosIDs$trial, frags_uniqPosIDs$subject, frags_uniqPosIDs$sample)
 
 
-if(opt$demultiplex_processAdriftReadLinkerUMIs){
+if(opt$processAdriftReadLinkerUMIs){
 
   # Identify random ids that span more than one integration position.
   r <- group_by(frags_uniqPosIDs, trial, subject, sample, randomLinkerSeq) %>% 
@@ -580,7 +580,6 @@ if(opt$demultiplex_processAdriftReadLinkerUMIs){
               return()
             }
             
-            #browser()
             t <- arrange(t, desc(Freq))
           
             # The top posid associated with this random id is read x times greater than the second - assign all to the first.
