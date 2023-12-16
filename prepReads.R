@@ -23,6 +23,8 @@ source(file.path(opt$softwareDir, 'lib.R'))
 setMissingOptions()
 setOptimalParameters()
 
+samples <- loadSamples()
+
 cluster <- makeCluster(opt$prepReads_CPUs)
 clusterExport(cluster, 'opt')
 
@@ -494,13 +496,6 @@ if('quickFilterStartPos' %in% names(reads)) reads$quickFilterStartPos <- NULL
 
 if(! opt$processAdriftReadLinkerUMIs){
   reads$adriftReadRandomID <- 'AAAAAAAAAAAA'
-  
-  reads <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
-    start <- subset(samples, uniqueSample == x$uniqueSample[1])$adriftRead.linkerRandomID.start
-    stop  <- subset(samples, uniqueSample == x$uniqueSample[1])$adriftRead.linkerRandomID.end
-    substr(x$adriftReadSeq, start, stop) <- 'AAAAAAAAAAAA'
-    x
-  }))
 } else {
   if('n' %in% names(reads)) reads$n <- NULL
   tab <- data.frame(sort(table(reads$adriftReadRandomID), decreasing = TRUE))
