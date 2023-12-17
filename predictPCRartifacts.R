@@ -27,6 +27,9 @@ clusterExport(cluster, c('opt', 'tmpFile'))
 sites$refGenome <- file.path(opt$softwareDir, 'data', 'referenceGenomes', 'blat', paste0(sites$refGenome, '.2bit'))
 sites$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', sites$vectorFastaFile)
 
+### sites.save <- sites
+### sites <- subset(sites, posid == 'chr21-127223203.1')
+
 sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
   
        x$n <- ntile(1:nrow(x), opt$predictPCRartifacts_CPUs)
@@ -58,10 +61,26 @@ sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
                 i <- ifelse(nchar(leaderSeq) < opt$predictPCRartifacts_adjacentSeqLength, nchar(leaderSeq),opt$predictPCRartifacts_adjacentSeqLength)
                 t <- substr(leaderSeq, nchar(leaderSeq)-i+1, nchar(leaderSeq))
              
+                #browser()
+                
                 if(strand == '-'){
-                  r <- tibble(uniqueSite = us, leaderSeqSeg = t, seq = as.character(reverseComplement( subseq(s, pos+1, pos+opt$predictPCRartifacts_adjacentSeqLength))))   
+                  endPos <- pos + opt$predictPCRartifacts_adjacentSeqLength
+                  startPos <- pos + 1
+                  
+                  if(startPos > width(s)) startPos <- width(s)
+                  if(endPos > width(s))   endPos <- width(s)
+                  if(startPos == endPos) startPos <- startPos - 1
+                  
+                  r <- tibble(uniqueSite = us, leaderSeqSeg = t, seq = as.character(reverseComplement( subseq(s, start = startPos, end = endPos))))   
                 } else {
-                  r <- tibble(uniqueSite = us, leaderSeqSeg = t, seq = as.character(subseq(s, pos-opt$predictPCRartifacts_adjacentSeqLength, pos-1)))   
+                  startPos <- pos - opt$predictPCRartifacts_adjacentSeqLength
+                  endPos <- pos-1
+                  
+                  if(startPos < 1) startPos <- 1
+                  if(endPos < 1)   endPos <- 1
+                  if(startPos == endPos) endPos <- endPos + 1
+                  
+                  r <- tibble(uniqueSite = us, leaderSeqSeg = t, seq = as.character(subseq(s, start = startPos, end = endPos)))   
                 }
     
                 f <- tmpFile()
@@ -128,9 +147,23 @@ o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
     s <- g[names(g) == o[1]]
     
     if(strand == '-'){
-      r <- tibble(uniqueSite = us, strand = strand, seq = as.character(reverseComplement( subseq(s, pos+1-opt$predictPCRartifacts_adjacentSeqLength, pos) )))   
+      startPos <- pos+1-opt$predictPCRartifacts_adjacentSeqLength
+      endPos <- pos
+      
+      if(startPos < 1) startPos <- 1
+      if(endPos < 1) endPos <- 1
+      if(startPos == endPos) endPos <- endPos + 1
+      
+      r <- tibble(uniqueSite = us, strand = strand, seq = as.character(reverseComplement( subseq(s, start = startPos, end = endPos) )))   
     } else {
-      r <- tibble(uniqueSite = us, strand = strand, seq = as.character(subseq(s, pos, pos+opt$predictPCRartifacts_adjacentSeqLength-1)))   
+      startPos <- pos
+      endPos <- pos + opt$predictPCRartifacts_adjacentSeqLength - 1
+      
+      if(startPos > width(s)) startPos <- width(s)
+      if(endPos > width(s))   endPos <- width(s)
+      if(startPos == endPos) startPos <- startPos - 1
+      
+      r <- tibble(uniqueSite = us, strand = strand, seq = as.character(subseq(s, start = startPos, end = endPos)))   
     }
     
     r

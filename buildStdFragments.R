@@ -5,6 +5,7 @@ library(data.table)
 library(GenomicRanges)
 library(Biostrings)
 library(igraph)
+library(dtplyr)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 
@@ -548,24 +549,33 @@ frags_uniqPosIDs$i <- paste(frags_uniqPosIDs$trial, frags_uniqPosIDs$subject, fr
 
 if(opt$processAdriftReadLinkerUMIs){
 
+  frags_uniqPosIDs <- as.data.table(frags_uniqPosIDs)
+  
   # Identify random ids that span more than one integration position.
-  r <- group_by(frags_uniqPosIDs, trial, subject, sample, randomLinkerSeq) %>% 
+  r <- group_by(lazy_dt(frags_uniqPosIDs), trial, subject, sample, randomLinkerSeq) %>% 
        mutate(n = n_distinct(posid)) %>% 
        ungroup() %>%
        filter(n > 1) %>%
        select(trial, subject, sample, randomLinkerSeq) %>%
-       mutate(i = paste(trial, subject, sample))
+       mutate(i = paste(trial, subject, sample)) %>%
+       as.data.table()
 
   if(nrow(r) > 0){
     # Quick sonicAbundance table.
-    f <- mutate(frags_uniqPosIDs, fragWidth = (fragEnd - fragStart) + 1) %>%
+    f <- mutate(lazy_dt(frags_uniqPosIDs), fragWidth = (fragEnd - fragStart) + 1) %>%
          select(trial, subject, sample, posid, fragWidth) %>%
          group_by(trial, subject, sample, posid) %>% 
          summarise(estAbund = n_distinct(fragWidth)) %>% 
          ungroup() %>% 
-         mutate(i = paste(trial, subject, sample))
+         mutate(i = paste(trial, subject, sample)) %>%
+         as.data.table()
   
+    total <- n_distinct(r$randomLinkerSeq)
+    counter <- 0
+    
     invisible(lapply(split(r, r$randomLinkerSeq), function(x){
+            message('UMI cleanup part 1: ', counter, '/', total); counter <<- counter + 1
+
             # Retrieve all reads for this duplicated random linker sequence
             o <- subset(frags_uniqPosIDs, i == x$i[1] & randomLinkerSeq == x$randomLinkerSeq[1])
             
@@ -601,13 +611,19 @@ if(opt$processAdriftReadLinkerUMIs){
   f <- mutate(frags_uniqPosIDs, fragWidth = fragEnd - fragStart + 1) %>%
        group_by(trial, subject, sample, randomLinkerSeq) %>% 
        summarise(n = n_distinct(fragWidth), i = i[1]) %>% 
-       ungroup()
+       ungroup() %>%
+       as.data.table()
   
   # Use read counts to determine the most likely random fragment boundary.
   if(any(f$n > 1)){
     f2 <- subset(f, n > 1)
     
+    total <- n_distinct(f2$randomLinkerSeq)
+    counter <- 1
+    
     invisible(lapply(split(f2, f2$randomLinkerSeq), function(x){
+      message('UMI cleanup part 2: ', counter, '/', total); counter <<- counter + 1
+      
       ind <- which(frags_uniqPosIDs$i == x$i & frags_uniqPosIDs$randomLinkerSeq == x$randomLinkerSeq)
       o <- frags_uniqPosIDs[ind,]
       
@@ -618,6 +634,8 @@ if(opt$processAdriftReadLinkerUMIs){
       }
     }))
   }
+  
+  frags_uniqPosIDs <- as.data.frame(frags_uniqPosIDs)
 }
 
 multiHitClusters <- tibble()

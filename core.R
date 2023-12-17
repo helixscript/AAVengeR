@@ -29,7 +29,7 @@ write(c('#!/usr/bin/sh',
       file = file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'))
 
 system(paste('chmod 755', file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh')))
-system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, show.output.on.console = FALSE)
+### system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, show.output.on.console = FALSE)
 
 
 # Read in demultiplex result.
@@ -126,7 +126,7 @@ while(! all(jobTable$done == TRUE)){
   o[['modules']] <- c('prepReads', 'alignReads', 'buildFragments')
   
   # Leader seq limit file.
-  o$prepReads_leaderSeqLimitFile <- list.files(opt$outputDir, pattern = 'minAlnStarts', recursive = TRUE, full.names = TRUE)[1]
+  #### o$prepReads_leaderSeqLimitFile <- list.files(opt$outputDir, pattern = 'minAlnStarts', recursive = TRUE, full.names = TRUE)[1]
    
   yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))
   
