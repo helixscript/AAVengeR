@@ -109,11 +109,13 @@ repeat {
   
   processedReads <- processedReads + length(index1.fq)
   
-  if(n == opt$demultiplex_CPUs | length(index1.fq) < opt$demultiplex_sequenceChunkSize){
+  if(n == opt$demultiplex_CPUs | length(index1.fq) <= opt$demultiplex_sequenceChunkSize){
+   
     o <- data.table(file = list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = 'fastqChunk'))
     o$n <- unlist(lapply(stringr::str_split(o$file, '\\.'), '[', 2))
     
-    invisible(parLapply(cluster, split(o, o$n), demultiplex))
+    #invisible(parLapply(cluster, split(o, o$n), demultiplex))
+    invisible(lapply(split(o, o$n), demultiplex))
     
     message('Processed ', sprintf("%.2f%%", (processedReads / dataSetLength)*100), ' reads')
     
@@ -135,7 +137,7 @@ totalRepSamples <- n_distinct(samples$uniqueSample)
 reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
   message(counter, '/', totalRepSamples)
   counter <<- counter + 1
-  
+
   f1 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.[^\\.]+\\.anchorReads'), full.names = TRUE)
   f2 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.[^\\.]+\\.adriftReads'), full.names = TRUE)
   f3 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.[^\\.]+\\.randomAdriftReadIDs'), full.names = TRUE)
