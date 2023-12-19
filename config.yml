@@ -4,30 +4,33 @@
 #   optimal values depending on the selected mode. Selecting 'manual' results    (@) path relative to output directory 
 #   in the configuration below being used as written.                            (!) other modudules need to be completed first.
 
-mode: integrase                                                                       # [integrase, AAV, transposase, or manual] Software mode.
+mode: integrase                                                                 # [integrase, AAV, transposase, or manual] Software mode.
 
 Rscript:           /usr/bin/Rscript                                             # [file path] Path to Rscript interpreter.
 softwareDir:       /home/ubuntu/AAVengeR                                        # [file path] Path to AAVengeR software directory.
 
 outputDir: output
 
-core_CPUs: 15
-core_maxPercentCPUs: 20                                                         # For 8 CPUs per chunk using 47 CPUs -- (8 / 47)*100; set to 17%
+core_CPUs: 47
+core_maxPercentCPUs: 24                                                         # For 8 CPUs per chunk using 47 CPUs -- (8 / 47)*100 =~ 17
 core_keepIntermediateFiles: TRUE
 
 demultiplex_seqRunID: xxx
-demultiplex_anchorReadsFile: data/combined_R2.fastq.gz
-demultiplex_adriftReadsFile: data/combined_R1.fastq.gz
-demultiplex_index1ReadsFile: data/combined_I1.fastq.gz
-demultiplex_sampleDataFile:  data/sampleData.tsv
+demultiplex_anchorReadsFile: data/Undetermined_S0_R2_001.fastq.gz
+demultiplex_adriftReadsFile: data/Undetermined_S0_R1_001.fastq.gz
+demultiplex_index1ReadsFile: data/Undetermined_S0_I1_001.fastq.gz
+demultiplex_sampleDataFile:  data/sampleData2.tsv
 demultiplex_level: unique
-demultiplex_quickAlignFilter: FALSE
+demultiplex_quickAlignFilter: FALSE                                              # (!) Designed for AAV work - will be slow for integrase work.
 demultiplex_useAdriftReadUniqueLinkers: TRUE
+demultiplex_requirePostUmiLinker: TRUE
+demultiplex_requirePostUmiLinker_maxMismatch: 1
 
-processAdriftReadLinkerUMIs: FALSE
+processAdriftReadLinkerUMIs: TRUE
 
 modules:
     - core
+
 
 # Additional parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
@@ -45,7 +48,7 @@ demultiplex_qualtrim_halfWidth: 5                                               
 demultiplex_qualtrim_events: 2                                                  # [integer]   Number of events within a sliding that need to fall below the min. score to trigger trimming.
 demultiplex_qualtrim_minLength: 50                                              # [integer]   Minimum length of anchor and adrift reads post quality trimming.
 demultiplex_correctGolayIndexReads: TRUE                                        # [boolean]   Correct Golay barcodes using Golay alogrithm. Requires Python2 and numPy module installed.
-demultiplex_sequenceChunkSize: 250000                                           # [integer]   Chunk size to use when breaking sequencing data into chunks for parallel processing.
+demultiplex_sequenceChunkSize: 300000                                           # [integer]   Chunk size to use when breaking sequencing data into chunks for parallel processing.
 demultiplex_index1ReadMaxMismatch: 1                                            # [integer]   Max. number of mismatches allowed in I1 barcodes.
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1                               # [integer]   (evaluated if demultiplex_useAdriftReadUniqueLinkers = TRUE) Max. number of mismatches allowed in R1 unique linker sequences.
 demultiplex_anchorReadStartSeq.maxMisMatch: 1                                   # [integer]   (evaluated if anchorReadStartSeq column provided in sampleData file) Max. number of mismatches allowed in anchor read start sequences.
@@ -124,9 +127,9 @@ buildStdFragments_autoPullTrialSamples: FALSE                                   
 buildStdFragments_randomIDdupReadMult: 5                                        # [integer]   When evaluating UMI sequences, if the most common position id associated with anUMI is x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
 buildStdFragments_randomIDdupAbundMult: 3                                       # [integer]   When evaluating UMI sequences, if the most common position id associated with an UMI has a sonicLength abundance x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
 buildStdFragments_intSiteStdWindowWidth: 5                                      # [integer]   Half width of window centered on each intSite when looking for other sites to merge.
-buildStdFragments_breakPointStdWindowWidth: 3                                   # [integer]   Half width of window centered on each sonic break when looking for other break points to merge.
+buildStdFragments_breakPointStdWindowWidth: 4                                   # [integer]   Half width of window centered on each sonic break when looking for other break points to merge.
 buildStdFragments_minReadsPerFrag: 1                                            # [integer]   Min number of reads required to reatin a UMI specific fragment.
-buildStdFragments_createMultiHitClusters: FALSE                                 # [boolean]   Create networks of sites for reads that align well to multiple locations in a reference genome.
+buildStdFragments_createMultiHitClusters: TRUE                                  # [boolean]   Create networks of sites for reads that align well to multiple locations in a reference genome.
 
 
 buildSites_CPUs: 30

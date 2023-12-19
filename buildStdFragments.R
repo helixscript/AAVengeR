@@ -118,16 +118,8 @@ write(c(paste(now(), '   Categorizing leader sequences.')), file = file.path(opt
 frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 
 
-frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample, ':',  
-                       frags$replicate, ':', frags$chromosome, ':', frags$strand, ':', 
-                       frags$fragStart, ':', frags$fragEnd,    ':', frags$randomLinkerSeq)
 
-
-
-
-
-# Find sites that are near one another with GRanges expanded +/- 100 and then 
-# categorize LTR / ITR remnants.
+# Categorize LTR / ITR remnants.
 #-------------------------------------------------------------------------------
 
 frags <- data.table(frags)
@@ -219,12 +211,8 @@ if('end' %in% names(frags))   frags$end <- NULL
 frags$leaderSeqGroup <- paste0(frags$trial, '~', frags$subject, '~', frags$leaderSeqGroupNum)
 frags$leaderSeqGroupNum <- NULL
 
-# Define fragment ids including ITR/LTR grouping ids and random ids.
-frags$fragID <- paste0(frags$trial,     ':', frags$subject,    ':', frags$sample, ':',  
-                       frags$replicate, ':', frags$chromosome, ':', frags$strand, ':', 
-                       frags$fragStart, ':', frags$fragEnd,    ':', frags$leaderSeqGroup, ':',
-                       frags$randomLinkerSeq)
-
+frags <- tidyr::unite(frags, fragID, trial, subject, sample, replicate, chromosome, 
+                      strand, fragStart, fragEnd, leaderSeqGroup, randomLinkerSeq, sep = ':', remove = FALSE)
 
 
 # Create a tibble that can be turned into a GRange object which can be used to standardize positions.
@@ -242,7 +230,7 @@ g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
 
 
 
-# Standardize integration positions across subjects.
+# Standardize integration positions within subjects.
 #-------------------------------------------------------------------------------
 
 write(c(paste(now(), '   Standardizing integration positions within subjects.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
@@ -286,12 +274,11 @@ frags <- select(frags, -start, -end)
 frags$posid <- paste0(frags$chromosome, frags$strand, 
                       ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd),
                       '.', stringr::str_extract(frags$leaderSeqGroup, '\\d+$'))
-
 rm(g)
 
 
 
-# Standardize break positions within replicates
+# Standardize break positions within replicates.
 #-------------------------------------------------------------------------------
 frags$s <- paste0(frags$leaderSeqGroup, '~', frags$sample, '~', frags$replicate)
 
@@ -328,6 +315,7 @@ g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s
 g <- data.frame(g)
 frags$s <- NULL
 
+
 # Join updated positions to the input data frame.
 frags <- left_join(frags, select(g, start, end, fragID), by = 'fragID')
 
@@ -342,6 +330,10 @@ frags$posid <- paste0(frags$chromosome, frags$strand,
                       ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd),
                       '.', stringr::str_extract(frags$leaderSeqGroup, '\\d+$'))
 
+frags <- tidyr::unite(frags, fragID, trial, subject, sample, replicate, 
+                      chromosome, strand, fragStart, fragEnd, leaderSeqGroup, randomLinkerSeq, sep = ':', remove = FALSE)
+
+
 
 # Determine which read level fragment records map to multiple position ids.
 #-------------------------------------------------------------------------------
@@ -353,6 +345,9 @@ u <- group_by(frags, readID) %>%
 frags_uniqPosIDs <- frags[frags$readID %in% u,] 
 frags_multPosIDs <- frags[! frags$readID %in% u,]
 
+
+
+# Do not continue unless we have at least one uniquely called fragment.
 if(nrow(frags_uniqPosIDs) == 0){
   write(c(paste(now(), '   Error - No unique position remain after filtering.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
   if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
@@ -360,8 +355,6 @@ if(nrow(frags_uniqPosIDs) == 0){
 }
 
 
-frags_uniqPosIDs <- tidyr::unite(frags_uniqPosIDs, fragID, trial, subject, sample, replicate, 
-                                 chromosome, strand, fragStart, fragEnd, leaderSeqGroup, sep = ':', remove = FALSE)
 
 # Multihits
 # This block is here because some reads may be returned to frags_uniqPosIDs.
@@ -416,11 +409,10 @@ if(nrow(frags_multPosIDs) > 0){
   }
 } 
 
+
+
 # Correct for instances where a read maps to more than fragment but all fragments have the same integration position.
 # These are instances of fuzzy break points and here we select the shortest fragments lengths.
-
-frags_uniqPosIDs <- tidyr::unite(frags_uniqPosIDs, fragID, trial, subject, sample, replicate, 
-                                 chromosome, strand, fragStart, fragEnd, leaderSeqGroup, sep = ':', remove = FALSE)
 
 z <- frags_uniqPosIDs$readID[duplicated(frags_uniqPosIDs$readID)]
 
@@ -442,9 +434,12 @@ if(length(z) > 0){
   }))
   
   frags_uniqPosIDs <- bind_rows(a2, b)
+  
   rm(a, b, a2)
   gc()
 }
+
+
 
 
 # Ensure that the read level fragments for each sample position id have similar remnant sequences.
@@ -513,7 +508,11 @@ frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPos
   x
 }))
 
+
+
+
 # Here we rearrange leader sequence groups so that the must abundant groups have the lowest identifiers.
+# This is most applicable to AAV work.
 frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPosIDs$trialSubject, frags_uniqPosIDs$sample, sub('\\.\\d+$', '', frags_uniqPosIDs$posid))), function(x){
   if(n_distinct(x$leaderSeqGroupNum) == 1){
    x$leaderSeqGroupNum <- 1 
@@ -532,20 +531,19 @@ frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPos
   x
 }))
 
-
 frags_uniqPosIDs$leaderSeqGroup <- paste0(frags_uniqPosIDs$trialSubject, '~', frags_uniqPosIDs$leaderSeqGroupNum)
 
-
-# Update position and fragment IDs to reflect standardization.
 frags_uniqPosIDs$posid <- paste0(frags_uniqPosIDs$chromosome, frags_uniqPosIDs$strand, 
                                  ifelse(frags_uniqPosIDs$strand == '+', frags_uniqPosIDs$fragStart, frags_uniqPosIDs$fragEnd),
                                  '.', frags_uniqPosIDs$leaderSeqGroupNum)
 
 frags_uniqPosIDs$leaderSeqGroupNum <- NULL
 
+
+
+
 # Create quick look-up index.
 frags_uniqPosIDs$i <- paste(frags_uniqPosIDs$trial, frags_uniqPosIDs$subject, frags_uniqPosIDs$sample)
-
 
 if(opt$processAdriftReadLinkerUMIs){
 
@@ -638,6 +636,9 @@ if(opt$processAdriftReadLinkerUMIs){
   frags_uniqPosIDs <- as.data.frame(frags_uniqPosIDs)
 }
 
+
+
+# Build multi-hit clusters if requested.
 multiHitClusters <- tibble()
 
 if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
@@ -754,13 +755,21 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   }
 }
 
+
 # Frags are still read level. 
 # Switch frags to a data frame because tibbles refuse to store single character vectors as lists.
 
 frags <- group_by(data.frame(frags_uniqPosIDs), fragID) %>% mutate(i = n()) %>% ungroup()
 
-a <- subset(frags, i == 1)
-b <- subset(frags, i > 1)
+a <- subset(frags, i == 1)   
+b <- subset(frags, i > 1)    
+
+# Set values for fragments with more than one read.
+
+# If you include the UMIs in the fragID, frags will be split into
+# many smaller pieces and when you take the first row, all the UMIs 
+# will be returned. If UMIs are not included in the fragID, then an
+# arbitrary UMI will be returned for each fragment length.
 
 if(nrow(b) > 0){
   o <- split(b, b$fragID)
@@ -771,9 +780,6 @@ if(nrow(b) > 0){
          totalReads <- n_distinct(x$readID) + sum(x$nDuplicateReads)
   
          if(totalReads < opt$buildStdFragments_minReadsPerFrag) return(tibble())
-        
-         #tab <- sort(table(x$leaderSeq), decreasing = TRUE)
-         #x$leaderSeqs <- paste0(mapply(function(n, x){ paste0(n, ',', x, '|') }, names(tab), tab, SIMPLIFY = FALSE), collapse = '')
          
          x$repLeaderSeq <- x$leaderSeq[1]
          
@@ -788,8 +794,8 @@ if(nrow(b) > 0){
   b2 <- tibble()
 }
 
+
 if(nrow(a) > 0){
-  # Set values for fragments with single reads.
   a2 <- dplyr::group_by(a, fragID) %>%
         dplyr::mutate(reads = nDuplicateReads+1, 
                       repLeaderSeq = leaderSeq[1],
@@ -802,6 +808,8 @@ if(nrow(a) > 0){
 } 
 
 f <- bind_rows(a2, b2)
+
+
 
 # Clear out the tmp/ directory.
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), full.names = TRUE)))

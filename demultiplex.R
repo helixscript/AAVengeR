@@ -88,7 +88,6 @@ anchor.strm <- FastqStreamer(opt$demultiplex_anchorReadsFile, n = as.integer(opt
 adrift.strm <- FastqStreamer(opt$demultiplex_adriftReadsFile, n = as.integer(opt$demultiplex_sequenceChunkSize))
 
 
-
 # Stream chunks of FASTQ for I1, R1, and R2, write chunks to disk, then process in parallel.
 n <- 1
 k <- 1
@@ -109,13 +108,13 @@ repeat {
   
   processedReads <- processedReads + length(index1.fq)
   
-  if(n == opt$demultiplex_CPUs | length(index1.fq) <= opt$demultiplex_sequenceChunkSize){
+  if(n == opt$demultiplex_CPUs | length(index1.fq) < opt$demultiplex_sequenceChunkSize){
    
     o <- data.table(file = list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = 'fastqChunk'))
     o$n <- unlist(lapply(stringr::str_split(o$file, '\\.'), '[', 2))
     
-    #invisible(parLapply(cluster, split(o, o$n), demultiplex))
-    invisible(lapply(split(o, o$n), demultiplex))
+    invisible(parLapply(cluster, split(o, o$n), demultiplex))
+    #invisible(lapply(split(o, o$n), demultiplex))
     
     message('Processed ', sprintf("%.2f%%", (processedReads / dataSetLength)*100), ' reads')
     
@@ -167,8 +166,6 @@ if(nrow(reads) == 0){
 
 write(paste(now(), '   Clearing tmp files.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
-
-
 
 # Collect all the logs from the different computational nodes and create a single report.
 
@@ -424,6 +421,21 @@ if(opt$demultiplex_exportFASTQ){
     }))
   }))
 }
+
+if(opt$demultiplex_requirePostUmiLinker){
+  reads <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
+    d <- subset(samples, uniqueSample == x$uniqueSample[1])
+    s <- substr(x$adriftReadSeq, d$adriftRead.linkerRandomID.end, nchar(d$adriftReadLinkerSeq) + 1)   # expand region +1 on both ends.
+    e <- substr(d$adriftReadLinkerSeq, d$adriftRead.linkerRandomID.end + 1, nchar(d$adriftReadLinkerSeq))
+    i <- vcountPattern(e, DNAStringSet(s), max.mismatch = opt$demultiplex_requirePostUmiLinker_maxMismatch) == 1
+    
+    msg <- paste0(x$uniqueSample[1], ' - ', sprintf("%.2f%%", (sum(i == FALSE)/nrow(x))*100), ' reads missing post UMI linker.')
+    write(paste(now(), '   ', msg), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  
+    x[i]
+  }))
+}
+
 
 # Save demultiplexed reads and clean up.
 reads$seqRunID <- opt$demultiplex_seqRunID
