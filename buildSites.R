@@ -20,9 +20,6 @@ incomingSamples <- unique(paste0(frags$trial, '~', frags$subject, '~', frags$sam
 
 samples <- distinct(tibble(trial = frags$trial, subject = frags$subject, sample = frags$sample, replicate = frags$replicate, flags = frags$flags))
 
-dualDetections <- tibble()
-
-
 # Process fragments as integrase u5/u3 sites if all samples have a u5/u3 sample flag.
 if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
   
@@ -43,13 +40,14 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
       u3.frags$posid2 <- sub('\\.\\d+$', '', u3.frags$posid)
       u5.frags$posid2 <- sub('\\.\\d+$', '', u5.frags$posid)
     
+      # Cycle through u3 position ids.
       invisible(lapply(unique(u3.frags$posid), function(u3_posid){
         
         # Create alternative sites +/- 5 this u3 site.
         a <- sub('\\.\\d+$', '', u3_posid)
         o <- unlist(strsplit(a, '[\\+\\-]'))
         strand <- stringr::str_extract(a, '[\\+\\-]')
-        alts <- paste0(o[1], ifelse(strand == '+', '-', '+'), (as.integer(o[2])-6):(as.integer(o[2])+6))
+        alts <- paste0(o[1], ifelse(strand == '+', '-', '+'), (as.integer(o[2]) - opt$buildSites_dualDetectWidth):(as.integer(o[2]) + opt$buildSites_dualDetectWidth))
         
         # Search u5 fragments for alternative sites.
         # z may have multiple rows, one for each associated fragment.
@@ -60,9 +58,9 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
         if(nrow(z) > 0){
           
           # Retrieve fragments for both sites.
-          f1 <- subset(u3.frags, posid2 == a)            # u3
+          f1 <- subset(u3.frags, posid2 == a)        # u3
           f2 <- subset(u5.frags, posid2 %in% alts)   # u5 - assuming only one alt site was found.
-        
+          
           i <- which(frags$fragID %in% c(f1$fragID, f2$fragID) & frags$strand == '+')
           frags[i,]$posid <<- unlist(lapply(strsplit(frags[i,]$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2])+2, '.', x[3])))
           
@@ -84,15 +82,6 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
             frags[i,]$strand <<- '-'                    # Set the u3 frag strands to negative to reflect reverse orientation. U5 posid already '-'.
             frags[i,]$posid  <<- paste0(chr, '-', pos, '.0')  # Set the u3 frag posids to the u5 posid which is negative causing its fragments to merge with U3 fragments.
           }
-          
-          dualDetections <<- bind_rows(dualDetections, 
-                                       tibble(trial    = f1$trial[1], 
-                                              subject  = f1$subject[1], 
-                                              sample   = f1$sample[1], 
-                                              posid    = ifelse(strand == '-', paste0(chr, '+', pos, '.0'), paste0(chr, '-', pos, '.0')),
-                                              repLeaderSeq = frags[i,]$repLeaderSeq[1],
-                                              maxUMIs  = max(frags[i,]$randomLinkerSeq),
-                                              maxFrags = max(frags[i,]$fragID)))
         }
       }))
     }
@@ -159,16 +148,18 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
            source(file.path(opt$softwareDir, 'lib.R'))
   
            if(nrow(x) == 1){
-              return(dplyr::mutate(x, UMIs = n_distinct(x$randomLinkerSeq), 
-                                   sonicLengths = n_distinct(x$fragWidth)) %>%
-                     dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, UMIs, sonicLengths, reads, repLeaderSeq, vectorFastaFile))
+              return(dplyr::mutate(x, rUMIs = n_distinct(unlist(x$rUMI_list)),  
+                                      fUMIs = n_distinct(unlist(x$fUMI_list)),
+                                      sonicLengths = n_distinct(x$fragWidth)) %>%
+                     dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, rUMIs, fUMIs, sonicLengths, reads, repLeaderSeq, vectorFastaFile))
            } else {
               return(dplyr::mutate(x, 
-                                   UMIs = n_distinct(x$randomLinkerSeq), 
+                                   rUMIs = n_distinct(unlist(x$rUMI_list)),
+                                   fUMIs = n_distinct(unlist(x$fUMI_list)),
                                    sonicLengths = n_distinct(x$fragWidth), 
                                    reads = sum(reads), 
                                    repLeaderSeq = repLeaderSeq[1]) %>%
-                    dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, UMIs, sonicLengths, reads, repLeaderSeq, vectorFastaFile) %>%
+                    dplyr::select(trial, subject, sample, replicate, refGenome, posid, flags, rUMIs, fUMIs, sonicLengths, reads, repLeaderSeq, vectorFastaFile) %>%
                     dplyr::slice(1))
            }
          })) 
@@ -187,25 +178,24 @@ tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sa
                  o <- subset(x, replicate == r)
         
                  if(nrow(o) == 1){
-                   t <- tibble(x1 = o$UMIs, x2 = o$sonicLengths, x3 = o$reads, x4 = o$repLeaderSeq)
+                   t <- tibble(x1 = o$rUMIs, x2 = o$fUMIs, x3 = o$sonicLengths, x4 = o$reads, x5 = o$repLeaderSeq)
                  } else if(nrow(o) > 1){
-                   # browser()
                    stop('Row error 1')  
                  } else {
-                   t <- tibble(x1 = NA, x2 = NA, x3 = NA, x4 = NA)
+                   t <- tibble(x1 = NA, x2 = NA, x3 = NA, x4 = NA, x5 = NA)
                  }
            
-                 names(t) <- c(paste0('rep', r, '-UMIs'), 
+                 names(t) <- c(paste0('rep', r, '-rUMIs'), 
+                               paste0('rep', r, '-fUMIs'),
                                paste0('rep', r, '-sonicLengths'), 
                                paste0('rep', r, '-reads'), 
-                              paste0('rep', r, '-repLeaderSeq'))
+                               paste0('rep', r, '-repLeaderSeq'))
                 t
               }))
          
           bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], refGenome = x$refGenome[1], posid = x$posid[1], flags = x$flags[1], vectorFastaFile = x$vectorFastaFile[1]), o)
 }))
 
-#tbl1$i <- dplyr::ntile(1:nrow(tbl1), opt$buildSites_CPUs)
 
 buildConsensusSeq <- function(x){
   tab <- group_by(x, repLeaderSeq) %>% 
@@ -215,36 +205,21 @@ buildConsensusSeq <- function(x){
   as.character(tab[1, 'repLeaderSeq'])
 }
 
-
-#tbl2 <- bind_rows(parLapply(cluster, split(tbl1, tbl1$i), function(p){
 tbl2 <-  bind_rows(lapply(1:nrow(tbl1), function(n){
              x <- tbl1[n,]
 
              f <- subset(frags, trial == x$trial & subject == x$subject & sample == x$sample & posid == x$posid)
 
-             repLeaderSeq <- buildConsensusSeq(f)
-             
-             if(nrow(f) == 1){
-               k <- tibble(UMIs = n_distinct(f$randomLinkerSeq), 
-                           sonicLengths = n_distinct(f$fragWidth), 
-                           reads = f$reads, 
-                           repLeaderSeq = repLeaderSeq) 
-    
-             } else {
-               
-               k <- tibble(UMIs = n_distinct(f$randomLinkerSeq), 
-                           sonicLengths = n_distinct(f$fragWidth), 
-                           reads = sum(f$reads), 
-                           repLeaderSeq = repLeaderSeq)
-             }
-  
+             k <- tibble(rUMIs = n_distinct(unlist(f$rUMI_list)),
+                         fUMIs = n_distinct(unlist(f$fUMI_list)), 
+                         sonicLengths = n_distinct(f$fragWidth), 
+                         reads = sum(f$reads), 
+                         repLeaderSeq = buildConsensusSeq(f))
+     
              k$nRepsObs <- sum(! is.na(unlist(x[, which(grepl('\\-reads', names(x)))])))
         
              bind_cols(x[,1:5], k, x[,6:length(x)])
-          }))
-
-
-tbl2 <- arrange(tbl2, desc(sonicLengths))
+          })) %>% arrange(desc(sonicLengths))
 
 s <- unique(paste0(tbl2$trial, '~', tbl2$subject, '~', tbl2$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()

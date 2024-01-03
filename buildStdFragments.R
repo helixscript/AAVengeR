@@ -757,7 +757,12 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
 
 
 # Frags are still read level. 
-# Switch frags to a data frame because tibbles refuse to store single character vectors as lists.
+
+# Remove randomLinkerSeq from fragIDs.
+frags_uniqPosIDs <- tidyr::unite(frags_uniqPosIDs, fragID, trial, subject, sample, replicate, 
+                      chromosome, strand, fragStart, fragEnd, leaderSeqGroup, sep = ':', remove = FALSE)
+
+
 
 frags <- group_by(data.frame(frags_uniqPosIDs), fragID) %>% mutate(i = n()) %>% ungroup()
 
@@ -770,6 +775,19 @@ b <- subset(frags, i > 1)
 # many smaller pieces and when you take the first row, all the UMIs 
 # will be returned. If UMIs are not included in the fragID, then an
 # arbitrary UMI will be returned for each fragment length.
+
+filterUMIs <- function(x){
+  u <- sort((table(x)/length(x))*100, decreasing = TRUE) 
+  k <- u[u >= opt$buildStdFragments_minUMIfreq]
+  
+  if(length(k) > 0){
+    return(names(k))
+  } else {
+    return(vector()) 
+  }
+}
+
+# save.image("~/dev.RData")
 
 if(nrow(b) > 0){
   o <- split(b, b$fragID)
@@ -784,9 +802,17 @@ if(nrow(b) > 0){
          x$repLeaderSeq <- x$leaderSeq[1]
          
          readList <- x$readID
+         
+         rUmiList <- unique(x$randomLinkerSeq)
+         fUmiList <- filterUMIs(x$randomLinkerSeq)
+         
          x <- x[1,]
+         
          x$reads <- totalReads
-         x$readIDs <- list(readList)
+         
+         x$readIDs   <- list(readList)
+         x$rUMI_list <- list(rUmiList)
+         x$fUMI_list <- list(fUmiList)
     
          x
        }))
@@ -799,7 +825,9 @@ if(nrow(a) > 0){
   a2 <- dplyr::group_by(a, fragID) %>%
         dplyr::mutate(reads = nDuplicateReads+1, 
                       repLeaderSeq = leaderSeq[1],
-                      readIDs = list(readID)) %>%
+                      readIDs = list(readID),
+                      rUMI_list = list(randomLinkerSeq),
+                      fUMI_list = list(filterUMIs(randomLinkerSeq))) %>%
         dplyr::slice(1) %>%
         dplyr::ungroup() %>%
         dplyr::filter(reads >= opt$buildStdFragments_minReadsPerFrag)
@@ -819,7 +847,7 @@ if (nrow(f) > 0) f <- left_join(f, sampleMetaData, by = 'uniqueSample')
 s <- unique(paste0(f$trial, '~', f$subject, '~', f$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
-saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
-readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
+saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
+readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 

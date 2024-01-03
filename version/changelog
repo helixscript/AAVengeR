@@ -49,5 +49,8 @@ Added bwa2 support.
 Added new demultiplexing module.
 Added support for read clustering.
 Added pre-blat read filtering using bwa2.
-1.30
-...
+1.35
+Added additional blat options including on the fly OOC file generation.
+Corrected break point standardization functions.
+Updated UMI handeling.
+Split UMI reporting in buildSites into rUMIs and fUMIs.
