@@ -54,3 +54,6 @@ Added additional blat options including on the fly OOC file generation.
 Corrected break point standardization functions.
 Updated UMI handeling.
 Split UMI reporting in buildSites into rUMIs and fUMIs.
+Added docker build files.
+Added config test.
+Added small data test.
