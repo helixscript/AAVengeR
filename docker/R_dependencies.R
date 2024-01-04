@@ -10,6 +10,7 @@ install.packages("lubridate", repos='https://cloud.r-project.org/', quiet=FALSE)
 install.packages("data.table", repos='https://cloud.r-project.org/', quiet=FALSE)
 
 install.packages("ggplot2", repos='https://cloud.r-project.org/', quiet=FALSE)
+
 install.packages("scales", repos='https://cloud.r-project.org/', quiet=FALSE)
 
 install.packages("tidyverse", repos='https://cloud.r-project.org/', quiet=FALSE)
@@ -23,7 +24,9 @@ install.packages("png", repos='https://cloud.r-project.org/', quiet=FALSE)
 install.packages("igraph", repos='https://cloud.r-project.org/', quiet=FALSE)
 
 install.packages("RMySQL", repos='https://cloud.r-project.org/', quiet=FALSE)
+
 install.packages("readr", repos='https://cloud.r-project.org/', quiet=FALSE)
+
 install.packages('BiocManager', repos='https://cloud.r-project.org/', quiet=FALSE)
 
 install.packages('RcppAlgos', repos='https://cloud.r-project.org/', quiet=FALSE)

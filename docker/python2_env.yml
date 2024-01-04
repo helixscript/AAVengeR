@@ -47,6 +47,6 @@ dependencies:
   - xz=5.2.8=h5eee18b_0
   - zlib=1.2.13=h166bdaf_4
   - zstd=1.5.2=ha4553b6_0
-  - pip:
-      - numpy==1.16.6
+  # - pip:
+  #     - numpy==1.16.6
 prefix: /opt/conda/envs/python2_env
