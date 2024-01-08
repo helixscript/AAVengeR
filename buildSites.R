@@ -224,7 +224,10 @@ tbl2 <-  bind_rows(lapply(1:nrow(tbl1), function(n){
 s <- unique(paste0(tbl2$trial, '~', tbl2$subject, '~', tbl2$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
-if(! opt$processAdriftReadLinkerUMIs) tbl2$UMIs <- NA
+if(! opt$processAdriftReadLinkerUMIs){
+  tbl2$rUMIs <- NA
+  tbl2$fUMIs <- NA
+}
 
 saveRDS(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'), compress = opt$compressDataFiles)
 openxlsx::write.xlsx(tbl2, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
