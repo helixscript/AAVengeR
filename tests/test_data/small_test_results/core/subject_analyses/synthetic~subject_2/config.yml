@@ -1,0 +1,59 @@
+mode: integrase
+Rscript: /usr/bin/Rscript
+softwareDir: /data/AAVengeR
+outputDir: /data/AAVengeR/tests/test_data/small_test_results/core/subject_analyses/synthetic~subject_2
+core_CPUs: 64
+core_maxPercentCPUs: 25.0
+core_keepIntermediateFiles: yes
+demultiplex_seqRunID: test_small
+demultiplex_anchorReadsFile: /data/AAVengeR/tests/test_data/small_R2.fastq.gz
+demultiplex_adriftReadsFile: /data/AAVengeR/tests/test_data/small_R1.fastq.gz
+demultiplex_index1ReadsFile: /data/AAVengeR/tests/test_data/small_I1.fastq.gz
+demultiplex_sampleDataFile: /data/AAVengeR/tests/test_data/small_sample_data.tsv
+demultiplex_level: unique
+demultiplex_quickAlignFilter: no
+demultiplex_useAdriftReadUniqueLinkers: yes
+demultiplex_requirePostUmiLinker: yes
+demultiplex_requirePostUmiLinker_maxMismatch: 1.0
+processAdriftReadLinkerUMIs: yes
+compressDataFiles: no
+demultiplex_CPUs: 64
+demultiplex_outputDir: demultiplex
+demultiplex_RC_I1_barcodes: no
+demultiplex_RC_I1_barcodes_auto: yes
+demultiplex_qualtrim_code: '5'
+demultiplex_qualtrim_halfWidth: 5.0
+demultiplex_qualtrim_events: 2.0
+demultiplex_qualtrim_minLength: 50.0
+demultiplex_correctGolayIndexReads: yes
+demultiplex_sequenceChunkSize: 300000.0
+demultiplex_index1ReadMaxMismatch: 1.0
+demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1.0
+demultiplex_anchorReadStartSeq.maxMisMatch: 1.0
+demultiplex_exportFASTQ: no
+demultiplex_mergeSimilarReadPairsParams: -c 0.98 -d 0 -M 0 -G 1 -aS 0.98 -aL 0.98
+  -s 0.98 -n 10 -gap -1000
+demultiplex_quickAlignFilter_minPercentID: 97.0
+demultiplex_quickAlignFilter_minMatches: 30.0
+demultiplex_quickAlignFilter_minEstLeaderSeqLength: 15.0
+buildStdFragments_CPUs: 16
+buildStdFragments_inputFile: synthetic~subject_2.CORE_TMP.rds
+buildStdFragments_outputDir: buildStdFragments
+buildStdFragments_remnantClusterParams: -c 0.85 -d 0 -M 0 -G 1 -aS 0.90 -aL 0.90 -s
+  0.90 -n 4
+buildStdFragments_autoPullTrialSamples: no
+buildStdFragments_randomIDdupReadMult: 5.0
+buildStdFragments_randomIDdupAbundMult: 3.0
+buildStdFragments_intSiteStdWindowWidth: 5.0
+buildStdFragments_breakPointStdWindowWidth: 4.0
+buildStdFragments_minReadsPerFrag: 1.0
+buildStdFragments_createMultiHitClusters: no
+buildStdFragments_minUMIfreq: 15.0
+buildSites_CPUs: 16
+buildSites_inputFile: buildStdFragments/stdFragments.rds
+buildSites_outputDir: buildSites
+buildSites_dualDetectWidth: 6.0
+core_createFauxSiteDoneFiles: yes
+modules:
+- buildStdFragments
+- buildSites

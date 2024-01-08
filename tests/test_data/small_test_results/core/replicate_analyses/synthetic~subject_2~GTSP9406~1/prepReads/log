@@ -1,0 +1,16 @@
+2024-01-08 20:21:05.005512    Reading in demultiplexed reads.
+2024-01-08 20:21:05.009774    Trimming anchor read over-reading.
+2024-01-08 20:21:09.517242    Anchor reads trimmed with over-read adapter (sample, reads, percent trimmed):
+                       synthetic~subject_2~GTSP9406	80	100.00%
+2024-01-08 20:21:10.286394    Aligning ends of anchor reads to vector sequences.
+2024-01-08 20:21:17.892005    No anchor reads aligned to the vector.
+2024-01-08 20:21:17.900166    0.00% unique reads removed because they aligned to the vector.
+2024-01-08 20:21:17.915084    Using leader sequence HMM to define mappings.
+2024-01-08 20:21:22.806464    Leader sequences determined for 100.00% of unqiue read pairs.
+2024-01-08 20:21:22.826765    Removing indentified leader sequences from anchor reads.
+2024-01-08 20:21:22.843476    0.00% of reads removed because they were less than 25 NTs after trimming.
+2024-01-08 20:21:22.844289    Creating adrift read over-reading trim sequences.
+2024-01-08 20:21:23.999664    Triming adrift read over-reading.
+2024-01-08 20:21:30.491057    0.00% of reads removed because their trimmed lengths were less than 25 NTs.
+2024-01-08 20:21:30.505953    Adrift reads trimmed with over-read adapters from leader sequences, reads below min. length threshold post trim removed, (sample, reads, percent trimmed):
+                       synthetic~subject_2~GTSP9406	80	100.00%

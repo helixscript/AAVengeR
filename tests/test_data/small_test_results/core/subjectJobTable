@@ -1,0 +1,10 @@
+Mon Jan  8 20:27:11 2024
+Available CPUs: 64
+
+
+         id            reads   CPUs   active           startTime                     endTime             done   duration  
+--------------------- ------- ------ -------- ---------------------------- ---------------------------- ------ -----------
+ synthetic~subject_2    722     16      NA     2024-01-08 20:26:41.151514   2024-01-08 20:27:06.254294   TRUE   0 minutes 
+ synthetic~subject_1    593     16      NA     2024-01-08 20:26:46.17505    2024-01-08 20:27:11.281014   TRUE   0 minutes 
+
+

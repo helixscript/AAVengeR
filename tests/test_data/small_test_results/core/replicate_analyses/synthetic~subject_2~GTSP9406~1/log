@@ -1,0 +1,16 @@
+Mon Jan  8 20:20:54 2024
+1704745254
+2024-01-08 20:20:54.370457    Paths of expected software packages:
+                       blat	/opt/conda/envs/bioinformatic_dependencies/bin/blat
+                       cutadapt	/opt/conda/envs/bioinformatic_dependencies/bin/cutadapt
+                       hmmbuild	/opt/conda/envs/bioinformatic_dependencies/bin/hmmbuild
+                       hmmsearch	/opt/conda/envs/bioinformatic_dependencies/bin/hmmsearch
+                       blastn	/opt/conda/envs/bioinformatic_dependencies/bin/blastn
+                       makeblastdb	/opt/conda/envs/bioinformatic_dependencies/bin/makeblastdb
+                       muscle	/opt/conda/envs/bioinformatic_dependencies/bin/muscle
+                       python2	/opt/conda/envs/python2_env/bin/python2
+                       cd-hit-est	/opt/conda/envs/bioinformatic_dependencies/bin/cd-hit-est
+2024-01-08 20:20:54.578753 Starting prepReads
+2024-01-08 20:21:31.08685 Starting alignReads
+2024-01-08 20:26:29.794127 Starting buildFragments
+2024-01-08 20:26:34.154094 Done.

@@ -1,0 +1,5 @@
+2024-01-08 20:24:07.239988    100.00% of prepped anchor reads aligned to the reference genome.
+2024-01-08 20:24:07.243641    0.00% of anchor reads removed because their alignments ended more than 5 NTs from the end of reads.
+2024-01-08 20:26:29.745736    0.00% of anchor reads removed because their alignments ended more than 5 NTs from the end of reads.
+2024-01-08 20:26:29.747246    0.00% of anchor reads removed because their alignments ended more than 5 NTs from the end of reads.
+2024-01-08 20:26:29.748358    Finding read pairs where both anchor and adrift read pair mates aligned well.
