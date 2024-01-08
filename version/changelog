@@ -59,3 +59,5 @@ Added config test.
 Added small data test.
 1.36
 Updated code that handeld UMI conflicts.
+1.37
+Fixed an issue with dual detections and chromosomes with more than one digit.

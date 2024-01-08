@@ -43,6 +43,8 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
       # Cycle through u3 position ids.
       invisible(lapply(unique(u3.frags$posid), function(u3_posid){
         
+        if(u3_posid == 'chr13-72993971.1') browser()
+        
         # Create alternative sites +/- 5 this u3 site.
         a <- sub('\\.\\d+$', '', u3_posid)
         o <- unlist(strsplit(a, '[\\+\\-]'))
@@ -72,7 +74,7 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
 
           frags[i,]$flags <<- 'dual detect'
           
-          chr <- stringr::str_extract(a, 'chr[XY\\d+]')
+          chr <- stringr::str_extract(a, 'chr[XY\\d]+')
           pos <- names(sort(table(sub('[\\+\\-]', '', stringr::str_extract(frags[i,]$posid, '[\\+\\-]\\d+'))), decreasing = TRUE))[1]
           
           if(strand == '-'){
