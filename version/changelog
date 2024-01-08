@@ -57,3 +57,5 @@ Split UMI reporting in buildSites into rUMIs and fUMIs.
 Added docker build files.
 Added config test.
 Added small data test.
+1.36
+Updated code that handeld UMI conflicts.
