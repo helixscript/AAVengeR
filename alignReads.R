@@ -31,6 +31,8 @@ cluster <- makeCluster(opt$alignReads_CPUs)
 clusterExport(cluster, c('opt', 'tmpFile'))
 
 alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
+
+  write(c(paste(lubridate::now(), 'Started running aligner')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = TRUE)
   
   if(opt$alignReads_aligner == 'bwa2'){
         refGenomePath <-  file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', refGenome)
@@ -58,8 +60,12 @@ alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
     r <- group_by(r, cut) %>% mutate(n = ntile(1:n(), opt$alignReads_CPUs)) %>% ungroup()
     invisible(parLapply(cluster, split(r, r$n), blat, refGenomePath, dir))
   }
+
+  write(c(paste(lubridate::now(), 'Finished running aligner')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = TRUE)
   
   # Read in and parse the psl files created by either bwa2 or blat.
+  write(c(paste(lubridate::now(), 'Parsing BLAT PSL')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = TRUE)
+
   b <- tibble()
   f <- list.files(dir, pattern = '*.psl', full.names = TRUE)
   
@@ -80,6 +86,8 @@ alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
            dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
         }))
   }
+
+  write(c(paste(lubridate::now(), 'Finished running parsing BLAT PSL')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = TRUE)
 
   # Files need to be removed otherwise the join below will keep joining files from previous genomes.
   invisible(file.remove(list.files(dir, full.names = TRUE)))
@@ -110,7 +118,7 @@ anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
 }))
 
 
-write(c(paste0(now(), '    ', sprintf("%.2f%%", (n_distinct(anchorReadAlignments$readID)/n_distinct(reads$readID))*100), 
+write(c(paste0(lubridate::now(), '    ', sprintf("%.2f%%", (n_distinct(anchorReadAlignments$readID)/n_distinct(reads$readID))*100), 
                ' of prepped anchor reads aligned to the reference genome.')), file = file.path(opt$outputDir, opt$alignReads_outputDir, 'log'), append = TRUE)
 
 # Select anchor reads where the ends align to the genome.

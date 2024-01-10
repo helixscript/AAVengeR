@@ -7,7 +7,7 @@ dependencies:
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=2_gnu
   - blast=2.12.0=hf3cf87c_4
-  - blat=35=1
+  # - blat=35=1
   - brotlipy=0.7.0=py38h0a891b7_1005
   - bwa-mem2=2.2.1=hd03093a_5
   - bzip2=1.0.8=h7f98852_4

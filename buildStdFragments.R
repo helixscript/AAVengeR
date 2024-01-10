@@ -432,8 +432,6 @@ frags <- tidyr::unite(frags, fragID, trial, subject, sample, replicate,
 
 rm(f, g)
 
-save.image('~/myDev.RData')
-
 
 # Determine which read level fragment records map to multiple position ids.
 #-------------------------------------------------------------------------------

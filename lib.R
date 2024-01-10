@@ -509,6 +509,7 @@ loadSamples <- function(){
 
 
 parseBLAToutput <- function(f, convertToBlatPSL = FALSE){
+
   if(! file.exists(f) | file.info(f)$size == 0) return(tibble::tibble())
   b <- readr::read_delim(f, delim = '\t', col_names = FALSE, col_types = readr::cols())
   
