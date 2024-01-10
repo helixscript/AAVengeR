@@ -93,6 +93,9 @@ n <- 1
 k <- 1
 processedReads <- 0
 
+message('Total number of reads to demultiplex: ', dataSetLength)
+options(scipen = 999)
+
 repeat {
   message('n: ', n, ' k: ', k)
   index1.fq <- yield(index1.strm)
@@ -107,9 +110,12 @@ repeat {
   writeFastq(adrift.fq, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0('adrift_fastqChunk', '.', id)), compress = FALSE)
   
   processedReads <- processedReads + length(index1.fq)
+  message('chunks: ', length(index1.fq), ' ', length(anchor.fq), ' ', length(adrift.fq))
+  message('Number of reads processed: ', processedReads)
   
   if(n == opt$demultiplex_CPUs | length(index1.fq) < opt$demultiplex_sequenceChunkSize){
    
+    message('   Calling demultiplex()')
     o <- data.table(file = list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = 'fastqChunk'))
     o$n <- unlist(lapply(stringr::str_split(o$file, '\\.'), '[', 2))
     
@@ -124,8 +130,6 @@ repeat {
   n <- n + 1
   k <- k + 1
 }
-
-
 
 # Collate demultiplexed chunks into a single data table.
 
@@ -242,23 +246,33 @@ if('databaseGroup' %in% names(opt)){
 }
 
 
+if(! opt$processAdriftReadLinkerUMIs){
+ reads$adriftReadRandomID <- 'AAAAAAAAAAAA'
+ reads <- left_join(reads, select(samples, uniqueSample, adriftRead.linkerRandomID.start, adriftRead.linkerRandomID.end), by = 'uniqueSample')
+ substr(reads$adriftReadSeq, reads$adriftRead.linkerRandomID.start, reads$adriftRead.linkerRandomID.end) <- 'AAAAAAAAAAAA'
+ reads <- select(reads, -adriftRead.linkerRandomID.start, -adriftRead.linkerRandomID.end)
+}
 
 # Filter reads based on the requested demultiplex level.
-# All reads, unique reads (R1 [minus linker] + R2), or clustered reads can be retained.
 # Read clustering is performed with CD-HIT-EST using the parameters passed in with demultiplex_mergeSimilarReadPairsParams.
 
 if(opt$demultiplex_level == 'all'){
   reads$nDuplicateReads <- 0
 } else if(opt$demultiplex_level == 'unique'){
-  reads$adriftReadSeq2 <- substr(reads$adriftReadSeq, reads$adriftLinkerSeqEnd+1, nchar(reads$adriftReadSeq))
   
-  reads <- lazy_dt(reads, immutable = FALSE) %>% 
-    dplyr::group_by(uniqueSample, adriftReadRandomID, anchorReadSeq, adriftReadSeq2) %>%
-    dplyr::mutate(nDuplicateReads = n() - 1) %>% 
-    dplyr::slice(1) %>% 
-    dplyr::ungroup() %>%
-    dplyr::select(-adriftReadSeq2) %>%
-    as.data.table()
+  cluster <- makeCluster(opt$demultiplex_CPUs)
+  
+  reads <- data.table(reads)
+  reads <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
+              library(data.table)
+              rbindlist(lapply(split(x, paste(x$anchorReadSeq, x$adriftReadSeq)), function(x2){
+                x2 <- x2[order(x2$readID),]
+                x2$nDuplicateReads <- nrow(x) - 1
+                x2[1,]
+              }))
+            }))
+  
+  stopCluster(cluster)
   
 } else if(opt$demultiplex_level == 'clustered'){
   o <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
@@ -302,9 +316,6 @@ if(opt$demultiplex_level == 'all'){
 } else {
   # error
 }
-
-
-
 
 
 # Align demultiplexed reads to the reference genome with bwa2-mem and only 

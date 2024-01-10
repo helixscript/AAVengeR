@@ -88,6 +88,7 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
 
 stopCluster(cluster)
 
+
 if(nrow(reads) == 0){
   write(c(paste(now(), "Error - no reads remaining after trimming.")), file = file.path(opt$outputDir, opt$prepReads_outputDir, 'log'), append = TRUE)
   if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
@@ -224,8 +225,6 @@ write(c(paste0(now(), '    ', sprintf("%.2f%%", 100 - (nReadsPostFilter/nReadsPr
 
 
 
-
-
 if(! 'leaderSeqHMM' %in% names(reads)){
     # Now align the full anchor reads to the vector excluding those in vectorHits.
     write(c(paste(now(), '   Aligning full anchor reads to vector sequences.')), file = file.path(opt$outputDir, opt$prepReads_outputDir, 'log'), append = TRUE)
@@ -331,6 +330,8 @@ if(! 'leaderSeqHMM' %in% names(reads)){
   }))
   
   parallel::stopCluster(cluster)
+  
+
  
   if(nrow(hmmResults) > 0){
     m <- tibble(id = hmmResults$id, leaderMapping.qStart = 1, leaderMapping.qEnd = nchar(hmmResults$LTRseq), leaderSeqMap = NA)
@@ -366,6 +367,7 @@ if('anchorReadStartSeq' %in% names(reads)){
 }
 
 reads <- subset(reads, readID %in% m$id)
+
 
 if(nrow(reads) == 0){
   write(c(paste(now(), "Error - no reads remaining after trimming.")), file = file.path(opt$outputDir, opt$prepReads_outputDir, 'log'), append = TRUE)
@@ -457,6 +459,7 @@ if(nrow(reads) == 0){
   if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
   q(save = 'no', status = 1, runLast = FALSE) 
 }
+
 
 write(c(paste0(now(), paste0('    ', sprintf("%.2f%%", (1-n_distinct(reads$readID)/nReadsPreFilter)*100), 
                              ' of reads removed because their trimmed lengths were less than ', opt$prepReads_minAdriftReadLength, ' NTs.'))), file = file.path(opt$outputDir, opt$prepReads_outputDir, 'log'), append = TRUE)

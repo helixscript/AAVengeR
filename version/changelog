@@ -61,3 +61,5 @@ Added small data test.
 Updated code that handeld UMI conflicts.
 1.37
 Fixed an issue with dual detections and chromosomes with more than one digit.
+1.38
+Fixed an issue in demultiplex.R involving the calculation of distinct read pairs.
