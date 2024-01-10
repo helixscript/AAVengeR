@@ -127,7 +127,7 @@ buildStdFragments_autoPullTrialSamples: FALSE                                   
 buildStdFragments_randomIDdupReadMult: 5                                        # [integer]   When evaluating UMI sequences, if the most common position id associated with anUMI is x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
 buildStdFragments_randomIDdupAbundMult: 3                                       # [integer]   When evaluating UMI sequences, if the most common position id associated with an UMI has a sonicLength abundance x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
 buildStdFragments_intSiteStdWindowWidth: 5                                      # [integer]   Half width of window centered on each intSite when looking for other sites to merge.
-buildStdFragments_breakPointStdWindowWidth: 4                                   # [integer]   Half width of window centered on each sonic break when looking for other break points to merge.
+buildStdFragments_breakPointStdWindowWidth: 3                                   # [integer]   Half width of window centered on each sonic break when looking for other break points to merge.
 buildStdFragments_minReadsPerFrag: 1                                            # [integer]   Min number of reads required to reatin a UMI specific fragment.
 buildStdFragments_createMultiHitClusters: TRUE                                  # [boolean]   Create networks of sites for reads that align well to multiple locations in a reference genome.
 buildStdFragments_minUMIfreq: 15
