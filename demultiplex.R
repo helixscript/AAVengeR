@@ -265,9 +265,10 @@ if(opt$demultiplex_level == 'all'){
   reads <- data.table(reads)
   reads <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
               library(data.table)
+           
               rbindlist(lapply(split(x, paste(x$anchorReadSeq, x$adriftReadSeq)), function(x2){
                 x2 <- x2[order(x2$readID),]
-                x2$nDuplicateReads <- nrow(x) - 1
+                x2$nDuplicateReads <- nrow(x2) - 1
                 x2[1,]
               }))
             }))
@@ -433,7 +434,9 @@ if(opt$demultiplex_exportFASTQ){
   }))
 }
 
+
 if(opt$demultiplex_requirePostUmiLinker){
+  # Common Bushman linker: CTCCGCTTAAGGGACT
   reads <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
     d <- subset(samples, uniqueSample == x$uniqueSample[1])
     s <- substr(x$adriftReadSeq, d$adriftRead.linkerRandomID.end, nchar(d$adriftReadLinkerSeq) + 1)   # expand region +1 on both ends.
