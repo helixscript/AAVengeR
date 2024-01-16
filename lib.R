@@ -260,8 +260,8 @@ blat <- function(y, ref, dir){
     occFlag <- paste0(' -ooc=', file.path(opt$outputDir, opt$alignReads_outputDir, paste0(opt$alignReads_genomeAlignment_blatTileSize, '.ooc'))) 
   }
   
-  #system(paste0('blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
-  system(paste0('/home/ubuntu/software/blat_37x1/blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
+  system(paste0('blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
+  #system(paste0('/home/ubuntu/software/blat_37x1/blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
                 ' -tileSize=', opt$alignReads_genomeAlignment_blatTileSize, 
                 ' -stepSize=', opt$alignReads_genomeAlignment_blatStepSize, 
                 ' -repMatch=', opt$alignReads_genomeAlignment_blatRepMatch, 
