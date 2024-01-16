@@ -12,6 +12,7 @@ opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 setMissingOptions()
 setOptimalParameters()
+set.seed(1)
 
 
 # Create the required directory structure.
@@ -28,6 +29,7 @@ incomingSamples <- unique(reads$uniqueSample)
 
 # Create a CPU cluster.
 cluster <- makeCluster(opt$alignReads_CPUs)
+clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, c('opt', 'tmpFile'))
 
 alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
@@ -50,7 +52,8 @@ alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
       
     # Create an OOC file if requested
     if(opt$alignReads_blatUseOocFile){
-      system(paste0('blat ', refGenomePath, ' /dev/null /dev/null -repMatch=',
+      #system(paste0('blat ', refGenomePath, ' /dev/null /dev/null -repMatch=',
+      system(paste0('/home/ubuntu/software/blat_37x1/blat ', refGenomePath, ' /dev/null /dev/null -repMatch=',
                     opt$alignReads_genomeAlignment_blatRepMatch, ' -makeOoc=',
                     file.path(opt$outputDir, opt$alignReads_outputDir, paste0(opt$alignReads_genomeAlignment_blatTileSize, '.ooc'))))
     }

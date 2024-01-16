@@ -11,6 +11,7 @@ opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 setMissingOptions()
 setOptimalParameters()
+set.seed(1)
 
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'))

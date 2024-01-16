@@ -65,3 +65,7 @@ Fixed an issue with dual detections and chromosomes with more than one digit.
 Fixed an issue in demultiplex.R involving the calculation of distinct read pairs.
 1.39
 Fixed an issue with read counting in demultiplex.R when collapsing identical read pairs.
+1.40
+Added duplicate read tracking rds file.
+Corrected HMM read length filter.
+Set random seeds.

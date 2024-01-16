@@ -1,6 +1,5 @@
 library(dplyr)
 library(lubridate)
-library(parallel)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
@@ -137,10 +136,6 @@ frags <- group_by(frags, trial, subject, sample, replicate, posid) %>%
          mutate(g = cur_group_id()) %>%
          ungroup()
 
-cluster <- makeCluster(opt$buildSites_CPUs)
-clusterExport(cluster, c('opt', 'frags'))
-
-#sites <- bind_rows(parLapply(cluster, split(frags, frags$g), function(x){  
 sites <- bind_rows(lapply(split(frags, frags$g), function(x){    
            library(dplyr)
            library(Biostrings)

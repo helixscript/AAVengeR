@@ -22,10 +22,12 @@ opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 setMissingOptions()
 setOptimalParameters()
+set.seed(1)
 
 samples <- loadSamples()
 
 cluster <- makeCluster(opt$prepReads_CPUs)
+clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, 'opt')
 
 
@@ -127,6 +129,7 @@ reads$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', reads$vec
 
 # Create a CPU cluster.
 cluster <- makeCluster(opt$prepReads_CPUs)
+clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, c('tmpFile', 'waitForFile', 'opt', 'lpe', 'blastReads', 'alignReadEndsToVector'))
 
 
@@ -230,6 +233,7 @@ if(! 'leaderSeqHMM' %in% names(reads)){
     write(c(paste(now(), '   Aligning full anchor reads to vector sequences.')), file = file.path(opt$outputDir, opt$prepReads_outputDir, 'log'), append = TRUE)
   
     cluster <- makeCluster(opt$prepReads_CPUs)
+    clusterSetRNGStream(cluster, 1)
     clusterExport(cluster, c('tmpFile', 'waitForFile', 'opt', 'lpe', 'blastReads', 'blast2rearangements_worker'))
   
     vectorHits2 <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
@@ -317,9 +321,11 @@ if(! 'leaderSeqHMM' %in% names(reads)){
   write(c(paste(now(), '   Using leader sequence HMM to define mappings.')), file = file.path(opt$outputDir, opt$prepReads_outputDir, 'log'), append = TRUE)
   
   cluster <- parallel::makeCluster(opt$prepReads_CPUs)
+  clusterSetRNGStream(cluster, 1)
   clusterExport(cluster, c('opt'))
   
-  hmmResults <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
+  #hmmResults <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
+  hmmResults <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
     library(Biostrings)
     library(dplyr)
     source(file.path(opt$softwareDir, 'lib.R'))
@@ -331,8 +337,6 @@ if(! 'leaderSeqHMM' %in% names(reads)){
   
   parallel::stopCluster(cluster)
   
-
- 
   if(nrow(hmmResults) > 0){
     m <- tibble(id = hmmResults$id, leaderMapping.qStart = 1, leaderMapping.qEnd = nchar(hmmResults$LTRseq), leaderSeqMap = NA)
   } else {
@@ -409,15 +413,12 @@ reads$adriftReadTrimSeq <- as.character(reverseComplement(DNAStringSet(substr(re
 
 closeAllConnections()
 cluster <- makeCluster(opt$prepReads_CPUs)
+clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, c('opt'))
 
 write(c(paste(now(), '   Triming adrift read over-reading.')), file = file.path(opt$outputDir, opt$prepReads_outputDir, 'log'), append = TRUE)
 
 nReadsPreFilter <- n_distinct(reads$readID)
-
-
-cluster <- parallel::makeCluster(opt$prepReads_CPUs)
-clusterExport(cluster, c('opt'))
 
 # Trim adrift reads with adapter sequences determined by the RC of their anchor read leader sequences.
 reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nrow(reads), opt$prepReads_CPUs)), function(x){

@@ -14,8 +14,11 @@ opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 setMissingOptions()
 setOptimalParameters()
+set.seed(1)
+
 
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
+clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, 'opt')
 
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))

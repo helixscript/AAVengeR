@@ -17,6 +17,7 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 setOptimalParameters()
+set.seed(1)
 
 if(! file.exists(opt$demultiplex_sampleDataFile)){
   write(c(paste(now(), '   Error - the sample configuration file could not be found')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
@@ -79,6 +80,7 @@ if(opt$demultiplex_RC_I1_barcodes) samples$index1Seq <- as.character(reverseComp
 
 # Create CPU clusters.
 cluster <- makeCluster(opt$demultiplex_CPUs)
+clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, c('opt', 'samples'))
 
 
@@ -261,19 +263,28 @@ if(opt$demultiplex_level == 'all'){
 } else if(opt$demultiplex_level == 'unique'){
   
   cluster <- makeCluster(opt$demultiplex_CPUs)
+  clusterSetRNGStream(cluster, 1)
+  clusterExport(cluster, 'opt')
   
   reads <- data.table(reads)
-  reads <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
+  o <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
               library(data.table)
-           
               rbindlist(lapply(split(x, paste(x$anchorReadSeq, x$adriftReadSeq)), function(x2){
-                x2 <- x2[order(x2$readID),]
-                x2$nDuplicateReads <- nrow(x2) - 1
-                x2[1,]
+                          if(nrow(x2) > 1 ) x2 <- x2[order(x2$readID)]
+                          x2$duplicated <- TRUE
+                          x2$duplicatedRepID <- x2[1]$readID
+                          x2$nDuplicateReads <- nrow(x2) - 1
+                          x2[1]$duplicated <- FALSE
+                          x2
+                        }))
               }))
-            }))
   
   stopCluster(cluster)
+  
+  reads <- dplyr::filter(o, duplicated == FALSE) %>% dplyr::select(-duplicated, -duplicatedRepID)
+  dupReadsTable <- dplyr::filter(o, duplicated == TRUE) %>% dplyr::select(duplicatedRepID, readID)
+  saveRDS(dupReadsTable, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'dupReadsTable.rds'), compress = opt$compressDataFiles)
+  rm(o)
   
 } else if(opt$demultiplex_level == 'clustered'){
   o <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){

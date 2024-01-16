@@ -260,7 +260,8 @@ blat <- function(y, ref, dir){
     occFlag <- paste0(' -ooc=', file.path(opt$outputDir, opt$alignReads_outputDir, paste0(opt$alignReads_genomeAlignment_blatTileSize, '.ooc'))) 
   }
   
-  system(paste0('blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
+  #system(paste0('blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
+  system(paste0('/home/ubuntu/software/blat_37x1/blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
                 ' -tileSize=', opt$alignReads_genomeAlignment_blatTileSize, 
                 ' -stepSize=', opt$alignReads_genomeAlignment_blatStepSize, 
                 ' -repMatch=', opt$alignReads_genomeAlignment_blatRepMatch, 
@@ -811,6 +812,41 @@ blast2rearangements <- function(b, maxMissingTailNTs = 5){
 }
 
 
+parseHMMERsummaryResult <- function(x){
+  library(data.table)
+
+  r <- readLines(x)
+  r <- r[! grepl('^\\s*#', r)]
+  i <- grepl('^>>', r)
+  if(sum(i) == 0) return(data.table())
+  r <- r[min(which(i)):length(r)]
+  i <- which(grepl('^>>', r))
+  i <- c(i, length(r))
+  d <- tibble(start = i[1:(length(i)-1)], stop = i[2:length(i)]-1)
+  
+  rbindlist(lapply(1:nrow(d), function(i){
+    s <- r[d[i,]$start:d[i,]$stop]
+    if(length(s) < 10) return(data.table())
+    if(! grepl('^>>', s[1])) return(data.table())
+    if(! any(grepl('==', s))) return(data.table())
+    o <- unlist(strsplit(paste0(s, collapse = '|'), '=='))
+    o <- o[2:length(o)]
+    scores <- as.numeric(gsub('score: ', '', stringr::str_extract(o, 'score\\:\\s[\\-\\d+\\.]+')))
+    o <- o[which.max(scores)]
+    k <- unlist(strsplit(o, '\\|'))
+ 
+    top <- unlist(strsplit(k[2], '\\s+'))
+    bottom <- unlist(strsplit(k[4], '\\s+'))
+    data.table(readID = bottom[2], 
+               readStart = as.integer(bottom[3]),
+               readSeq = bottom[4], 
+               readEnd =  nchar(gsub('[^A^T^C^G]', '', toupper(bottom[4]))) + as.integer(bottom[3]) - 1,
+               hmmStart = as.integer(top[3]), 
+               hmmEnd = nchar(gsub('[^A^T^C^G]', '', toupper(top[4]))) + as.integer(top[3]) - 1, 
+               hmmScore = max(scores))
+  }))
+}
+
 
 captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
   outputFile <- file.path(tmpDirPath, tmpFile())
@@ -826,19 +862,17 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
     for(i in names(y)){
       localOpt[[i]] <- y[[i]]
     }
- 
+    
     # rename local copy to original which will now be local and updated.
     opt <- localOpt
   }
-    
-  reads <- reads[width(reads) > opt$prepReads_HMMsearchReadEndPos]
-  if(length(reads) == 0) return(tibble())
   
-  writeXStringSet(subseq(reads, opt$prepReads_HMMsearchReadStartPos, opt$prepReads_HMMsearchReadEndPos), outputFile)
-
+  endPos <- ifelse(width(reads) > opt$prepReads_HMMsearchReadEndPos, opt$prepReads_HMMsearchReadEndPos, width(reads))
+  writeXStringSet(subseq(reads, opt$prepReads_HMMsearchReadStartPos, endPos), outputFile)
+  
   comm <- paste0('hmmsearch --max --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
   system(comm)
-
+  
   r <- readLines(paste0(outputFile, '.domTbl'))
   r <- r[!grepl('^\\s*#', r)]
   r <- strsplit(r, '\\s+')
@@ -866,15 +900,15 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
   
   if(opt$prepReads_HMMmatchEnd){
     o <- subset(o, targetStart <= opt$prepReads_HMMmaxStartPos &
-                   hmmEnd == hmmLength &
-                   fullScore >= as.numeric(opt$prepReads_HMMminFullBitScore))
+                  hmmEnd == hmmLength &
+                  fullScore >= as.numeric(opt$prepReads_HMMminFullBitScore))
   } else {
     o <- subset(o, targetStart <= opt$prepReads_HMMmaxStartPos &
                   fullScore >= as.numeric(opt$prepReads_HMMminFullBitScore))
   }
-
+  
   if(nrow(o) == 0) return(tibble())
-
+  
   # Limit reads to those with matching HMM hits.
   reads2 <- reads[names(reads) %in% o$targetName]
   
@@ -899,14 +933,14 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
 blastReads <- function(reads, wordSize = 5, evalue = 100, tmpDirPath = NA, dbPath = NA){
   library(Biostrings)
   library(dplyr)
-
+  
   f <- tmpFile()
   writeXStringSet(reads,  file.path(tmpDirPath, paste0(f, '.fasta')))
   
   comm <- paste0('blastn -dust no -soft_masking false -word_size ', wordSize, ' -evalue ', evalue,' -outfmt 6 -query ',
                  file.path(tmpDirPath, paste0(f, '.fasta')), ' -db ',
                  dbPath, ' -num_threads 1 -out ', file.path(tmpDirPath, paste0(f, '.blast')))
-            
+  
   system(comm, ignore.stdout = TRUE, ignore.stderr = TRUE)
   
   waitForFile(file.path(tmpDirPath, paste0(f, '.blast')))
@@ -926,21 +960,22 @@ blastReads <- function(reads, wordSize = 5, evalue = 100, tmpDirPath = NA, dbPat
 
 
 
+
 # blatReads <- function(reads, minIdentity=90, stepSize = 11, tileSize = 11, tmpDirPath = NA){
 #   library(Biostrings)
 #   library(dplyr)
-#   
+# 
 #   f <- tmpFile()
 #   writeXStringSet(reads,  file.path(tmpDirPath, paste0(f, '.fasta')))
-#   
-#   system(paste0(file.path(opt$softwareDir, 'bin', 'blat'), ' ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'), ' ', 
+# 
+#   system(paste0(file.path(opt$softwareDir, 'bin', 'blat'), ' ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'), ' ',
 #                 file.path(tmpDirPath, paste0(f, '.fasta')), ' ',
-#                 file.path(tmpDirPath, paste0(f, '.psl')), ' -minIdentity=', minIdentity, 
+#                 file.path(tmpDirPath, paste0(f, '.psl')), ' -minIdentity=', minIdentity,
 #                 ' -stepSize=', stepSize, ' -tileSize=', tileSize, ' -out=psl -noHead -minScore=0'),
 #          ignore.stdout = TRUE, ignore.stderr = TRUE)
-#   
+# 
 #   waitForFile(file.path(tmpDirPath, paste0(f, '.psl')))
-#   
+# 
 #   if(file.info(file.path(tmpDirPath, paste0(f, '.psl')))$size > 0){
 #     return(parseBLAToutput(file.path(tmpDirPath, paste0(f, '.psl'))))
 #   } else {
@@ -961,6 +996,7 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
   d$position <- as.integer(d$position)
   
   cluster <- makeCluster(CPUs)
+  clusterSetRNGStream(cluster, 1)
   clusterExport(cluster, c('genes', 'exons'), envir = environment())
   
   r <- bind_rows(parLapply(cluster, split(d, d$n), function(x){
