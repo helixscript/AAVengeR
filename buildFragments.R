@@ -185,7 +185,6 @@ frags <- bind_rows(lapply(o, function(z){
   write(paste0(now(), '    ', counter, '/', total, ': ', nrow(a), ' anchorRead alignments, ', nrow(b), ' adriftRead_alignments.'), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
   counter <<- counter + 1
   
-  # browser()
   # Join adrift reads alignments to anchor read alignments to create potential read pairs.
   # frags <- left_join(a, b, by = c('readID.anchorReads' = 'readID.adriftReads'), relationship = 'many-to-many') %>% tidyr::drop_na()
   frags <-  na.omit(a[b, on=c(readID.anchorReads = "readID.adriftReads"), allow.cartesian=TRUE])
