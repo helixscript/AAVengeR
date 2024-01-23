@@ -74,3 +74,7 @@ Updated rUMI calculation
 Corrected issue with dual detections in buildSites.R. Dual detection are now all moved to faux replicate zero
   though they can draw fragments from all replicates when being identified. 
 Forced breakpoint standardization to work within position ids though this may already be handeled by gintools functions.
+1.42
+Updated config file.
+Added replicate renaming from file option.
+Added integration inspection tool to tools/ for studying individual events outside of AAVengeR.
