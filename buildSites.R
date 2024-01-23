@@ -31,6 +31,8 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
     
     if('IN_u5' %in% x$flags & 'IN_u3' %in% x$flags){
       
+      message('Sample: ', x$sample[1])
+      
       # Isolate U3 and U5 fragments for this sample.
       u3.frags <- subset(frags, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & flags == 'IN_u3')
       u5.frags <- subset(frags, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & flags == 'IN_u5')
@@ -39,6 +41,8 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
       u3.frags$posid2 <- sub('\\.\\d+$', '', u3.frags$posid)
       u5.frags$posid2 <- sub('\\.\\d+$', '', u5.frags$posid)
     
+      counter <- 1
+      
       # Cycle through u3 position ids.
       invisible(lapply(unique(u3.frags$posid), function(u3_posid){
         
@@ -59,6 +63,9 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
           # Retrieve fragments for both sites.
           f1 <- subset(u3.frags, posid2 == a)        # u3
           f2 <- subset(u5.frags, posid2 %in% alts)   # u5 - assuming only one alt site was found.
+          
+          message(counter, '. posid: ', a); counter <<- counter + 1
+          message('Number of neighboring fragments: ', nrow(f2))
           
           i <- which(frags$fragID %in% c(f1$fragID, f2$fragID) & frags$strand == '+')
           frags[i,]$posid <<- unlist(lapply(strsplit(frags[i,]$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2])+2, '.', x[3])))
@@ -130,6 +137,12 @@ write(c(paste(now(), '   Building replicate level integration sites.')), file = 
 
 frags$fragWidth <- frags$fragEnd - frags$fragStart + 1
 frags$replicate <- as.integer(frags$replicate)
+
+# Dual detections are assembled on the sample level.
+# Move dual detections to a faux replicate number of 0.
+
+frags[frags$flags == 'dual detect',]$replicate <- 0
+
 
 # Create a replicate level / posid grouping id then create another grouping id for parallel processing.
 frags <- group_by(frags, trial, subject, sample, replicate, posid) %>% 
@@ -204,10 +217,18 @@ tbl2 <-  bind_rows(lapply(1:nrow(tbl1), function(n){
              x <- tbl1[n,]
 
              f <- subset(frags, trial == x$trial & subject == x$subject & sample == x$sample & posid == x$posid)
-
+             
+             if(opt$buildSites_sumSonicBreaksWithin == 'samples'){
+               sonicLengths = n_distinct(f$fragWidth)
+             } else if(opt$buildSites_sumSonicBreaksWithin == 'replicates'){
+               sonicLengths = sum(x[, grepl('sonicLengths', names(x))], na.rm = TRUE)
+             } else {
+               stop('Error. buildSites_sumSonicBreaksWithin was not set to either "samples" or "replicates".')
+             }
+             
              k <- tibble(rUMIs = n_distinct(unlist(f$rUMI_list)),
-                         fUMIs = n_distinct(unlist(f$fUMI_list)), 
-                         sonicLengths = n_distinct(f$fragWidth), 
+                         fUMIs = n_distinct(unlist(f$fUMI_list)),  
+                         sonicLengths = sonicLengths,
                          reads = sum(f$reads), 
                          repLeaderSeq = buildConsensusSeq(f))
      

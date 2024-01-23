@@ -76,10 +76,6 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
   write(c(date(), paste0('Available CPUs: ', (opt$core_CPUs - CPUs_used)), tab), file = file.path(opt$outputDir, 'core', outputFileName), append = FALSE)
 }
 
-
-
-
-
 # Build a jobs table for prepReads, alignReads, and buildFragments.
 jobTable <- data.frame(table(reads$uniqueSample)) %>% dplyr::rename(id = Var1) %>% dplyr::rename(reads = Freq)
 jobTable$CPUs <- as.integer(ceiling((((jobTable$reads / max(jobTable$reads)) * opt$core_maxPercentCPUs) / 100) * opt$core_CPUs))
@@ -94,52 +90,52 @@ CPUs_used <- 0
 
 # Run prepReads, alignReads, and buildFragments.
 while(! all(jobTable$done == TRUE)){
-  
+
   CPUs_available <- opt$core_CPUs - CPUs_used
   tab <- jobTable[jobTable$CPUs <= CPUs_available & jobTable$active == FALSE & jobTable$done == FALSE,] %>% dplyr::slice_max(CPUs, with_ties = FALSE)
-  
+
   if(nrow(tab) == 0){
     jobStatus(searchPattern = 'fragments.done', outputFileName = 'replicateJobTable')
     Sys.sleep(5)
     next
   }
-  
+
   # Gather select sections from the configuration file and set CPU values.
   o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
   o$prepReads_CPUs <- as.integer(tab$CPUs)
   o$alignReads_CPUs <- as.integer(tab$CPUs)
   o$buildFragments_CPUs <- as.integer(tab$CPUs)
   o$outputDir <- file.path(opt$outputDir, 'core', 'replicate_analyses', tab$id)
-  
+
   # Instruct the pipeline to create a buildFragments/fragments.done file for jobs that failed.
   o$core_createFauxFragDoneFiles <- TRUE
-  
+
   # Create the output directory for this replicate and save a copy of the replicate reads within it.
   dir.create(o$outputDir)
   saveRDS(subset(reads, uniqueSample == tab$id), file.path(o$outputDir, paste0(tab$id, '.CORE_TMP.rds')), compress = opt$compressDataFiles)
-  
+
   # Update configuration to point to the subset of replicate reads.
   o$prepReads_readsTable <- paste0(tab$id, '.CORE_TMP.rds')
-  
+
   # Define modules to run in replicate level configuration file and write out file.
   o$modules <- list()
   o[['modules']] <- c('prepReads', 'alignReads', 'buildFragments')
-  
+
   # Leader seq limit file.
   #### o$prepReads_leaderSeqLimitFile <- list.files(opt$outputDir, pattern = 'minAlnStarts', recursive = TRUE, full.names = TRUE)[1]
-   
+
   yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))
-  
+
   # Create AAVengeR launching script since system(x, wait = TRUE) does not wait for commands w/ arguments.
-  write(c('#!/usr/bin/sh', 
-          paste(opt$Rscript, file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))), 
+  write(c('#!/usr/bin/sh',
+          paste(opt$Rscript, file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))),
         file = file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'run.sh'))
-  
+
   system(paste('chmod 755', file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'run.sh')))
   system(file.path(opt$outputDir, 'core', 'replicate_analyses', tab$id, 'run.sh'), wait = FALSE, show.output.on.console = FALSE)
-  
+
   CPUs_used <- CPUs_used + tab$CPUs
-  
+
   jobTable[which(jobTable$id == tab$id),]$active <- TRUE
   jobTable[which(jobTable$id == tab$id),]$startTime <- as.character(lubridate::now())
 

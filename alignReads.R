@@ -84,8 +84,8 @@ alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
 
            if(nrow(b) == 0) return(data.table())
          
-           dplyr::filter(b, alignmentPercentID >= minPercentSeqID, tNumInsert <= 1, qNumInsert <= 1, 
-                            tBaseInsert <= 2, qBaseInsert <= 2, qStart <= maxQstart) %>%
+          dplyr::filter(b, alignmentPercentID >= minPercentSeqID, tNumInsert <= 1, qNumInsert <= 1, 
+                           tBaseInsert <= 2, qBaseInsert <= 2, qStart <= maxQstart) %>%
            dplyr::select(qName, strand, qSize, qStart, qEnd, tName, tSize, tStart, tEnd, queryPercentID, tAlignmentWidth, queryWidth, alignmentPercentID, percentQueryCoverage)
         }))
   }

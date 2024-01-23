@@ -88,6 +88,9 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
           }))
         }))
 
+
+# TGGCCCTGGTGTGTAG
+
 stopCluster(cluster)
 
 

@@ -462,6 +462,26 @@ if(opt$demultiplex_requirePostUmiLinker){
 }
 
 
+# Replicate reassingment if requested.
+if(file.exists(opt$demultiplex_replicateMergingInstructions)){
+  msg <- 'Found replicate merging instruction file.'
+  write(paste(now(), '   ', msg), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  
+  f <- readr::read_tsv(opt$demultiplex_replicateMergingInstructions)
+  names(f) <- c('uniqueSample', 'uniqueSample2')
+  
+  if(any(f$uniqueSample %in% reads$uniqueSample)){
+    msg <- 'Merging replicates.'
+    write(paste(now(), '   ', msg), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+    reads <- left_join(reads, f, by = 'uniqueSample')
+    reads$uniqueSample <- ifelse(is.na(reads$uniqueSample2), reads$uniqueSample, reads$uniqueSample2)
+    reads$uniqueSample2 <- NULL
+  } else {
+    msg <- 'None of the replicates in the merging instructions were found in the demultiplexed data.'
+    write(paste(now(), '   ', msg), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  }
+}
+
 # Save demultiplexed reads and clean up.
 reads$seqRunID <- opt$demultiplex_seqRunID
 saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = opt$compressDataFiles)

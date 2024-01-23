@@ -16,7 +16,6 @@ setMissingOptions()
 setOptimalParameters()
 set.seed(1)
 
-
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, 'opt')
@@ -218,7 +217,9 @@ frags$leaderSeqGroupNum <- NULL
 frags <- tidyr::unite(frags, fragID, trial, subject, sample, replicate, chromosome, 
                       strand, fragStart, fragEnd, leaderSeqGroup, randomLinkerSeq, sep = ':', remove = FALSE)
 
-
+# Create an index upon which to standardize integration positions within subjects.
+frags <- tidyr::unite(frags, z, trial, subject, chromosome, 
+                      strand, fragStart, fragEnd, leaderSeqGroup, sep = ':', remove = FALSE)
 
 # Create a tibble that can be turned into a GRange object which can be used to standardize positions.
 # frags is on the read level, here we create f which tallies read counts for each fragment and we 
@@ -226,57 +227,19 @@ frags <- tidyr::unite(frags, fragID, trial, subject, sample, replicate, chromoso
 # different ITR/LTR remnants from being merged. Updated positions can be joined and updated via fragID.
 #------------------------------------------------------------------------------------------------------
 
-
-# Separate read level fragment records into those with and without duplicate fragment ids
-# since group_by() is slow when there are millions of records and it is best to only use 
-# it on those records where needed.
-
-ids <- frags$fragID
-dupIDs <- unique(ids[duplicated(ids)])
-
-frags <- as.data.table(frags)
-
-a <- frags[frags$fragID %in% dupIDs]
-b <- frags[! frags$fragID %in% dupIDs]
-
-if(nrow(a) > 0){
-  fa <- lazy_dt(a) %>% 
-        group_by(fragID) %>% 
-        summarise(seqnames = chromosome[1], 
-                  start    = fragStart[1], 
-                  end      = fragEnd[1], 
-                  strand   = strand[1], 
-                  reads    = n_distinct(readID) + sum(nDuplicateReads), 
-                  fragID   = fragID[1], 
-                  s        = paste0(leaderSeqGroup[1], '~', chromosome[1])) %>%
-       ungroup() %>% 
-       as.data.frame()
-} else {
-  fa <- data.frame()
-}
-
-rm(a)
-
-if(nrow(b) > 0){
-  fb <- data.frame(seqnames = b$chromosome,
-                   start    = b$fragStart, 
-                   end      = b$fragEnd, 
-                   strand   = b$strand, 
-                   reads    = b$nDuplicateReads + 1,
-                   fragID   = b$fragID, 
-                   s        = paste0(b$leaderSeqGroup, '~', b$chromosome))
-} else {
-  fb <- data.frame()
-}
-
-rm(b)
-
-f <- bind_rows(fa, fb)
-rm(fa, fb)
-
+f <- lazy_dt(frags) %>%
+     group_by(z) %>%
+     summarise(seqnames = chromosome[1], 
+                          start    = fragStart[1], 
+                          end      = fragEnd[1], 
+                          strand   = strand[1], 
+                          reads    = n_distinct(readID) + sum(nDuplicateReads), 
+                          s        = paste0(trialSubject[1], '~', leaderSeqGroup[1], '~', chromosome[1])) %>%
+    ungroup() %>%
+    as.data.table()
+     
 # Create GenomicRanges object for standardization.
 g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
-
 
 
 # Standardize integration positions within subjects.
@@ -310,8 +273,7 @@ g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s
 g <- data.frame(g)
 
 # Join updated positions to the input data frame.
-frags <- lazy_dt(frags) %>% left_join(select(g, start, end, fragID), by = 'fragID') %>% as.data.table()
-### frags <- left_join(frags, select(g, start, end, fragID), by = 'fragID')
+frags <- lazy_dt(frags) %>% left_join(distinct(select(g, start, end, z)), by = 'z') %>% as.data.table()
 
 
 # Assign the new integration positions.
@@ -328,6 +290,12 @@ frags$posid <- paste0(frags$chromosome, frags$strand,
 frags <- tidyr::unite(frags, fragID, trial, subject, sample, replicate, 
                       chromosome, strand, fragStart, fragEnd, leaderSeqGroup, randomLinkerSeq, sep = ':', remove = FALSE)
 
+
+# Create an index upon which to standardize integration positions within specific replicate level integration events.
+frags <- tidyr::unite(frags, z, trial, subject, chromosome, replicate,
+                      strand, fragStart, fragEnd, posid, sep = ':', remove = FALSE)
+
+
 rm(f, g)
 
 
@@ -336,86 +304,53 @@ rm(f, g)
 
 write(c(paste(now(), '   Standardizing break positions within replicates.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
 
-frags$s <- paste0(frags$leaderSeqGroup, '~', frags$sample, '~', frags$replicate, '~', frags$chromosome)
 
-ids <- frags$fragID
-dupIDs <- unique(ids[duplicated(ids)])
+f <- lazy_dt(frags) %>%
+  group_by(z) %>%
+  summarise(seqnames = chromosome[1], 
+            start    = fragStart[1], 
+            end      = fragEnd[1], 
+            strand   = strand[1], 
+            posid    = posid[1],
+            reads    = n_distinct(readID) + sum(nDuplicateReads), 
+            s        = paste0(uniqueSample[1], '~', chromosome[1])) %>%
+  ungroup() %>%
+  as.data.table()
 
-frags <- as.data.table(frags)
 
-a <- frags[frags$fragID %in% dupIDs]
-b <- frags[! frags$fragID %in% dupIDs]
 
-rm(ids, dupIDs)
-
-if(nrow(a) > 0){
-  fa <- lazy_dt(a) %>% 
-        group_by(fragID) %>% 
-        summarise(seqnames = chromosome[1], 
-                  start    = fragStart[1], 
-                  end      = fragEnd[1], 
-                  strand   = strand[1], 
-                  reads    = n_distinct(readID) + sum(nDuplicateReads), 
-                  fragID   = fragID[1], 
-                  s        = s[1]) %>%
-        ungroup() %>% 
-        as.data.frame()
-} else {
-  fa <- data.frame()
-}
-
-rm(a)
-
-if(nrow(b) > 0){
-  fb <- data.frame(seqnames = b$chromosome,
-                   start    = b$fragStart, 
-                   end      = b$fragEnd, 
-                   strand   = b$strand, 
-                   reads    = b$nDuplicateReads + 1,
-                   fragID   = b$fragID, 
-                   s        = b$s)
-} else {
-  fb <- data.frame()
-}
-
-rm(b)
-
-f <- bind_rows(fa, fb)
-rm(fa, fb)
-
-# Create GenomicRanges object for standardization.
-g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
-
-g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
-  library(dplyr)
-  library(GenomicRanges)
-  source(file.path(opt$softwareDir, 'lib.R'))
-  source(file.path(opt$softwareDir, 'stdPos.lib.R'))
+g <- parallel::parLapply(cluster, split(f, f$s), function(k){
+       library(dplyr)
+       library(GenomicRanges)
+       source(file.path(opt$softwareDir, 'lib.R'))
+       source(file.path(opt$softwareDir, 'stdPos.lib.R'))
   
-  x$breakPointsRefined <- FALSE
+       k <- GenomicRanges::makeGRangesFromDataFrame(k, keep.extra.columns = TRUE)
   
-  out <- tryCatch({
-    o <- refine_breakpoints(x, counts.col = 'reads', sata.gap = opt$buildStdFragments_breakPointStdWindowWidth)
-    o$breakPointsRefined <- TRUE
-    o
-  },
-  error=function(cond) {
-    x
-  },
-  warning=function(cond) {
-    o
-  })
+       unlist(GRangesList(lapply(split(k, k$posid), function(x){
+         x$breakPointsRefined <- FALSE
   
-  return(out)
-})))
+         out <- tryCatch({
+           o <- refine_breakpoints(x, counts.col = 'reads', sata.gap = opt$buildStdFragments_breakPointStdWindowWidth)
+           o$breakPointsRefined <- TRUE
+           o
+         },
+         error=function(cond) {
+           x
+         },
+         warning=function(cond) {
+           o
+         })
+  
+         return(out)
+       })))
+     })
 
-g <- data.frame(g)
-frags$s <- NULL
+g <- data.frame(unlist(GRangesList(g)))       
 
 
 # Join updated positions to the input data frame.
-# frags <- left_join(frags, select(g, start, end, fragID), by = 'fragID')
-frags <- lazy_dt(frags) %>% left_join(select(g, start, end, fragID), by = 'fragID') %>% as.data.table()
+frags <- lazy_dt(frags) %>% left_join(distinct(select(g, start, end, z)), by = 'z') %>% as.data.table()
 
 
 # Assign the new integration positions.
@@ -893,12 +828,9 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
 }
 
 
-# Frags are still read level. 
-
 # Remove randomLinkerSeq from fragIDs.
 frags_uniqPosIDs <- tidyr::unite(frags_uniqPosIDs, fragID, trial, subject, sample, replicate, 
                       chromosome, strand, fragStart, fragEnd, leaderSeqGroup, sep = ':', remove = FALSE)
-
 
 
 frags <- group_by(data.frame(frags_uniqPosIDs), fragID) %>% mutate(i = n()) %>% ungroup()
@@ -914,14 +846,16 @@ b <- subset(frags, i > 1)
 # arbitrary UMI will be returned for each fragment length.
 
 filterUMIs <- function(x){
-  u <- sort((table(x)/length(x))*100, decreasing = TRUE) 
-  k <- u[u >= opt$buildStdFragments_minUMIfreq]
+
+  k <- data.frame(table(x)) %>%
+       dplyr::mutate(f = (Freq / sum(Freq) * 100)) %>%
+       dplyr::filter(f >= opt$buildStdFragments_UMIminPercentReads) %>%
+       dplyr::pull(x) %>%
+       as.character()
   
-  if(length(k) > 0){
-    return(names(k))
-  } else {
-    return(vector()) 
-  }
+  if(length(k) == 0) k <- vector()
+  
+  k
 }
 
 
@@ -984,7 +918,7 @@ if (nrow(f) > 0) f <- left_join(f, sampleMetaData, by = 'uniqueSample')
 s <- unique(paste0(f$trial, '~', f$subject, '~', f$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
-saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
-readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
+saveRDS(select(f, -z, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
+readr::write_tsv(select(f, -z, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
