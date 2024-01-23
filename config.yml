@@ -11,7 +11,7 @@ softwareDir:       /home/ubuntu/AAVengeR                                        
 
 outputDir: output
 
-core_CPUs: 47
+core_CPUs: 30
 core_maxPercentCPUs: 22                                                         # For 8 CPUs per chunk using 47 CPUs -- (8 / 47)*100 =~ 17
 core_keepIntermediateFiles: FALSE
 
@@ -30,7 +30,7 @@ demultiplex_requirePostUmiLinker_maxMismatch: 2
 processAdriftReadLinkerUMIs: TRUE
 
 modules:
-#    - core
+    - core
     - annotateRepeats
     - callNearestGenes
 
