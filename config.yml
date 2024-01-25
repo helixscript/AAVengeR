@@ -11,16 +11,16 @@ softwareDir:       /home/ubuntu/AAVengeR                                        
 
 outputDir: output
 
-core_CPUs: 30
-core_maxPercentCPUs: 22                                                         # For 8 CPUs per chunk using 47 CPUs -- (8 / 47)*100 =~ 17
+core_CPUs: 15
+core_maxCPUsPerProcess: 5
 core_keepIntermediateFiles: FALSE
 
 demultiplex_seqRunID: xxx
-demultiplex_anchorReadsFile: data/Undetermined_S0_R2_001.fastq.gz
-demultiplex_adriftReadsFile: data/Undetermined_S0_R1_001.fastq.gz
-demultiplex_index1ReadsFile: data/Undetermined_S0_I1_001.fastq.gz
+demultiplex_anchorReadsFile: data/R2.fastq.gz
+demultiplex_adriftReadsFile: data/R1.fastq.gz
+demultiplex_index1ReadsFile: data/I1.fastq.gz
 demultiplex_sampleDataFile:  data/sampleData.tsv
-demultiplex_replicateMergingInstructions: data/replicateMergingInstructions.tsv
+demultiplex_replicateMergingInstructions: none
 demultiplex_level: unique
 demultiplex_quickAlignFilter: FALSE                                              # (!) Designed for AAV work - will be slow for integrase work.
 demultiplex_useAdriftReadUniqueLinkers: TRUE
@@ -31,8 +31,6 @@ processAdriftReadLinkerUMIs: TRUE
 
 modules:
     - core
-    - annotateRepeats
-    - callNearestGenes
 
 
 # Additional parameters.
@@ -42,7 +40,7 @@ modules:
 
 compressDataFiles: FALSE
 
-demultiplex_CPUs: 30                                                            # [integer]   Number of CPUs to use for demultiplexing.
+demultiplex_CPUs: 15                                                            # [integer]   Number of CPUs to use for demultiplexing.
 demultiplex_outputDir: demultiplex                                              # [character] Demultiplexing ouput directory name that will be created in the output directory.
 demultiplex_RC_I1_barcodes: FALSE                                               # [boolean]   Use the reverse compliment of I1 barcode sequences found in [sampleConfigFile].
 demultiplex_RC_I1_barcodes_auto: TRUE                                           # [boolean]   Attempt to automatically determine best setting for demultiplex_RC_I1_barcodes. Will override [demultiplex_RC_I1_barcodes].
@@ -63,7 +61,7 @@ demultiplex_quickAlignFilter_minMatches: 30
 demultiplex_quickAlignFilter_minEstLeaderSeqLength: 15
 
 
-prepReads_CPUs: 30                                                              # [integer]   Number of CPUs to use when preparing reads for alignment to a reference genome.
+prepReads_CPUs: 15                                                              # [integer]   Number of CPUs to use when preparing reads for alignment to a reference genome.
 prepReads_outputDir: prepReads                                                  # [character] prepReads ouput directory name that will be created in the output directory.
 prepReads_readsTable:  demultiplex/reads.rds                                    # [file path] (@) Path to input reads data object created by demultiplex.R.
 prepReads_mergeSimilarReadPairs: TRUE
@@ -87,9 +85,11 @@ prepReads_HMMminFullBitScore: 20                                                
 prepReads_HMMmatchEnd: TRUE                                                     # [boolean]   (^) Require a match to the end of the HMM profile. 
 prepReads_HMMmatchTerminalSeq: CA                                               # [character] (^) Required NTs at the end of HMM hits. Enter 'none' to disable.
 prepReads_limitLeaderSeqsWithQuickAlignFilter: TRUE                             # [boolean]   Always set to FALSE for non-AAV work. Reccomended for AAV work.
+prepReads_additionalAnchorReadOverReadingSeqs: none
+prepReads_cutAdaptErrorRate: 0.15
 
 
-alignReads_CPUs: 30                                                             # [integer]   Number of CPUs to use when aligning reads to a reference genome.
+alignReads_CPUs: 15                                                             # [integer]   Number of CPUs to use when aligning reads to a reference genome.
 alignReads_outputDir: alignReads                                                # [character] alignReads ouput directory name that will be created in the output directory.
 alignReads_inputFile: prepReads/reads.rds                                       # [file path] (@) Path to input reads RDS file.
 alignReads_aligner: blat
@@ -107,7 +107,7 @@ alignReads_genomeAlignment_adriftReadEnd_maxUnaligned: 5                        
                                                                                 #             and trimmed before aligning to genomes. Unlaligned NTs may arise from over-reading into poorly ITR remnants.
 
                                                                                 # (@) path relative to output directory
-buildFragments_CPUs: 30                                                         # [integer]   Number of CPUs to use when generating initial fragments.
+buildFragments_CPUs: 15                                                         # [integer]   Number of CPUs to use when generating initial fragments.
 buildFragments_outputDir: buildFragments                                        # [character] buildFragments ouput directory name that will be created in the output directory.
 buildFragments_duplicateReadFile: prepReads/duplicateReads.rds                  # [file path] (@)(optional) Path to input duplicate reads RDS file. Typically created by prepReads module.
 buildFragments_anchorReadsAlignmentFile: alignReads/anchorReadAlignments.rds    # [file path] (@)Path to anchor reads alignment data RDS file.
@@ -121,7 +121,7 @@ buildFragments_randomLinkerID_minReadCountToSegreagate: 10                      
 buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90                # [integer]   When testing random linker ids for sample crossover, a single sample must have this majority percentage for a correction to occur.
 
 
-buildStdFragments_CPUs: 30                                                      # [integer]   Number of CPUs to use when generating standardized fragments.
+buildStdFragments_CPUs: 15                                                      # [integer]   Number of CPUs to use when generating standardized fragments.
 buildStdFragments_inputFile: buildFragments/fragments.rds                       # [file path relative to output path] Path to initial fragment RDS file (ouput of buildFragments module).
 buildStdFragments_outputDir: buildStdFragments
 buildStdFragments_remnantClusterParams: >-
@@ -136,13 +136,13 @@ buildStdFragments_createMultiHitClusters: TRUE                                  
 buildStdFragments_UMIminPercentReads: 15
 
 
-buildSites_CPUs: 30
+buildSites_CPUs: 15
 buildSites_inputFile: buildStdFragments/stdFragments.rds
 buildSites_outputDir: buildSites
 buildSites_dualDetectWidth: 6
 buildSites_sumSonicBreaksWithin: samples                                        # [samples, replicates]
 
-predictPCRartifacts_CPUs: 47
+predictPCRartifacts_CPUs: 15
 predictPCRartifacts_inputFile: core/sites.rds
 predictPCRartifacts_outputDir: predictPCRartifacts
 predictPCRartifacts_adjacentSeqLength: 14
@@ -190,12 +190,12 @@ addSampleDetails_inputFile:  callNearestGenesFiltered/sites.rds
 addSampleDetails_detailsFile: data/sampleDetails.tsv
 addSampleDetails_addAfter: sample
 
-annotateRepeats_CPUs: 30
+annotateRepeats_CPUs: 15
 annotateRepeats_inputFile: core/sites.rds
 annotateRepeats_outputDir: annotateRepeats
 annotateRepeats_addAfter: nRepsObs
 
-mapSiteLeaderSequences_CPUs: 30
+mapSiteLeaderSequences_CPUs: 15
 mapSiteLeaderSequences_outputDir: mapSiteLeaderSequences
 mapSiteLeaderSequences_inputFile: core/sites.rds
 mapSiteLeaderSequences_addAfter: repLeaderSeq
@@ -204,7 +204,7 @@ mapSiteLeaderSequences_alignmentChunkSize: 5000
 mapSiteLeaderSequences_minAlignmentPercentID: 90
 mapSiteLeaderSequences_minAlignmentLength: 15
 
-callNearestGenes_CPUs: 30
+callNearestGenes_CPUs: 15
 callNearestGenes_inputFile: annotateRepeats/sites.rds
 callNearestGenes_outputDir: callNearestGenes
 callNearestGenes_addAfter: nRepsObs

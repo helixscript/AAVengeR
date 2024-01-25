@@ -19,8 +19,10 @@ source(file.path(opt$softwareDir, 'lib.R'))
 setOptimalParameters()
 set.seed(1)
 
+opt$defaultLogFile <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'log')
+
 if(! file.exists(opt$demultiplex_sampleDataFile)){
-  write(c(paste(now(), '   Error - the sample configuration file could not be found')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  updateLog('Error - the sample configuration file could not be found.')
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
@@ -31,25 +33,24 @@ if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp')))  di
 if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))
 
 # Read in sample data.
-write(c(paste(now(), '   Loading sample data')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = FALSE)
+updateLog('Loading sample data.')
 samples <- loadSamples()
 
 # Throw errors if expected files are missing.
 if(! file.exists(opt$demultiplex_adriftReadsFile)){
-  write(c(paste(now(), 'Error - the adrift reads file could not be found')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  updateLog('Error - the adrift reads file could not be found.')
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
 if(! file.exists(opt$demultiplex_anchorReadsFile)){
-    write(c(paste(now(), '   Error - the index reads file could not be found')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-    q(save = 'no', status = 1, runLast = FALSE) 
+  updateLog('Error - the index reads file could not be found.')
+  q(save = 'no', status = 1, runLast = FALSE) 
 }
 
 if(! file.exists(opt$demultiplex_index1ReadsFile)){
-  write(c(paste(now(), '   Error - the anchor reads file could not be found')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  updateLog('Error - the anchor reads file could not be found.')
   q(save = 'no', status = 1, runLast = FALSE) 
 } 
-
 
 
 # Read in the I1 fastq file which will be used to determine the length of the data set
@@ -58,8 +59,11 @@ if(! file.exists(opt$demultiplex_index1ReadsFile)){
 I1 <- ShortRead::readFastq(opt$demultiplex_index1ReadsFile)
 dataSetLength <- length(I1)
 
+updateLog(paste0(ppNum(dataSetLength), ' NTs in paired end data set.'))
+
 if(opt$demultiplex_RC_I1_barcodes_auto){
-  write(c(paste(now(), '   Determining if I1 barcodes should be switched to RC.')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  updateLog('Determining if I1 barcodes should be switched to RC.')
+  
   d <- data.table(select(samples, subject, sample, replicate, index1Seq))
   i <- as.character(I1@sread)
   
@@ -70,7 +74,9 @@ if(opt$demultiplex_RC_I1_barcodes_auto){
        }))
   
   r <- ifelse(sum(o$barcodePercent) > sum(o$barcodePercentRC), FALSE, TRUE)
-  write(paste(now(), '   Setting demultiplex_RC_I1_barcodes to', r), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+
+  updateLog(paste0('Setting demultiplex_RC_I1_barcodes to ', r, '.'))
+
   opt$demultiplex_RC_I1_barcodes <- r
 }
 
@@ -95,11 +101,14 @@ n <- 1
 k <- 1
 processedReads <- 0
 
-message('Total number of reads to demultiplex: ', dataSetLength)
 options(scipen = 999)
 
+updateLog('Starting demultipling.')
+
 repeat {
-  message('n: ', n, ' k: ', k)
+  
+  updateLog(paste0('   processing data chunk ', k, '.'))
+  
   index1.fq <- yield(index1.strm)
   if(length(index1.fq) == 0) break
   anchor.fq <- yield(anchor.strm)
@@ -112,19 +121,19 @@ repeat {
   writeFastq(adrift.fq, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', paste0('adrift_fastqChunk', '.', id)), compress = FALSE)
   
   processedReads <- processedReads + length(index1.fq)
-  message('chunks: ', length(index1.fq), ' ', length(anchor.fq), ' ', length(adrift.fq))
-  message('Number of reads processed: ', processedReads)
+
+  updateLog(paste0('   ', ppNum(processedReads), ' reads processed.'))
   
   if(n == opt$demultiplex_CPUs | length(index1.fq) < opt$demultiplex_sequenceChunkSize){
    
-    message('   Calling demultiplex()')
+    updateLog('   Batch read limit reached, calling demultiplex().')
+    
     o <- data.table(file = list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = 'fastqChunk'))
     o$n <- unlist(lapply(stringr::str_split(o$file, '\\.'), '[', 2))
     
     invisible(parLapply(cluster, split(o, o$n), demultiplex))
-    #invisible(lapply(split(o, o$n), demultiplex))
     
-    message('Processed ', sprintf("%.2f%%", (processedReads / dataSetLength)*100), ' reads')
+    updateLog(paste0('   ', 'processed ', sprintf("%.2f%%", (processedReads / dataSetLength)*100), ' of all reads.'))
     
     n <- 0
   }
@@ -133,9 +142,12 @@ repeat {
   k <- k + 1
 }
 
+updateLog('Completed processing read batches.')
+
 # Collate demultiplexed chunks into a single data table.
 
-write(paste(now(), '   Colating data files.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+updateLog('Colating data files.')
+
 counter <- 1
 totalRepSamples <- n_distinct(samples$uniqueSample)
 
@@ -148,7 +160,7 @@ reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
   f3 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.[^\\.]+\\.randomAdriftReadIDs'), full.names = TRUE)
   if(length(f1) == 0 | length(f2) == 0 | length(f1) != length(f2)) return()
 
-  write(paste0(now(), '    Colating reads for ', x), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  updateLog(paste0('Colating reads for ', x, '.'))
   
   anchorReads <- Reduce('append', lapply(f1, readDNAStringSet))
   adriftReads <- Reduce('append', lapply(f2, readDNAStringSet))
@@ -166,16 +178,17 @@ reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
 }))
 
 if(nrow(reads) == 0){
-  write(c(paste(now(), '   Error - no reads were demultiplexed for any sample.')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  updateLog('Error - no reads were demultiplexed for any sample.')
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-write(paste(now(), '   Clearing tmp files.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+updateLog('Clearing tmp files.')
+
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
 
 # Collect all the logs from the different computational nodes and create a single report.
 
-write(paste(now(), '   Colating log files.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+updateLog('Colating log files.')
 
 logReport <- bind_rows(lapply(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'), pattern = '*.logReport$', full.names = TRUE), function(f){
   read.table(f, header = TRUE, sep = '\t')
@@ -194,13 +207,17 @@ logReport <- bind_rows(lapply(split(logReport, logReport$sample), function(x){
   bind_cols(data.frame(sample = x[1,1]), o)
 })) %>% dplyr::arrange(demultiplexedReads)
 
-write(paste(now(), '   Writing attrition table.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+
+updateLog('Writing attrition table.')
+
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'), recursive = TRUE))
 write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))
 
 
 
 # Expand read table with additional columns when appropriate.
+
+updateLog('Expanding read table with meta data from sample table.')
 
 if('anchorReadStartSeq' %in% names(samples)){
   reads <- left_join(reads, select(samples, uniqueSample, anchorReadStartSeq), by = 'uniqueSample')
@@ -218,13 +235,13 @@ if('leaderSeqHMM' %in% names(samples)){
 if('databaseGroup' %in% names(opt)){
   library(RMariaDB)
   
-  write(paste(now(), '   Uploading to database.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  updateLog('Uploading to database.')
   
   conn <- tryCatch({
     dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
   },
   error = function(cond) {
-    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+    updateLog('Error - could not connect to the database.')
     q(save = 'no', status = 1, runLast = FALSE) 
   })
   
@@ -240,7 +257,7 @@ if('databaseGroup' %in% names(opt)){
         }))
   
   if(any(r == 0)){
-    write(c(paste(now(), '   Error - could not upload all sample records to the database.')), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+    updateLog('Error - could not upload all sample records to the database.')
     q(save = 'no', status = 1, runLast = FALSE) 
   }
   
@@ -249,6 +266,7 @@ if('databaseGroup' %in% names(opt)){
 
 
 if(! opt$processAdriftReadLinkerUMIs){
+ updateLog('Setting read UMI sequences to poly-A because processAdriftReadLinkerUMIs is set to FALSE.')  
  reads$adriftReadRandomID <- 'AAAAAAAAAAAA'
  reads <- left_join(reads, select(samples, uniqueSample, adriftRead.linkerRandomID.start, adriftRead.linkerRandomID.end), by = 'uniqueSample')
  substr(reads$adriftReadSeq, reads$adriftRead.linkerRandomID.start, reads$adriftRead.linkerRandomID.end) <- 'AAAAAAAAAAAA'
@@ -261,6 +279,8 @@ if(! opt$processAdriftReadLinkerUMIs){
 if(opt$demultiplex_level == 'all'){
   reads$nDuplicateReads <- 0
 } else if(opt$demultiplex_level == 'unique'){
+  
+  updateLog('Identifying unique read pairs.')
   
   cluster <- makeCluster(opt$demultiplex_CPUs)
   clusterSetRNGStream(cluster, 1)
@@ -287,6 +307,9 @@ if(opt$demultiplex_level == 'all'){
   rm(o)
   
 } else if(opt$demultiplex_level == 'clustered'){
+  
+  updateLog('Identifying read pair clusters.')
+  
   o <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
     o <- DNAStringSet(paste0(x$anchorReadSeq, substr(x$adriftReadSeq, x$adriftLinkerSeqEnd+1, nchar(x$adriftReadSeq))))
     names(o) <- x$readID
@@ -345,7 +368,7 @@ reads$quickFilterStartPos <- NA
 if(opt$demultiplex_quickAlignFilter){
   readsLengthPreFilter <- n_distinct(reads$readID)
   
-  write(paste(now(), '   Prefiltering', readsLengthPreFilter, 'reads with bwa2.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  updateLog(paste0('Prefiltering', ppNum(readsLengthPreFilter), ' reads with bwa2.'))
   
   reads <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
     
@@ -416,11 +439,13 @@ if(opt$demultiplex_quickAlignFilter){
   
   d <- sprintf("%.2f%%", (1 - (n_distinct(reads$readID)/readsLengthPreFilter))*100)
   
-  write(paste(now(), '   Prefiltering done.', d, 'reads removed.'), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  updateLog(paste0('Prefiltering done.', ppNum(d), 'reads removed.'))
 }
 
 # FASTQ export if requested in the configuration file.
 if(opt$demultiplex_exportFASTQ){
+  
+  updateLog('Exporting FASTQ.')
   
   dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'fastq'))
   
@@ -448,6 +473,9 @@ if(opt$demultiplex_exportFASTQ){
 
 if(opt$demultiplex_requirePostUmiLinker){
   # Common Bushman linker: CTCCGCTTAAGGGACT
+  
+  updateLog('Applying post UMI filter because demultiplex_requirePostUmiLinker is set to TRUE.')
+  
   reads <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
     d <- subset(samples, uniqueSample == x$uniqueSample[1])
     s <- substr(x$adriftReadSeq, d$adriftRead.linkerRandomID.end, nchar(d$adriftReadLinkerSeq) + 1)   # expand region +1 on both ends.
@@ -455,8 +483,8 @@ if(opt$demultiplex_requirePostUmiLinker){
     i <- vcountPattern(e, DNAStringSet(s), max.mismatch = opt$demultiplex_requirePostUmiLinker_maxMismatch) == 1
     
     msg <- paste0(x$uniqueSample[1], ' - ', sprintf("%.2f%%", (sum(i == FALSE)/nrow(x))*100), ' reads missing post UMI linker.')
-    write(paste(now(), '   ', msg), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
-  
+    updateLog(msg)
+   
     x[i]
   }))
 }
@@ -464,27 +492,28 @@ if(opt$demultiplex_requirePostUmiLinker){
 
 # Replicate reassingment if requested.
 if(file.exists(opt$demultiplex_replicateMergingInstructions)){
-  msg <- 'Found replicate merging instruction file.'
-  write(paste(now(), '   ', msg), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+  updateLog('Found replicate merging instruction file.')
   
   f <- readr::read_tsv(opt$demultiplex_replicateMergingInstructions)
   names(f) <- c('uniqueSample', 'uniqueSample2')
   
   if(any(f$uniqueSample %in% reads$uniqueSample)){
-    msg <- 'Merging replicates.'
-    write(paste(now(), '   ', msg), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+    updateLog('Merging replicates.')
     reads <- left_join(reads, f, by = 'uniqueSample')
     reads$uniqueSample <- ifelse(is.na(reads$uniqueSample2), reads$uniqueSample, reads$uniqueSample2)
     reads$uniqueSample2 <- NULL
   } else {
-    msg <- 'None of the replicates in the merging instructions were found in the demultiplexed data.'
-    write(paste(now(), '   ', msg), file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'log'), append = TRUE)
+    updateLog('None of the replicates in the merging instructions were found in the demultiplexed data.')
   }
 }
+
+updateLog('Writing output files.')
 
 # Save demultiplexed reads and clean up.
 reads$seqRunID <- opt$demultiplex_seqRunID
 saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = opt$compressDataFiles)
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
+
+updateLog('Demultiplex completed.')
 
 q(save = 'no', status = 0, runLast = FALSE) 

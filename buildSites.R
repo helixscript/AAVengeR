@@ -3,6 +3,7 @@ library(lubridate)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 setMissingOptions()
@@ -11,8 +12,12 @@ setOptimalParameters()
 dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 dir.create(file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp'))
 
+opt$defaultLogFile <- file.path(opt$outputDir, opt$buildSites_outputDir, 'log')
+
+
 # Read in Standardized fragments.
-write(c(paste(now(), '   Reading standardized fragment data.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = FALSE)
+updateLog('Reading standardized fragment data.')
+
 frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile)) %>% dplyr::select(-readIDs) 
 
 incomingSamples <- unique(paste0(frags$trial, '~', frags$subject, '~', frags$sample))
@@ -22,9 +27,11 @@ samples <- distinct(tibble(trial = frags$trial, subject = frags$subject, sample 
 # Process fragments as integrase u5/u3 sites if all samples have a u5/u3 sample flag.
 if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
   
-  write(c(paste(now(), '   Processing IN_u3 / IN_u5 flags.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
+  updateLog('Processing IN_u3 / IN_u5 flags.')
   
   frags$id <- paste(frags$trial, frags$subject, frags$sample, frags$replicate, frags$posid)
+  
+  processed_fragments <- tibble()
   
   # Dual detection - look for samples with both u3 and u5 entries.
   invisible(lapply(split(samples, paste(samples$trial, samples$subject, samples$sample)), function(x){
@@ -46,12 +53,12 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
       # Cycle through u3 position ids.
       invisible(lapply(unique(u3.frags$posid), function(u3_posid){
         
-        # Create alternative sites +/- 5 this u3 site.
+        # Create alternative sites +/- a couple NT this u3 site.
         a <- sub('\\.\\d+$', '', u3_posid)
         o <- unlist(strsplit(a, '[\\+\\-]'))
         strand <- stringr::str_extract(a, '[\\+\\-]')
         alts <- paste0(o[1], ifelse(strand == '+', '-', '+'), (as.integer(o[2]) - opt$buildSites_dualDetectWidth):(as.integer(o[2]) + opt$buildSites_dualDetectWidth))
-        
+          
         # Search u5 fragments for alternative sites.
         # z may have multiple rows, one for each associated fragment.
         # More than one position id would single more than one closely spaced site was included (need to patch).
@@ -61,11 +68,17 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
         if(nrow(z) > 0){
           
           # Retrieve fragments for both sites.
-          f1 <- subset(u3.frags, posid2 == a)        # u3
-          f2 <- subset(u5.frags, posid2 %in% alts)   # u5 - assuming only one alt site was found.
+          f1 <- subset(u3.frags, posid2 == a & ! fragID %in% processed_fragments$fragID)        # u3
+          f2 <- subset(u5.frags, posid2 %in% alts & ! fragID %in% processed_fragments$fragID)   # u5 - assuming only one alt site was found.
           
-          message(counter, '. posid: ', a); counter <<- counter + 1
-          message('Number of neighboring fragments: ', nrow(f2))
+          if(nrow(f1) == 0 | nrow(f2) == 0) return()
+       
+          updateLog(paste0(counter, '. Processing U3 posid ', a, ' as a dual detection with ', nrow(f2), ' U5 fragments.'))
+          counter <<- counter + 1
+          
+          # Records processed u5 fragments 
+          i <- which(frags$fragID %in% c(f1$fragID, f2$fragID))
+          processed_fragments <<- bind_rows(processed_fragments, frags[i,])
           
           i <- which(frags$fragID %in% c(f1$fragID, f2$fragID) & frags$strand == '+')
           frags[i,]$posid <<- unlist(lapply(strsplit(frags[i,]$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2])+2, '.', x[3])))
@@ -133,7 +146,7 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
   }))
 }
 
-write(c(paste(now(), '   Building replicate level integration sites.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
+updateLog('Building replicate level integration sites.')
 
 frags$fragWidth <- frags$fragEnd - frags$fragStart + 1
 frags$replicate <- as.integer(frags$replicate)
@@ -178,7 +191,7 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
 minReplicate <- min(sites$replicate)
 maxReplicate <- max(sites$replicate)
 
-write(c(paste(now(), '   Creating a wide view of the replicate level integration site data.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
+updateLog('Creating a wide view of the replicate level integration site data.')
 
 tbl1 <- bind_rows(lapply(split(sites, paste(sites$trial, sites$subject, sites$sample, sites$posid)), function(x){ 
           o <- bind_cols(lapply(minReplicate:maxReplicate, function(r){
@@ -257,7 +270,7 @@ if('databaseGroup' %in% names(opt)){
     dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
   },
   error=function(cond) {
-    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
+    updateLog('Error - could not connect to the database.')
     q(save = 'no', status = 1, runLast = FALSE) 
   })
   
@@ -276,14 +289,16 @@ if('databaseGroup' %in% names(opt)){
     }))
     
     if(any(o == 0)){
-      write(c(paste(now(), 'Error -- could not upload sites data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
+      updateLog(paste0('Error -- could not upload sites data for ', x$sample[1], ' to the database.'))
       q(save = 'no', status = 1, runLast = FALSE)
     } else {
-      write(c(paste(now(), '   Uploaded sites data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildSites_outputDir, 'log'), append = TRUE)
-    }
+      updateLog(paste0('Uploaded sites data for ', x$sample[1], ' to the database.'))
+     }
   }))
   
   dbDisconnect(dbConn)
 }
+
+updateLog('buildSites completed.')
 
 q(save = 'no', status = 0, runLast = FALSE) 

@@ -78,3 +78,8 @@ Forced breakpoint standardization to work within position ids though this may al
 Updated config file.
 Added replicate renaming from file option.
 Added integration inspection tool to tools/ for studying individual events outside of AAVengeR.
+1.43
+Added new options to the configuration file.
+Updated dual detection in buildSites.
+Added new logging system.
+Updated time stamps in job tables.

@@ -1,3 +1,11 @@
+updateLog <- function(msg, logFile = NULL){
+  if(is.null(logFile)) logFile <- opt$defaultLogFile
+  msg <- paste0(base::format(Sys.time(), "%m.%d.%Y %l:%M%P"), "\t", msg)
+  write(msg, file = logFile, append = TRUE)
+}
+
+ppNum <- function(n) format(n, big.mark = ",", scientific = FALSE, trim = TRUE)
+
 setOptimalParameters <- function(){
   if(grepl('integrase', opt$mode, ignore.case = TRUE)){
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
@@ -405,13 +413,13 @@ loadSamples <- function(){
   samples <- readr::read_tsv(opt$demultiplex_sampleDataFile, col_types = readr::cols())
   
   if(nrow(samples) == 0){
-    write(c(paste(lubridate::now(), 'Error - no lines of information was read from the sample configuration file.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    updateLog('Error - no lines of information was read from the sample configuration file.')
     q(save = 'no', status = 1, runLast = FALSE) 
   }
   
   if('refGenome' %in% names(samples)){
     if(! all(sapply(unique(file.path(opt$softwareDir, 'data', 'referenceGenomes', 'blat', paste0(samples$refGenome, '.2bit'))), file.exists))){
-      write(c(paste(now(), "Error - one or more blat database files could not be found in AAVengeR's data/referenceGenomes directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      updateLog("Error - one or more blat database files could not be found in AAVengeR's data/referenceGenomes directory.")
       q(save = 'no', status = 1, runLast = FALSE) 
     }
   } else {
@@ -420,7 +428,7 @@ loadSamples <- function(){
   
   if('vectorFastaFile' %in% names(samples)){
     if(! all(sapply(unique(file.path(opt$softwareDir, 'data', 'vectors', samples$vectorFastaFile)), file.exists))){
-      write(c(paste(now(), "Error - one or more vector FASTA files could not be found in AAVengeR's data/vectors directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      updateLog("Error - one or more vector FASTA files could not be found in AAVengeR's data/vectors directory.")
       q(save = 'no', status = 1, runLast = FALSE) 
     }
   } else {
@@ -431,7 +439,7 @@ loadSamples <- function(){
     samples$leaderSeqHMM <- file.path(opt$softwareDir, 'data', 'hmms', samples$leaderSeqHMM)
     
     if(! all(sapply(unique(samples$leaderSeqHMM), file.exists))){
-      write(c(paste(now(), "Error - one or more leader sequence HMM files could not be found in AAVengeR's data/hmms directory")), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      updateLog("Error - one or more leader sequence HMM files could not be found in AAVengeR's data/hmms directory.")
       q(save = 'no', status = 1, runLast = FALSE) 
     }
   }
@@ -475,33 +483,31 @@ loadSamples <- function(){
   
   if(! all(requiredColumns %in% names(samples))){
     missingCols <- paste0(requiredColumns[! requiredColumns %in% names(samples)], collapse = ', ')
-    write(c(paste(lubridate::now(), 'Error - the following columns were missing from the sample data file: '), missingCols), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    updateLog(paste0('Error - the following columns were missing from the sample data file: ', missingCols))
     q(save = 'no', status = 1, runLast = FALSE)
   }
   
   if(any(grepl('\\s|~|\\||\\.', paste0(samples$trial, samples$subject, samples$sample, samples$replicate)))){
-    write('Error -- spaces, tildas (~), pipes (|), and dots (.) are reserved characters and can not be used in the trial, subject, sample, or replicate sample configuration columns.', 
-          file = file.path(opt$outputDir, 'log'), append = TRUE)
+    updateLog("Error -- spaces, tildas (~), pipes (|), and dots (.) are reserved characters and can not be used in the trial, subject, sample, or replicate sample configuration columns.")
     q(save = 'no', status = 1, runLast = FALSE)
   }
   
   if(opt$demultiplex_useAdriftReadUniqueLinkers){
     if(any(is.na(samples$adriftRead.linkerBarcode.start)) | any(is.na(samples$adriftRead.linkerBarcode.end))){
-      write(c(paste(lubridate::now(), 'Error - adriftRead.linkerBarcode.start or adriftRead.linkerBarcode.end is set to NA when requesting demultiplex_useAdriftReadUniqueLinkers')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      updateLog('Error - adriftRead.linkerBarcode.start or adriftRead.linkerBarcode.end is set to NA when requesting demultiplex_useAdriftReadUniqueLinkers')
       q(save = 'no', status = 1, runLast = FALSE)
     }
   }
   
   if(any(is.na(samples$adriftRead.linkerRandomID.start)) | any(is.na(samples$adriftRead.linkerRandomID.end))){
-      write(c(paste(lubridate::now(), 'Error - adriftRead.linkerRandomID.start or adriftRead.linkerRandomID.end is set to NA.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+      updateLog('Error - adriftRead.linkerRandomID.start or adriftRead.linkerRandomID.end is set to NA.')
       q(save = 'no', status = 1, runLast = FALSE)
   }
   
   samples$uniqueSample <- paste0(samples$trial, '~', samples$subject, '~', samples$sample, '~', samples$replicate)
   
   if(any(duplicated(samples$uniqueSample))){
-    write('Error -- There are one ore more duplications of trial~subject~sample~replicate ids in the sample data file.', 
-          file = file.path(opt$outputDir, 'log'), append = TRUE)
+    updateLog('Error -- There are one ore more duplications of trial~subject~sample~replicate ids in the sample data file.')
     q(save = 'no', status = 1, runLast = FALSE)
   }
   
@@ -620,7 +626,7 @@ standardizationSplitVector <- function(d, v){
   } else if( v == 'subject'){
     return(paste(d$trial, d$subject))
   } else {
-    write(c(paste(lubridate::now(), 'Error - standardization vector can not be created.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    updateLog('Error - standardization vector can not be created.')
     q(save = 'no', status = 1, runLast = FALSE) 
   }
 }
@@ -711,7 +717,7 @@ golayCorrection <- function(x, tmpDirPath = NA){
   a[i,]$seq <- a[i,]$seq2
   
   if(! all(names(x) == a$id)){
-    write(c(paste(lubridate::now(), 'Error - There was an ordering error during the Golay correction step.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+    updateLog('Error - There was an ordering error during the Golay correction step.')
     q(save = 'no', status = 1, runLast = FALSE) 
   }
   

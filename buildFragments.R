@@ -7,6 +7,7 @@ library(Biostrings)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 setMissingOptions()
@@ -17,13 +18,17 @@ dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'))
 dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads'))
 
+opt$defaultLogFile <- file.path(opt$outputDir, opt$buildFragments_outputDir, 'log')
+
 # Read in adrift alignment reads.
-write(c(paste(now(), '   Reading in anchor and adrift read alignments.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = FALSE)
+updateLog('Reading in anchor and adrift read alignments.')
+
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adriftReadsAlignmentFile))
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
 
 if(nrow(anchorReadAlignments) == 0 | nrow(adriftReadAlignments) == 0){
-  write(c(paste(now(), '   Error - anchor and/or adrift alignment data files were empty.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+  updateLog('Error - anchor and/or adrift alignment data files were empty.')
+
   if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
   q(save = 'no', status = 1, runLast = FALSE) 
 }
@@ -49,7 +54,7 @@ r <- r[readID %in% adriftReadAlignments$readID]
 
 adriftReadAlignments <- left_join(adriftReadAlignments, r, by = 'readID')  
 
-write(c(paste(now(), '   Preparing alignment data for fragment generation.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+updateLog('Preparing alignment data for fragment generation.')
 
 anchorReadAlignments <- subset(anchorReadAlignments, readID %in% adriftReadAlignments$readID)
 
@@ -67,7 +72,7 @@ names(adriftReadAlignments) <- paste0(names(adriftReadAlignments), '.adriftReads
 ids <- unique(anchorReadAlignments$readID.anchorReads)
 id_groups <- split(ids, dplyr::ntile(1:length(ids), ceiling(length(ids)/opt$buildFragments_idGroup_size)))
 
-write(c(paste(now(), '   Building initial fragments.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+updateLog('Building initial fragments.')
 
 # Convert from tibble to data.table for increased subsetting efficiency. 
 anchorReadAlignments <- data.table(anchorReadAlignments)
@@ -94,12 +99,12 @@ z <- as.character(tab[tab$s == 2,]$readID)
 # For read pairs where both mates have too many alignments, randomly select anchor reads and associated adrift mates 
 # that have the potential to form rational fragments.
 
-write(paste0(now(), '    Building rational fragments from alignment data.'), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+updateLog('Building rational fragments from alignment data.')
 
 if(length(z) > 0 & opt$buildFragments_salvageReadsBeyondMaxNumAlignments){
-  write(c(paste0(now(), '    ', length(z), ' reads pairs have more than ', opt$buildFragments_maxReadAlignments, ' alignments for both mates.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
-  write(c(paste0(now(), '    For each reach read, ', opt$buildFragments_maxReadAlignments, ' alignments will be randomly selected.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
-  write(c(paste0(now(), '    Adrift alignments that have the potential to form rational fragments with the selected anchor reads will be selected as well.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+  updateLog(paste0(length(z), ' reads pairs have more than ', opt$buildFragments_maxReadAlignments, ' alignments for both mates.'))
+  updateLog(paste0('For each reach read, ', opt$buildFragments_maxReadAlignments, ' alignments will be randomly selected.'))
+  updateLog(paste0('Adrift alignments that have the potential to form rational fragments with the selected anchor reads will be selected as well.'))
   
   a1 <- subset(anchorReadAlignments, ! readID.anchorReads %in% z)
   b1 <- subset(adriftReadAlignments, ! readID.adriftReads %in% z)
@@ -182,7 +187,8 @@ frags <- bind_rows(lapply(o, function(z){
   
   if(nrow(a) == 0 | nrow(b) == 0) return(data.frame())
   
-  write(paste0(now(), '    ', counter, '/', total, ': ', nrow(a), ' anchorRead alignments, ', nrow(b), ' adriftRead_alignments.'), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+  updateLog(paste0(counter, '/', total, ': ', nrow(a), ' anchorRead alignments, ', nrow(b), ' adriftRead_alignments.'))
+
   counter <<- counter + 1
   
   # Join adrift reads alignments to anchor read alignments to create potential read pairs.
@@ -222,13 +228,13 @@ frags <- bind_rows(lapply(o, function(z){
 frags <- distinct(frags)
 
 if(nrow(frags) == 0){
-  write(c(paste(now(), '   Error - no fragments were identified.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+  updateLog('Error - no fragments were identified.')
+  
   if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-
-write(c(paste(now(), '   Fragment generation complete.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+updateLog('Fragment generation complete.')
 
 # Add duplicate read count column from demultiplex module.
 r <- readRDS(file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds'))
@@ -246,17 +252,17 @@ if(any(! incomingSamples %in% frags$uniqueSample) & opt$core_createFauxFragDoneF
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.rds'), compress = opt$compressDataFiles)
 write(date(), file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.done'))
 
-
 if('databaseGroup' %in% names(opt)){
   library(RMariaDB)
   
-  write(c(paste(now(), '   Writing fragment data to the database.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+  updateLog('Writing fragment data to the database.')
   
   conn <- tryCatch({
     dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
   },
   error=function(cond) {
-    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, opt$buildFragments_outputDir, 'log'), append = TRUE)
+    updateLog('Error - could not connect to the database.')
+    
     if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
     q(save = 'no', status = 1, runLast = FALSE) 
   })
@@ -278,12 +284,14 @@ if('databaseGroup' %in% names(opt)){
     }))
     
     if(any(o == 0)){
-      write(c(paste(now(), '   Error - could not upload all fragment records to the database.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+      updateLog('Error - could not upload all fragment records to the database.')
       q(save = 'no', status = 1, runLast = FALSE) 
     }
   }))
   
   dbDisconnect(conn)
 }
+
+updateLog('buildFragments completed.')
 
 q(save = 'no', status = 0, runLast = FALSE) 

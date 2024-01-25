@@ -4,8 +4,12 @@ library(pander)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
+
+# Define max percent CPUs allowed for a process.
+opt$core_maxPercentCPUs <- floor((opt$core_maxCPUsPerProcess / opt$core_CPUs) * 100)
 
 # Create directories and start logging.
 dir.create(opt$outputDir)
@@ -29,7 +33,7 @@ write(c('#!/usr/bin/sh',
       file = file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'))
 
 system(paste('chmod 755', file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh')))
-system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, show.output.on.console = FALSE)
+### system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, show.output.on.console = FALSE)
 
 
 # Read in demultiplex result.
@@ -44,25 +48,24 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
       o <- unlist(strsplit(x, '/'))
       id <- o[length(o)-2]
       
-      jobTable[jobTable$id == id,]$done     <<- TRUE
-      jobTable[jobTable$id == id,]$active   <<- NA
-      jobTable[jobTable$id == id,]$endTime  <<- as.character(lubridate::now()) 
-      jobTable[jobTable$id == id,]$duration <<- paste0(as.integer(as.character(difftime(lubridate::now(), lubridate::ymd_hms(jobTable[jobTable$id == o[length(o)-2],]$startTime), units="mins"))), ' minutes')
+      jobTable[jobTable$id == id,]$done       <<- TRUE
+      jobTable[jobTable$id == id,]$active     <<- NA
+      jobTable[jobTable$id == id,]$endTimeDsp <<- base::format(Sys.time(), "%m.%d.%Y %l:%M%P")
+      jobTable[jobTable$id == id,]$endTime    <<- as.character(lubridate::now()) 
+      jobTable[jobTable$id == id,]$duration   <<- paste0(as.integer(as.character(difftime(lubridate::now(), lubridate::ymd_hms(jobTable[jobTable$id == o[length(o)-2],]$startTime), units="mins"))), ' minutes')
       
       CPUs_used <<- CPUs_used - jobTable[jobTable$id == id,]$CPUs
       invisible(file.remove(f))
     }))
   }
   
+  
   # Redefine CPUs.
   o <- jobTable[jobTable$done == FALSE & jobTable$active == FALSE,]
   
   if(nrow(o) > 0){
-    # Increase core_maxPercentCPUs near the end of the job table.
+    
     core_maxPercentCPUs <- opt$core_maxPercentCPUs
-
-    ### if(100/nrow(o) > core_maxPercentCPUs) core_maxPercentCPUs <- ceiling(100/nrow(o)) 
-    ### if(nrow(o) == 1) core_maxPercentCPUs <- 100   
   
     # The job with the most reads will evaluate to 1 * core_maxPercentCPUs and recieve core_maxPercentCPUs cores.
     o$CPUs <- as.integer(ceiling((((o$reads / max(o$reads)) * core_maxPercentCPUs) / 100) * opt$core_CPUs))
@@ -72,7 +75,11 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
     jobTable[match(o$id, jobTable$id),]$CPUs <<- o$CPUs
   }
   
-  tab <- pandoc.table.return(arrange(jobTable, desc(done), desc(active)), style = "simple", split.tables = Inf, plain.ascii = TRUE)
+  dspJobTable <- jobTable
+  dspJobTable$startTime <- dspJobTable$startTimeDsp; dspJobTable$startTimeDsp <- NULL
+  dspJobTable$endTime   <- dspJobTable$endTimeDsp;   dspJobTable$endTimeDsp <- NULL
+  
+  tab <- pandoc.table.return(arrange(dspJobTable, desc(done), desc(active)), style = "simple", split.tables = Inf, plain.ascii = TRUE)
   write(c(date(), paste0('Available CPUs: ', (opt$core_CPUs - CPUs_used)), tab), file = file.path(opt$outputDir, 'core', outputFileName), append = FALSE)
 }
 
@@ -83,6 +90,8 @@ jobTable$CPUs <- ifelse(jobTable$CPUs == 1, 2, jobTable$CPUs)
 jobTable$active <- FALSE
 jobTable$startTime <- NA
 jobTable$endTime <- NA
+jobTable$startTimeDsp <- NA
+jobTable$endTimeDsp <- NA
 jobTable$done <- FALSE
 jobTable$duration <- NA
 
@@ -137,7 +146,9 @@ while(! all(jobTable$done == TRUE)){
   CPUs_used <- CPUs_used + tab$CPUs
 
   jobTable[which(jobTable$id == tab$id),]$active <- TRUE
+  jobTable[which(jobTable$id == tab$id),]$startTimeDsp <- base::format(Sys.time(), "%m.%d.%Y %l:%M%P")
   jobTable[which(jobTable$id == tab$id),]$startTime <- as.character(lubridate::now())
+  
 
   jobStatus(searchPattern = 'fragments.done', outputFileName = 'replicateJobTable')
   Sys.sleep(5)

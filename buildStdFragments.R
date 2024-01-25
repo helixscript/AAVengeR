@@ -11,6 +11,7 @@ configFile <- commandArgs(trailingOnly=TRUE)
 
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
+
 source(file.path(opt$softwareDir, 'lib.R'))
 setMissingOptions()
 setOptimalParameters()
@@ -23,13 +24,16 @@ clusterExport(cluster, 'opt')
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'))
 
+opt$defaultLogFile <- file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log')
+
+
 # Load fragment data from database or local file depending on configuration file.
 # Fragments are read in on the read level and contain a variable (n) which is the number 
 # of identical read pairs that were removed in prepReads. (n) can be added to fragment
 # read counts to account for all reads supporting fragments.
 #----------------------------------------------------------------------------------------
 
-write(c(paste(now(), '   Reading in fragment file(s).')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = FALSE)
+updateLog('Reading in fragment file(s).')
 
 # Create a database connection if requested in the configuration file.
 if('databaseGroup' %in% names(opt)){
@@ -39,7 +43,7 @@ if('databaseGroup' %in% names(opt)){
     dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
   },
   error=function(cond) {
-    write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+    updateLog('Error - could not connect to the database.')
     q(save = 'no', status = 1, runLast = FALSE) 
   })
 }
@@ -48,16 +52,15 @@ if('databaseGroup' %in% names(opt)){
 # ------------------------------------------------------------------------------
 if('buildStdFragments_autoPullTrialSamples' %in% names(opt) & ! 'databaseGroup' %in% names(opt)){
   if(opt$buildStdFragments_autoPullTrialSamples){
-    write(c(paste(now(), 'Error -- the databaseGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+    updateLog('Error -- the databaseGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')
     q(save = 'no', status = 1, runLast = FALSE)
   }
 }
 
 if('buildStdFragments_trialSubjectList' %in% names(opt) & ! 'databaseGroup' %in% names(opt)){
-  write(c(paste(now(), 'Error -- the databaseGroup option must be provided with the buildStdFragments_trialSubjectList option.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+  updateLog('Error -- the databaseGroup option must be provided with the buildStdFragments_trialSubjectList option.')
   q(save = 'no', status = 1, runLast = FALSE)
 }
-
 
 
 # Read in fragment data.
@@ -76,7 +79,7 @@ if('buildStdFragments_inputFile' %in% names(opt)){
     dbFragsToAdd <- dbFrags[! dbFrags$uniqueSample %in% frags$uniqueSample,]
     
     if(nrow(dbFragsToAdd) > 0){
-      write(c(paste(now(), paste0('   Adding ', nrow(dbFragsToAdd), ' fragment read records to incoming fragment data.'))), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+      updateLog(paste0('   Adding ', nrow(dbFragsToAdd), ' fragment read records to incoming fragment data.'))
       frags <- distinct(bind_rows(frags, dbFragsToAdd))
     }
   }
@@ -88,7 +91,7 @@ if('buildStdFragments_inputFile' %in% names(opt)){
              pullDBsubjectFrags(dbConn, d[1], d[2])
            })))
 } else {
-  write(c(paste(now(), 'Error -- neither buildStdFragments_inputFile or buildStdFragments_trialSubjectList options were provided')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+  updateLog('Error -- neither buildStdFragments_inputFile or buildStdFragments_trialSubjectList options were provided.')
   q(save = 'no', status = 1, runLast = FALSE)
 }
 
@@ -96,7 +99,7 @@ if('databaseGroup' %in% names(opt)) RMariaDB::dbDisconnect(dbConn)
 
 # Make sure fragments were retrieved.
 if(nrow(frags) == 0){
-  write(c(paste(now(), 'Error -- no fragments were loaded or retrieved.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+  updateLog('Error -- no fragments were loaded or retrieved.')
   q(save = 'no', status = 1, runLast = FALSE)
 }
 
@@ -116,7 +119,7 @@ frags$trialSubject <- paste0(frags$trial, '~', frags$subject)
 
 # Categorize ITR/LTR remnant sequences.
 # -------------------------------------------------------------------------------
-write(c(paste(now(), '   Categorizing leader sequences.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+updateLog('Categorizing leader sequences.')
 
 frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 
@@ -245,7 +248,7 @@ g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
 # Standardize integration positions within subjects.
 #-------------------------------------------------------------------------------
 
-write(c(paste(now(), '   Standardizing integration positions within subjects.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+updateLog('Standardizing integration positions within subjects.')
 
 g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
        library(dplyr)
@@ -302,8 +305,7 @@ rm(f, g)
 # Standardize break positions within replicates.
 #-------------------------------------------------------------------------------
 
-write(c(paste(now(), '   Standardizing break positions within replicates.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
-
+updateLog('Standardizing break positions within replicates.')
 
 f <- lazy_dt(frags) %>%
   group_by(z) %>%
@@ -358,7 +360,7 @@ frags$fragStart <- frags$start
 frags$fragEnd   <- frags$end
 frags <- select(frags, -start, -end)
 
-write(c(paste(now(), '   Updating positions and fragment ids.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+updateLog('Updating positions and fragment ids.')
 
 # Update position and fragment ids.
 frags$posid <- paste0(frags$chromosome, frags$strand, 
@@ -374,7 +376,7 @@ rm(f, g)
 # Determine which read level fragment records map to multiple position ids.
 #-------------------------------------------------------------------------------
 
-write(c(paste(now(), '   Idenitfying uniquely called postions.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+updateLog('Idenitfying uniquely called postions.')
 
 u <- group_by(frags, readID) %>% 
      mutate(nPosIDs = n_distinct(posid)) %>% 
@@ -388,7 +390,8 @@ frags_multPosIDs <- frags[! frags$readID %in% u,]
 
 # Do not continue unless we have at least one uniquely called fragment.
 if(nrow(frags_uniqPosIDs) == 0){
-  write(c(paste(now(), '   Error - No unique position remain after filtering.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+  updateLog('Error - No unique position remain after filtering.')
+ 
   if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
   q(save = 'no', status = 1, runLast = FALSE) 
 }
@@ -399,7 +402,7 @@ if(nrow(frags_uniqPosIDs) == 0){
 # This block is here because some reads may be returned to frags_uniqPosIDs.
 if(nrow(frags_multPosIDs) > 0){
   
-  write(c(paste(now(), '   Resolving multi-hit reads.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+  updateLog('Resolving multi-hit reads.')
   
   frags_multPosIDs$s <- paste(frags_multPosIDs$trial, frags_multPosIDs$subject)
   
@@ -440,7 +443,7 @@ if(nrow(frags_multPosIDs) > 0){
     }))
     
     msg <- paste0('   ', sprintf("%.2f%%", (nrow(m) / nrow(frags_multPosIDs))*100), ' of multihit reads recovered because one potential site was in the unabiguous site list.')
-    write(c(paste(now(), msg)), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+    updateLog(msg)
     
     # Remove salvaged reads from multi-hit reads.
     frags_multPosIDs <- subset(frags_multPosIDs, ! readID %in% m$readID) %>% dplyr::select(-s, -returnToFrags)
@@ -458,7 +461,7 @@ if(nrow(frags_multPosIDs) > 0){
 z <- frags_uniqPosIDs$readID[duplicated(frags_uniqPosIDs$readID)]
 
 if(length(z) > 0){
-  write(c(paste(now(), '   Correcting fuzzy break points.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+  updateLog('Correcting fuzzy break points.')
   
   a <- subset(frags_uniqPosIDs, readID %in% z)
   b <- subset(frags_uniqPosIDs, ! readID %in% z)
@@ -499,8 +502,7 @@ buildConsensusSeq <- function(x){
   as.character(tab[1, 'leaderSeq'])
 }
 
-
-write(c(paste(now(), '   Reevaluating leader sequence classification after standardization.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+updateLog('Reevaluating leader sequence classification after standardization.')
 
 leaderSeqGroupIDs <- list()
 
@@ -595,8 +597,8 @@ frags_uniqPosIDs$i <- paste(frags_uniqPosIDs$trial, frags_uniqPosIDs$subject, fr
 
 if(opt$processAdriftReadLinkerUMIs){
   
-  write(c(paste(now(), '   Processing UMIs.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
-
+  updateLog('Processing UMIs.')
+  
   frags_uniqPosIDs <- as.data.table(frags_uniqPosIDs)
   
   # Identify random ids that span more than one integration position within samples.
@@ -627,7 +629,7 @@ if(opt$processAdriftReadLinkerUMIs){
     readCount_correction <- 0
     no_correction <- 0
     
-    write(c(paste(now(), paste0('   ', 'Evaluating ', total, ' UMI sequences.'))), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+    updateLog(paste0('Evaluating ', total, ' UMI sequences.'))
     
     inds <- unlist(lapply(split(r, r$randomLinkerSeq), function(x){
             if(counter %% 10 == 0) message('UMI cleanup part 1: ', counter, '/', total, ' - ', sprintf("%.2f%%", (counter/total)*100), ' - ',
@@ -715,7 +717,7 @@ multiHitClusters <- tibble()
 
 if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   
-  write(c(paste(now(), '   Building mulit-hit networks.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+  updateLog('Building mulit-hit networks.')
  
   # Create a data frame with width data needed by multi-hit calculating worker nodes
   # then export the data to the cluster nodes.
@@ -786,7 +788,8 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
     },
     error=function(cond) {
-      write(c(paste(now(), '   Error - could not connect to the database.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+      updateLog('Error - could not connect to the database.')
+     
       if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
       q(save = 'no', status = 1, runLast = FALSE) 
     })
@@ -815,11 +818,12 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
                      params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], list(serialize(tab, NULL))))
       
       if(r == 0){
-        write(c(paste(now(), 'Error -- could not upload multihit data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+        updateLog(paste0('Error -- could not upload multihit data for ', x$sample[1], ' to the database.'))
+        
         if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
         q(save = 'no', status = 1, runLast = FALSE)
       } else {
-        write(c(paste(now(), '   Uploaded multihit data for ', x$sample[1], ' to the database.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
+        updateLog(paste0('Uploaded multihit data for ', x$sample[1], ' to the database.'))
       }
     }))
     
@@ -863,8 +867,8 @@ filterUMIs <- function(x){
 if(nrow(b) > 0){
   o <- split(b, b$fragID)
 
-  write(c(paste(now(), '   Bundling fragment reads into fragment records.')), file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log'), append = TRUE)
-
+  updateLog('Bundling fragment reads into fragment records.')
+ 
   b2 <- bind_rows(lapply(o, function(x){
          totalReads <- n_distinct(x$readID) + sum(x$nDuplicateReads)
   
@@ -920,5 +924,7 @@ if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_create
 
 saveRDS(select(f, -z, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
 readr::write_tsv(select(f, -z, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
+
+updateLog('buildStdFragments completed.')
 
 q(save = 'no', status = 0, runLast = FALSE) 
