@@ -36,6 +36,12 @@ invisible(file.remove(list.files(file.path(opt$outputDir, opt$prepReads_outputDi
 updateLog('Reading sample data.')
 samples <- loadSamples()
 
+if(tolower(opt$prepReads_additionalAnchorReadOverReadingSeqs) != 'none'){
+  opt$prepReads_additionalAnchorReadOverReadingSeqs <- paste0(' -a ', paste0(unlist(strsplit(opt$prepReads_additionalAnchorReadOverReadingSeqs, ',')), collapse = ' -a '))
+} else{
+  opt$prepReads_additionalAnchorReadOverReadingSeqs = ''
+}
+
 cluster <- makeCluster(opt$prepReads_CPUs)
 clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, 'opt')
@@ -52,13 +58,8 @@ incomingSamples <- unique(reads$uniqueSample)
 
 updateLog('Trimming anchor read over-reading.')
 
-if(tolower(opt$prepReads_additionalAnchorReadOverReadingSeqs) != 'none'){
-  opt$prepReads_additionalAnchorReadOverReadingSeqs <- paste0(' -a ', paste0(unlist(strsplit(opt$prepReads_additionalAnchorReadOverReadingSeqs, ',')), collapse = ' -a '))
-} else{
-  opt$prepReads_additionalAnchorReadOverReadingSeqs = ''
-}
-
 reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nrow(reads), opt$prepReads_CPUs)), function(x){
+#reads <- data.table::rbindlist(lapply(split(reads, dplyr::ntile(1:nrow(reads), opt$prepReads_CPUs)), function(x){
            source(file.path(opt$softwareDir, 'lib.R'))
            library(dplyr)
            library(data.table)
@@ -73,6 +74,7 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
              names(o) <- y$readID
              Biostrings::writeXStringSet(o, f)
          
+            # browser()
              # Use cut adapt to trim anchor read over-reading.
              system(paste0('cutadapt -e ', opt$prepReads_cutAdaptErrorRate, ' -a ', y$adriftReadTrimSeq[1], ' ', opt$prepReads_additionalAnchorReadOverReadingSeqs, ' ', f, ' > ', paste0(f, '.cutAdapt')), ignore.stderr = TRUE)
          
