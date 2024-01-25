@@ -196,6 +196,8 @@ jobTable$CPUs <- ifelse(jobTable$CPUs == 1, 2, jobTable$CPUs)
 jobTable$active <- FALSE
 jobTable$startTime <- NA
 jobTable$endTime <- NA
+jobTable$startTimeDsp <- NA
+jobTable$endTimeDsp <- NA
 jobTable$done <- FALSE
 jobTable$duration <- NA
 
