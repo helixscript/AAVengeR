@@ -321,17 +321,20 @@ f <- lazy_dt(frags) %>%
 
 
 
-g <- parallel::parLapply(cluster, split(f, f$s), function(k){
+
+
+g <- unlist(GRangesList(parallel::parLapply(cluster, split(f, f$s), function(k){
        library(dplyr)
        library(GenomicRanges)
        source(file.path(opt$softwareDir, 'lib.R'))
        source(file.path(opt$softwareDir, 'stdPos.lib.R'))
   
        k <- GenomicRanges::makeGRangesFromDataFrame(k, keep.extra.columns = TRUE)
+       refine_breakpoints(k, counts.col = 'reads', sata.gap = opt$buildStdFragments_breakPointStdWindowWidth)
   
        unlist(GRangesList(lapply(split(k, k$posid), function(x){
          x$breakPointsRefined <- FALSE
-  
+
          out <- tryCatch({
            o <- refine_breakpoints(x, counts.col = 'reads', sata.gap = opt$buildStdFragments_breakPointStdWindowWidth)
            o$breakPointsRefined <- TRUE
@@ -343,12 +346,12 @@ g <- parallel::parLapply(cluster, split(f, f$s), function(k){
          warning=function(cond) {
            o
          })
-  
+
          return(out)
        })))
-     })
+     })))
 
-g <- data.frame(unlist(GRangesList(g)))       
+g <- data.frame(g)       
 
 
 # Join updated positions to the input data frame.

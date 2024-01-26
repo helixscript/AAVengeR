@@ -1,6 +1,6 @@
-Fri Jan 26 03:28:10 2024
-1706239690
-2024-01-26 03:28:10    Paths of expected software packages:
+Fri Jan 26 04:53:41 2024
+1706244821
+2024-01-26 04:53:41    Paths of expected software packages:
                        blat	/usr/bin/blat
                        cutadapt	/usr/bin/cutadapt
                        hmmbuild	/usr/bin/hmmbuild
@@ -10,7 +10,7 @@ Fri Jan 26 03:28:10 2024
                        muscle	/usr/bin/muscle
                        python2	/usr/bin/python2
                        cd-hit-est	/usr/bin/cd-hit-est
-2024-01-26 03:28:10 Starting prepReads
-2024-01-26 03:28:53 Starting alignReads
-2024-01-26 03:40:28 Starting buildFragments
-2024-01-26 03:40:34 Done.
+2024-01-26 04:53:41 Starting prepReads
+2024-01-26 04:54:25 Starting alignReads
+2024-01-26 05:05:55 Starting buildFragments
+2024-01-26 05:06:03 Done.

@@ -13,6 +13,8 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 
 source(file.path(opt$softwareDir, 'lib.R'))
+source(file.path(opt$softwareDir, 'stdPos.lib.R'))
+
 setMissingOptions()
 setOptimalParameters()
 set.seed(1)
@@ -241,37 +243,15 @@ f <- lazy_dt(frags) %>%
     ungroup() %>%
     as.data.table()
      
-# Create GenomicRanges object for standardization.
-g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
-
 
 # Standardize integration positions within subjects.
 #-------------------------------------------------------------------------------
 
 updateLog('Standardizing integration positions within subjects.')
 
-g <- data.frame(unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
-       library(dplyr)
-       library(GenomicRanges)
-       source(file.path(opt$softwareDir, 'lib.R'))
-       source(file.path(opt$softwareDir, 'stdPos.lib.R'))
-  
-       x$intSiteRefined <- FALSE
-  
-       out <- tryCatch({
-         o <- standardize_sites(x, counts.col = 'reads', sata.gap = opt$buildStdFragments_intSiteStdWindowWidth)
-         o$intSiteRefined <- TRUE
-         o
-       },
-       error=function(cond) {
-         x
-       },
-       warning=function(cond) {
-         o
-       })
-  
-      return(out)
-    }))))
+g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
+
+g <- data.frame(standardize_sites(g, counts.col = 'reads', sata.gap = opt$buildStdFragments_intSiteStdWindowWidth))
 
 
 # Join updated positions to the input data frame.
@@ -320,28 +300,7 @@ f <- lazy_dt(frags) %>%
 
 g <- GenomicRanges::makeGRangesFromDataFrame(f, keep.extra.columns = TRUE)
 
-g <-  data.frame(unlist(GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
-       library(dplyr)
-       library(GenomicRanges)
-       source(file.path(opt$softwareDir, 'lib.R'))
-       source(file.path(opt$softwareDir, 'stdPos.lib.R'))
-  
-       x$breakPointsRefined <- FALSE
-  
-       out <- tryCatch({
-           o <- refine_breakpoints(x, counts.col = 'reads', sata.gap = opt$buildStdFragments_breakPointStdWindowWidth)
-           o$breakPointsRefined <- TRUE
-           o
-         },
-         error=function(cond) {
-           x
-         },
-         warning=function(cond) {
-           o
-         })
-  
-        return(out)
-     }))))
+g <- data.frame(refine_breakpoints(g, counts.col = 'reads', sata.gap = opt$buildStdFragments_breakPointStdWindowWidth))
 
 
 # Join updated positions to the input data frame.

@@ -1,22 +1,22 @@
-01.26.2024  3:49am	Reading standardized fragment data.
-01.26.2024  3:49am	Processing IN_u3 / IN_u5 flags.
-01.26.2024  3:49am	1. Processing U3 posid chr14-77674136 as a dual detection with 19 U5 fragments.
-01.26.2024  3:49am	2. Processing U3 posid chr1+68106291 as a dual detection with 23 U5 fragments.
-01.26.2024  3:49am	3. Processing U3 posid chr21+23870689 as a dual detection with 23 U5 fragments.
-01.26.2024  3:49am	4. Processing U3 posid chr21+40431365 as a dual detection with 21 U5 fragments.
-01.26.2024  3:49am	5. Processing U3 posid chr10-104609649 as a dual detection with 22 U5 fragments.
-01.26.2024  3:49am	6. Processing U3 posid chr11-86289907 as a dual detection with 22 U5 fragments.
-01.26.2024  3:49am	7. Processing U3 posid chr15-24675523 as a dual detection with 22 U5 fragments.
-01.26.2024  3:49am	8. Processing U3 posid chr1-170324372 as a dual detection with 21 U5 fragments.
-01.26.2024  3:49am	9. Processing U3 posid chr22-23096327 as a dual detection with 20 U5 fragments.
-01.26.2024  3:49am	10. Processing U3 posid chrX+114582615 as a dual detection with 21 U5 fragments.
-01.26.2024  3:49am	11. Processing U3 posid chr14-62440339 as a dual detection with 20 U5 fragments.
-01.26.2024  3:49am	12. Processing U3 posid chr7+2200462 as a dual detection with 22 U5 fragments.
-01.26.2024  3:49am	13. Processing U3 posid chr9-4426917 as a dual detection with 24 U5 fragments.
-01.26.2024  3:49am	14. Processing U3 posid chr10-16382925 as a dual detection with 20 U5 fragments.
-01.26.2024  3:49am	15. Processing U3 posid chr18+42275251 as a dual detection with 21 U5 fragments.
-01.26.2024  3:49am	16. Processing U3 posid chr2-59543048 as a dual detection with 23 U5 fragments.
-01.26.2024  3:49am	17. Processing U3 posid chr4+139295960 as a dual detection with 18 U5 fragments.
-01.26.2024  3:49am	Building replicate level integration sites.
-01.26.2024  3:49am	Creating a wide view of the replicate level integration site data.
-01.26.2024  3:49am	buildSites completed.
+01.26.2024  5:14am	Reading standardized fragment data.
+01.26.2024  5:14am	Processing IN_u3 / IN_u5 flags.
+01.26.2024  5:14am	1. Processing U3 posid chr14-77674136 as a dual detection with 19 U5 fragments.
+01.26.2024  5:14am	2. Processing U3 posid chr1+68106291 as a dual detection with 22 U5 fragments.
+01.26.2024  5:14am	3. Processing U3 posid chr21+23870689 as a dual detection with 20 U5 fragments.
+01.26.2024  5:14am	4. Processing U3 posid chr21+40431365 as a dual detection with 20 U5 fragments.
+01.26.2024  5:14am	5. Processing U3 posid chr10-104609649 as a dual detection with 20 U5 fragments.
+01.26.2024  5:14am	6. Processing U3 posid chr10-16382925 as a dual detection with 20 U5 fragments.
+01.26.2024  5:14am	7. Processing U3 posid chr1-170324372 as a dual detection with 20 U5 fragments.
+01.26.2024  5:14am	8. Processing U3 posid chr22-23096327 as a dual detection with 18 U5 fragments.
+01.26.2024  5:14am	9. Processing U3 posid chr14-62440339 as a dual detection with 22 U5 fragments.
+01.26.2024  5:14am	10. Processing U3 posid chr15-24675523 as a dual detection with 21 U5 fragments.
+01.26.2024  5:14am	11. Processing U3 posid chr7+2200462 as a dual detection with 20 U5 fragments.
+01.26.2024  5:14am	12. Processing U3 posid chr9-4426917 as a dual detection with 20 U5 fragments.
+01.26.2024  5:14am	13. Processing U3 posid chr11-86289907 as a dual detection with 20 U5 fragments.
+01.26.2024  5:14am	14. Processing U3 posid chr18+42275251 as a dual detection with 19 U5 fragments.
+01.26.2024  5:14am	15. Processing U3 posid chr2-59543048 as a dual detection with 20 U5 fragments.
+01.26.2024  5:14am	16. Processing U3 posid chr4+139295960 as a dual detection with 18 U5 fragments.
+01.26.2024  5:14am	17. Processing U3 posid chrX+114582615 as a dual detection with 20 U5 fragments.
+01.26.2024  5:14am	Building replicate level integration sites.
+01.26.2024  5:14am	Creating a wide view of the replicate level integration site data.
+01.26.2024  5:14am	buildSites completed.
