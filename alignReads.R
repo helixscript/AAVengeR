@@ -53,8 +53,8 @@ alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
       
     # Create an OOC file if requested
     if(opt$alignReads_blatUseOocFile){
-      #system(paste0('blat ', refGenomePath, ' /dev/null /dev/null -repMatch=',
-      system(paste0('/home/ubuntu/software/blat_37x1/blat ', refGenomePath, ' /dev/null /dev/null -repMatch=',
+      system(paste0('blat ', refGenomePath, ' /dev/null /dev/null -repMatch=',
+      #system(paste0('/home/ubuntu/software/blat_37x1/blat ', refGenomePath, ' /dev/null /dev/null -repMatch=',
                     opt$alignReads_genomeAlignment_blatRepMatch, ' -makeOoc=',
                     file.path(opt$outputDir, opt$alignReads_outputDir, paste0(opt$alignReads_genomeAlignment_blatTileSize, '.ooc'))))
     }
@@ -167,6 +167,8 @@ adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   b
 }))
 
+updateLog(paste0(sprintf("%.2f%%", (n_distinct(adriftReadAlignments$readID)/n_distinct(reads$readID))*100), 
+                 ' of prepped adrift reads aligned to the reference genome.'))
 
 # Select adrift reads where the ends align to the genome.
 i <- (adriftReadAlignments$qSize - adriftReadAlignments$qEnd) <= opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned
@@ -183,7 +185,7 @@ alignedReadIDsBeforeFilter <- n_distinct(adriftReadAlignments$readID)
 adriftReadAlignments <- adriftReadAlignments[i,]
 
 updateLog(paste0(sprintf("%.2f%%", (1 - n_distinct(adriftReadAlignments$readID) / alignedReadIDsBeforeFilter)*100), 
-               ' of anchor reads removed because their alignments ended more than ',
+               ' of adrift reads removed because their alignments ended more than ',
                opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned,
                ' NTs from the end of reads.'))
 
@@ -200,10 +202,6 @@ if(sum(i) == 0){
 alignedReadIDsBeforeFilter <- n_distinct(adriftReadAlignments$readID)
 adriftReadAlignments <- adriftReadAlignments[i,]
 
-updateLog(paste0(sprintf("%.2f%%", (1 - n_distinct(adriftReadAlignments$readID) / alignedReadIDsBeforeFilter)*100), 
-                 ' of anchor reads removed because their alignments ended more than ',
-                 opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned,
-                 ' NTs from the end of reads.'))
 
 # Find the intersection between retained anchor and adrift reads and limit read pairs to pairs
 # where both mates aligned within parameters.

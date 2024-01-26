@@ -83,3 +83,8 @@ Added new options to the configuration file.
 Updated dual detection in buildSites.
 Added new logging system.
 Updated time stamps in job tables.
+1.44
+Added new logging
+Corrected forced blat path
+Added dual detection test and prep. scripts.
+
