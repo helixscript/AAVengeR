@@ -1,0 +1,62 @@
+mode: integrase
+Rscript: /usr/bin/Rscript
+softwareDir: /home/ubuntu/AAVengeR
+outputDir: U3_output/core/subject_analyses/validation~validationSubject
+core_CPUs: 12
+core_keepIntermediateFiles: no
+demultiplex_seqRunID: xxx
+demultiplex_anchorReadsFile: U3_syn_R2.fastq.gz
+demultiplex_adriftReadsFile: U3_syn_R1.fastq.gz
+demultiplex_index1ReadsFile: U3_syn_I1.fastq.gz
+demultiplex_sampleDataFile: U3_sampleData.tsv
+demultiplex_replicateMergingInstructions: none
+demultiplex_level: all
+demultiplex_quickAlignFilter: no
+demultiplex_useAdriftReadUniqueLinkers: yes
+demultiplex_requirePostUmiLinker: yes
+demultiplex_requirePostUmiLinker_maxMismatch: 2
+processAdriftReadLinkerUMIs: no
+compressDataFiles: no
+demultiplex_CPUs: 15
+demultiplex_outputDir: demultiplex
+demultiplex_RC_I1_barcodes: no
+demultiplex_RC_I1_barcodes_auto: yes
+demultiplex_qualtrim_code: '5'
+demultiplex_qualtrim_halfWidth: 5
+demultiplex_qualtrim_events: 2
+demultiplex_qualtrim_minLength: 50
+demultiplex_correctGolayIndexReads: no
+demultiplex_sequenceChunkSize: 300000
+demultiplex_index1ReadMaxMismatch: 1
+demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1
+demultiplex_anchorReadStartSeq.maxMisMatch: 1
+demultiplex_exportFASTQ: no
+demultiplex_mergeSimilarReadPairsParams: -c 0.98 -d 0 -M 0 -G 1 -aS 0.98 -aL 0.98
+  -s 0.98 -n 10 -gap -1000
+demultiplex_quickAlignFilter_minPercentID: 97
+demultiplex_quickAlignFilter_minMatches: 30
+demultiplex_quickAlignFilter_minEstLeaderSeqLength: 15
+buildStdFragments_CPUs: 12
+buildStdFragments_inputFile: validation~validationSubject.CORE_TMP.rds
+buildStdFragments_outputDir: buildStdFragments
+buildStdFragments_remnantClusterParams: -c 0.85 -d 0 -M 0 -G 1 -aS 0.90 -aL 0.90 -s
+  0.90 -n 4
+buildStdFragments_autoPullTrialSamples: no
+buildStdFragments_randomIDdupReadMult: 3
+buildStdFragments_randomIDdupAbundMult: 2
+buildStdFragments_intSiteStdWindowWidth: 5
+buildStdFragments_breakPointStdWindowWidth: 3
+buildStdFragments_minReadsPerFrag: 1
+buildStdFragments_createMultiHitClusters: yes
+buildStdFragments_UMIminPercentReads: 15
+buildSites_CPUs: 12
+buildSites_inputFile: buildStdFragments/stdFragments.rds
+buildSites_outputDir: buildSites
+buildSites_dualDetectWidth: 6
+buildSites_sumSonicBreaksWithin: samples
+core_maxCPUsPerProcess: 12
+core_maxPercentCPUs: 100.0
+core_createFauxSiteDoneFiles: yes
+modules:
+- buildStdFragments
+- buildSites

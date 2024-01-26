@@ -1,0 +1,144 @@
+Fri Jan 26 17:29:46 2024 - start
+Replicate level modules:
+
+
+validation~validationSubject~sample1~1
+ 
+[prepReads]
+ 01.26.2024  5:30pm	Reading sample data.
+ 01.26.2024  5:30pm	Reading in demultiplexed reads.
+ 01.26.2024  5:30pm	Trimming anchor read over-reading.
+ 01.26.2024  5:30pm	Aligning ends of anchor reads to vector sequences.
+ 01.26.2024  5:30pm	No reads aligned to the vector.
+ 01.26.2024  5:30pm	0.00% unique reads removed because they aligned to the vector.
+ 01.26.2024  5:30pm	Using leader sequence HMM to define mappings.
+ 01.26.2024  5:30pm	Leader sequences determined for 100.00% of unqiue read pairs.
+ 01.26.2024  5:30pm	Removing indentified leader sequences from anchor reads.
+ 01.26.2024  5:30pm	0.00% of reads removed because they were less than 20 NTs after trimming.
+ 01.26.2024  5:30pm	Creating adrift read over-reading trim sequences.
+ 01.26.2024  5:30pm	Triming adrift read over-reading.
+ 01.26.2024  5:30pm	0.00% of reads removed because their trimmed lengths were less than 20 NTs.
+ 01.26.2024  5:30pm	prepReads completed.
+ 
+[alignReads]
+ 01.26.2024  5:30pm	Reading in prepped reads.
+ 01.26.2024  5:30pm	Aligning 375 anchor reads to reference genomes.
+ 01.26.2024  5:34pm	100.00% of prepped anchor reads aligned to the reference genome.
+ 01.26.2024  5:34pm	0.00% of anchor reads removed because their alignments ended more than 5 NTs from the end of reads.
+ 01.26.2024  5:34pm	Aligning 375 adrift reads to reference genomes.
+ 01.26.2024  5:37pm	100.00% of prepped adrift reads aligned to the reference genome.
+ 01.26.2024  5:37pm	0.00% of adrift reads removed because their alignments ended more than 5 NTs from the end of reads.
+ 01.26.2024  5:37pm	Finding read pairs where both anchor and adrift read pair mates aligned well.
+ 01.26.2024  5:37pm	alignReads completed.
+
+validation~validationSubject~sample1~2
+ 
+[prepReads]
+ 01.26.2024  5:30pm	Reading sample data.
+ 01.26.2024  5:30pm	Reading in demultiplexed reads.
+ 01.26.2024  5:30pm	Trimming anchor read over-reading.
+ 01.26.2024  5:30pm	Aligning ends of anchor reads to vector sequences.
+ 01.26.2024  5:30pm	No reads aligned to the vector.
+ 01.26.2024  5:30pm	0.00% unique reads removed because they aligned to the vector.
+ 01.26.2024  5:30pm	Using leader sequence HMM to define mappings.
+ 01.26.2024  5:30pm	Leader sequences determined for 100.00% of unqiue read pairs.
+ 01.26.2024  5:30pm	Removing indentified leader sequences from anchor reads.
+ 01.26.2024  5:30pm	0.00% of reads removed because they were less than 20 NTs after trimming.
+ 01.26.2024  5:30pm	Creating adrift read over-reading trim sequences.
+ 01.26.2024  5:30pm	Triming adrift read over-reading.
+ 01.26.2024  5:30pm	0.00% of reads removed because their trimmed lengths were less than 20 NTs.
+ 01.26.2024  5:30pm	prepReads completed.
+ 
+[alignReads]
+ 01.26.2024  5:31pm	Reading in prepped reads.
+ 01.26.2024  5:31pm	Aligning 375 anchor reads to reference genomes.
+ 01.26.2024  5:33pm	100.00% of prepped anchor reads aligned to the reference genome.
+ 01.26.2024  5:33pm	0.00% of anchor reads removed because their alignments ended more than 5 NTs from the end of reads.
+ 01.26.2024  5:33pm	Aligning 375 adrift reads to reference genomes.
+ 01.26.2024  5:36pm	100.00% of prepped adrift reads aligned to the reference genome.
+ 01.26.2024  5:36pm	0.00% of adrift reads removed because their alignments ended more than 5 NTs from the end of reads.
+ 01.26.2024  5:36pm	Finding read pairs where both anchor and adrift read pair mates aligned well.
+ 01.26.2024  5:36pm	alignReads completed.
+
+validation~validationSubject~sample1~3
+ 
+[prepReads]
+ 01.26.2024  5:30pm	Reading sample data.
+ 01.26.2024  5:30pm	Reading in demultiplexed reads.
+ 01.26.2024  5:30pm	Trimming anchor read over-reading.
+ 01.26.2024  5:30pm	Aligning ends of anchor reads to vector sequences.
+ 01.26.2024  5:30pm	No reads aligned to the vector.
+ 01.26.2024  5:30pm	0.00% unique reads removed because they aligned to the vector.
+ 01.26.2024  5:30pm	Using leader sequence HMM to define mappings.
+ 01.26.2024  5:30pm	Leader sequences determined for 100.00% of unqiue read pairs.
+ 01.26.2024  5:30pm	Removing indentified leader sequences from anchor reads.
+ 01.26.2024  5:30pm	0.00% of reads removed because they were less than 20 NTs after trimming.
+ 01.26.2024  5:30pm	Creating adrift read over-reading trim sequences.
+ 01.26.2024  5:30pm	Triming adrift read over-reading.
+ 01.26.2024  5:31pm	0.00% of reads removed because their trimmed lengths were less than 20 NTs.
+ 01.26.2024  5:31pm	prepReads completed.
+ 
+[alignReads]
+ 01.26.2024  5:31pm	Reading in prepped reads.
+ 01.26.2024  5:31pm	Aligning 375 anchor reads to reference genomes.
+ 01.26.2024  5:35pm	100.00% of prepped anchor reads aligned to the reference genome.
+ 01.26.2024  5:35pm	0.00% of anchor reads removed because their alignments ended more than 5 NTs from the end of reads.
+ 01.26.2024  5:35pm	Aligning 375 adrift reads to reference genomes.
+ 01.26.2024  5:38pm	100.00% of prepped adrift reads aligned to the reference genome.
+ 01.26.2024  5:38pm	0.00% of adrift reads removed because their alignments ended more than 5 NTs from the end of reads.
+ 01.26.2024  5:38pm	Finding read pairs where both anchor and adrift read pair mates aligned well.
+ 01.26.2024  5:38pm	alignReads completed.
+
+validation~validationSubject~sample1~4
+ 
+[prepReads]
+ 01.26.2024  5:30pm	Reading sample data.
+ 01.26.2024  5:30pm	Reading in demultiplexed reads.
+ 01.26.2024  5:30pm	Trimming anchor read over-reading.
+ 01.26.2024  5:30pm	Aligning ends of anchor reads to vector sequences.
+ 01.26.2024  5:30pm	No reads aligned to the vector.
+ 01.26.2024  5:30pm	0.00% unique reads removed because they aligned to the vector.
+ 01.26.2024  5:30pm	Using leader sequence HMM to define mappings.
+ 01.26.2024  5:31pm	Leader sequences determined for 100.00% of unqiue read pairs.
+ 01.26.2024  5:31pm	Removing indentified leader sequences from anchor reads.
+ 01.26.2024  5:31pm	0.00% of reads removed because they were less than 20 NTs after trimming.
+ 01.26.2024  5:31pm	Creating adrift read over-reading trim sequences.
+ 01.26.2024  5:31pm	Triming adrift read over-reading.
+ 01.26.2024  5:31pm	0.00% of reads removed because their trimmed lengths were less than 20 NTs.
+ 01.26.2024  5:31pm	prepReads completed.
+ 
+[alignReads]
+ 01.26.2024  5:31pm	Reading in prepped reads.
+ 01.26.2024  5:31pm	Aligning 375 anchor reads to reference genomes.
+ 01.26.2024  5:35pm	100.00% of prepped anchor reads aligned to the reference genome.
+ 01.26.2024  5:35pm	0.00% of anchor reads removed because their alignments ended more than 5 NTs from the end of reads.
+ 01.26.2024  5:35pm	Aligning 375 adrift reads to reference genomes.
+ 01.26.2024  5:38pm	100.00% of prepped adrift reads aligned to the reference genome.
+ 01.26.2024  5:38pm	0.00% of adrift reads removed because their alignments ended more than 5 NTs from the end of reads.
+ 01.26.2024  5:38pm	Finding read pairs where both anchor and adrift read pair mates aligned well.
+ 01.26.2024  5:38pm	alignReads completed.
+Subject level modules:
+
+
+validation~validationSubject
+ 
+[buildStdFragments]
+ 01.26.2024  5:39pm	Reading in fragment file(s).
+ 01.26.2024  5:39pm	Categorizing leader sequences.
+ 01.26.2024  5:39pm	Standardizing integration positions within subjects.
+ 01.26.2024  5:39pm	Standardizing break positions within replicates.
+ 01.26.2024  5:39pm	Updating positions and fragment ids.
+ 01.26.2024  5:39pm	Idenitfying uniquely called postions.
+ 01.26.2024  5:39pm	Resolving multi-hit reads.
+ 01.26.2024  5:39pm	Reevaluating leader sequence classification after standardization.
+ 01.26.2024  5:39pm	Building mulit-hit networks.
+ 01.26.2024  5:39pm	Bundling fragment reads into fragment records.
+ 01.26.2024  5:39pm	buildStdFragments completed.
+ 
+[buildSites]
+ 01.26.2024  5:39pm	Reading standardized fragment data.
+ 01.26.2024  5:39pm	Processing IN_u3 / IN_u5 flags.
+ 01.26.2024  5:39pm	Building replicate level integration sites.
+ 01.26.2024  5:39pm	Creating a wide view of the replicate level integration site data.
+ 01.26.2024  5:39pm	buildSites completed.
+Fri Jan 26 17:39:30 2024 - end

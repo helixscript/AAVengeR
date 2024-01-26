@@ -1,0 +1,36 @@
+01.26.2024  5:43pm	Loading sample data.
+01.26.2024  5:43pm	3,000 NTs in paired end data set.
+01.26.2024  5:43pm	Determining if I1 barcodes should be switched to RC.
+01.26.2024  5:43pm	Setting demultiplex_RC_I1_barcodes to FALSE.
+01.26.2024  5:43pm	Starting demultipling.
+01.26.2024  5:43pm	   processing data chunk 1.
+01.26.2024  5:43pm	   3,000 reads processed.
+01.26.2024  5:43pm	   Batch read limit reached, calling demultiplex().
+01.26.2024  5:43pm	   processed 100.00% of all reads.
+01.26.2024  5:43pm	   processing data chunk 2.
+01.26.2024  5:43pm	Completed processing read batches.
+01.26.2024  5:43pm	Colating data files.
+01.26.2024  5:43pm	Colating reads for validation~validationSubject~sample1~1.
+01.26.2024  5:43pm	Colating reads for validation~validationSubject~sample1~2.
+01.26.2024  5:43pm	Colating reads for validation~validationSubject~sample1~3.
+01.26.2024  5:43pm	Colating reads for validation~validationSubject~sample1~4.
+01.26.2024  5:43pm	Colating reads for validation~validationSubject~sample1~5.
+01.26.2024  5:43pm	Colating reads for validation~validationSubject~sample1~6.
+01.26.2024  5:43pm	Colating reads for validation~validationSubject~sample1~7.
+01.26.2024  5:43pm	Colating reads for validation~validationSubject~sample1~8.
+01.26.2024  5:43pm	Clearing tmp files.
+01.26.2024  5:43pm	Colating log files.
+01.26.2024  5:43pm	Writing attrition table.
+01.26.2024  5:43pm	Expanding read table with meta data from sample table.
+01.26.2024  5:43pm	Setting read UMI sequences to poly-A because processAdriftReadLinkerUMIs is set to FALSE.
+01.26.2024  5:43pm	Applying post UMI filter because demultiplex_requirePostUmiLinker is set to TRUE.
+01.26.2024  5:43pm	validation~validationSubject~sample1~1 - 0.00% reads missing post UMI linker.
+01.26.2024  5:43pm	validation~validationSubject~sample1~2 - 0.00% reads missing post UMI linker.
+01.26.2024  5:43pm	validation~validationSubject~sample1~3 - 0.00% reads missing post UMI linker.
+01.26.2024  5:43pm	validation~validationSubject~sample1~4 - 0.00% reads missing post UMI linker.
+01.26.2024  5:43pm	validation~validationSubject~sample1~5 - 0.00% reads missing post UMI linker.
+01.26.2024  5:43pm	validation~validationSubject~sample1~6 - 0.00% reads missing post UMI linker.
+01.26.2024  5:43pm	validation~validationSubject~sample1~7 - 0.00% reads missing post UMI linker.
+01.26.2024  5:43pm	validation~validationSubject~sample1~8 - 0.00% reads missing post UMI linker.
+01.26.2024  5:43pm	Writing output files.
+01.26.2024  5:43pm	Demultiplex completed.

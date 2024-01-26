@@ -1,0 +1,11 @@
+01.26.2024  5:39pm	Reading in fragment file(s).
+01.26.2024  5:39pm	Categorizing leader sequences.
+01.26.2024  5:39pm	Standardizing integration positions within subjects.
+01.26.2024  5:39pm	Standardizing break positions within replicates.
+01.26.2024  5:39pm	Updating positions and fragment ids.
+01.26.2024  5:39pm	Idenitfying uniquely called postions.
+01.26.2024  5:39pm	Resolving multi-hit reads.
+01.26.2024  5:39pm	Reevaluating leader sequence classification after standardization.
+01.26.2024  5:39pm	Building mulit-hit networks.
+01.26.2024  5:39pm	Bundling fragment reads into fragment records.
+01.26.2024  5:39pm	buildStdFragments completed.

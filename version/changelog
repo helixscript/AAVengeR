@@ -87,4 +87,6 @@ Updated time stamps in job tables.
 Added new logging
 Corrected forced blat path
 Added dual detection test and prep. scripts.
-
+1.45
+Updated standardization position function calls.
+Added additional tests.
