@@ -1,0 +1,29 @@
+01.28.2024  4:46am	Loading sample data.
+01.28.2024  4:46am	1,500 NTs in paired end data set.
+01.28.2024  4:46am	Determining if I1 barcodes should be switched to RC.
+01.28.2024  4:46am	Setting demultiplex_RC_I1_barcodes to FALSE.
+01.28.2024  4:46am	Starting demultipling.
+01.28.2024  4:46am	   processing data chunk 1.
+01.28.2024  4:46am	   1,500 reads processed.
+01.28.2024  4:46am	   Batch read limit reached, calling demultiplex().
+01.28.2024  4:46am	   processed 100.00% of all reads.
+01.28.2024  4:46am	   processing data chunk 2.
+01.28.2024  4:46am	Completed processing read batches.
+01.28.2024  4:46am	Colating data files.
+01.28.2024  4:46am	Colating reads for validation~validationSubject~sample1~1.
+01.28.2024  4:46am	Colating reads for validation~validationSubject~sample1~2.
+01.28.2024  4:46am	Colating reads for validation~validationSubject~sample1~3.
+01.28.2024  4:46am	Colating reads for validation~validationSubject~sample1~4.
+01.28.2024  4:46am	Clearing tmp files.
+01.28.2024  4:46am	Colating log files.
+01.28.2024  4:46am	Writing attrition table.
+01.28.2024  4:46am	Expanding read table with meta data from sample table.
+01.28.2024  4:46am	Setting read UMI sequences to poly-A because processAdriftReadLinkerUMIs is set to FALSE.
+01.28.2024  4:46am	Identifying unique read pairs.
+01.28.2024  4:46am	Applying post UMI filter because demultiplex_requirePostUmiLinker is set to TRUE.
+01.28.2024  4:46am	validation~validationSubject~sample1~1 - 0.00% reads missing post UMI linker.
+01.28.2024  4:46am	validation~validationSubject~sample1~2 - 0.00% reads missing post UMI linker.
+01.28.2024  4:46am	validation~validationSubject~sample1~3 - 0.00% reads missing post UMI linker.
+01.28.2024  4:46am	validation~validationSubject~sample1~4 - 0.00% reads missing post UMI linker.
+01.28.2024  4:46am	Writing output files.
+01.28.2024  4:46am	Demultiplex completed.

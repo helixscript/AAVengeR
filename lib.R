@@ -126,7 +126,6 @@ CD_HIT_clusters <- function(x, dir, params){
 
 
 # Last Path Element -- return the last element of a file path delimited by slashes.
-
 lpe <- function(x){
   o <- unlist(strsplit(x, '/'))
   o[length(o)]
@@ -135,7 +134,6 @@ lpe <- function(x){
 
 # Convert a ShortRead object to a BioString DNA object and
 # removing trailing lane information from reads ids.
-
 shortRead2DNAstringSet <- function(x){
   r <- x@sread
   names(r) <- sub('\\s+.+$', '', as.character(x@id))
@@ -144,7 +142,6 @@ shortRead2DNAstringSet <- function(x){
 
 
 # Helper function to wait for a file to appear on the file system.
-
 waitForFile <- function(f, seconds = 1){
   repeat
   {
@@ -332,32 +329,6 @@ pullDBsubjectFrags <- function(dbConn, trial, subject, tmpDirPath){
 }
 
 
-# Quality trim ShortRead reads based on parameters in the configuration file 
-# and remove reads that fall below a specific length post trimming. 
-
-#qualTrimReads <- function(f, chunkSize, label, ouputDir){
-#
-#  # Create a pointer like object to the read file.
-#  strm <- FastqStreamer(f, n = as.integer(chunkSize))
-#  
-#  if(! 'demultiplex_qualtrim_events' %in% names(opt)) opt$demultiplex_qualtrim_events <- 2
-#  if(! 'demultiplex_qualtrim_halfWidth' %in% names(opt)) opt$demultiplex_qualtrim_halfWidth <- 5
-#  
-#  n <- 1
-#  repeat {
-#    fq <- yield(strm)
-#    if(length(fq) == 0) break
-#    
-#    fq <- trimTailw(fq, opt$demultiplex_qualtrim_events, opt$demultiplex_qualtrim_code, opt$demultiplex_qualtrim_halfWidth)
-#    fq <- fq[width(fq) >= opt$demultiplex_qualtrim_minLength]
-#    
-#    if(length(fq) > 0) writeFastq(fq, file = file.path(ouputDir, paste0(label, '.', n)), compress = FALSE)
-#    
-#    n <- n + 1
-#  }
-#}
-
-
 # Given a set of Biostring objects, subject each object in the set such that 
 # they share a common set of read ids.
 
@@ -515,31 +486,6 @@ loadSamples <- function(){
 }
 
 
-parseBLAToutput <- function(f, convertToBlatPSL = FALSE){
-
-  if(! file.exists(f) | file.info(f)$size == 0) return(tibble::tibble())
-  b <- readr::read_delim(f, delim = '\t', col_names = FALSE, col_types = readr::cols())
-  
-  if(convertToBlatPSL){
-    b$X12 <- ifelse(b$X9 == '-', b$X11 - b$X13, b$X12)
-    b$X13 <- ifelse(b$X9 == '-', b$X11 - b$X12, b$X13)
-  }
-  
-  names(b) <- c('matches', 'misMatches', 'repMatches', 'nCount', 'qNumInsert', 'qBaseInsert', 'tNumInsert', 'tBaseInsert', 'strand',
-                'qName', 'qSize', 'qStart', 'qEnd', 'tName', 'tSize', 'tStart', 'tEnd', 'blockCount', 'blockSizes', 'qStarts', 'tStarts')
-  
-  b$tEnd <- b$tEnd - 1
-  
-  b$queryPercentID       <- (b$matches/b$qSize)*100
-  b$tAlignmentWidth      <- (b$tEnd - b$tStart) + 1
-  b$queryWidth           <- (b$qEnd - b$qStart) + 1
-  b$alignmentPercentID   <- (b$matches/b$tAlignmentWidth)*100
-  b$percentQueryCoverage <- (b$queryWidth/b$qSize)*100
-  b$qStarts              <- as.character(b$qStarts)
-  b$tStarts              <- as.character(b$tStarts)
-  b
-}
-
 
 parseCutadaptLog <- function(f){
   l <- readLines(f)
@@ -558,66 +504,6 @@ parseCutadaptLog <- function(f){
 }
 
 
-
-
-#calcRepLeaderSeq <- function(d, threads = 2){
-#  
-#  if(nrow(d) > 1000) d <- dplyr::sample_n(d, 1000)
-#  
-#  m <- stringdist::stringdistmatrix(d$seq, d$seq, nthread = threads)
-#  s <- apply(m, 1, sum)
-#  
-#  repLeaderSeq <- d$seq[which(s <= min(s) + round(mean(nchar(d$seq))*0.10))]
-#  
-#  # Break ties with read counts.
-#  if(length(repLeaderSeq) != 1){
-#    repLeaderSeq <- subset(d, seq %in% repLeaderSeq) %>% dplyr::arrange(desc(count), desc(reads)) %>% dplyr::slice(1) %>% dplyr::pull(seq)
-#  }
-#  
-#  # if(length(repLeaderSeq) > 1) browser()
-#  repLeaderSeq
-#}
-    
-
-#cdhitRepSeq <- function(s, tmpDir = NA){
-#  library(dplyr)
-#   f <- file.path(tmpDir, tmpFile())
-#   u <- tibble(id = paste0('s', 1:length(s)), seq = s)
-#  
-#   write(paste0('>', u$id, '\n', u$seq), file = f)
-#
-#   system(paste0("cd-hit-est -i ", f, 
-#              " -o ", paste0(f, '.cdhit'), " -T ", 2, 
-#              " -c 0.85 -d 0 -M 0 -G 0 -aS 0.9 -aL 0.9 -s 0.9 -A 0.80 -n 5 -sc 1"))
-#
-#   r <- paste0(readLines(paste0(f, '.cdhit.clstr')), collapse = '')
-#   r <- unlist(strsplit(r, '>Cluster'))
-#   
-#   n <- 0
-#   m <- bind_rows(lapply(r, function(x){
-#          e <- unlist(stringr::str_extract_all(x, 's\\d+'))
-#          if(length(e) > 0){
-#            n <<- n + 1
-#            return(tibble(cluster = n,
-#                   id = e, 
-#                   clusterRepSeq = stringr::str_extract(stringr::str_extract(x, 's\\d+\\.+\\s+\\*'), 's\\d+')))
-#           } else {
-#             return(tibble())
-#           }
-#         }))
-#   
-#   files <- list.files(tmpDir, full.names = TRUE)
-#   invisible(file.remove(files[grepl(f, files)]))
-#   
-#    group_by(m, cluster) %>% 
-#    summarise(clusterSize = n(), clusterRepSeq = clusterRepSeq[1]) %>% 
-#    ungroup() %>% 
-#    left_join(u, by = c('clusterRepSeq' = 'id')) %>%
-#    slice_max(clusterSize, with_ties = FALSE) %>%
-#    dplyr::pull(seq)
-#}
-
-
 standardizationSplitVector <- function(d, v){
   if(v == 'replicate'){
     return(paste(d$trial, d$subject, d$sample, d$replicate))
@@ -630,70 +516,6 @@ standardizationSplitVector <- function(d, v){
     q(save = 'no', status = 1, runLast = FALSE) 
   }
 }
-
-
-# standardizedFragments <- function(frags, opt, cluster){
-#   g <- GenomicRanges::makeGRangesFromDataFrame(frags, start.field = 'fragStart', end.field = 'fragEnd', keep.extra.columns = TRUE)
-#   g$s <- standardizationSplitVector(g, opt$buildStdFragments_standardizeSitesBy)
-#   g$s <- paste(g$s, g$repLeaderSeqGroup)
-#   
-#   if(opt$buildStdFragments_standardizeSites){
-#     g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
-#            library(dplyr)
-#            library(GenomicRanges)
-#            source(file.path(opt$softwareDir, 'lib.R'))
-#       
-#            x$intSiteRefined <- FALSE
-#          
-#            out <- tryCatch({
-#                              o <- standardize_sites(x, counts.col = 'reads', sata.gap = 5)
-#                              o$intSiteRefined <- TRUE
-#                              o
-#                            },
-#            error=function(cond) {
-#                                   x
-#                                 },
-#           warning=function(cond) {
-#                                   o
-#           })
-# 
-#       return(out)
-#     })))
-#   } else {
-#     g$intSiteRefined <- FALSE
-#   }
-# 
-#   g$s <- standardizationSplitVector(g, opt$buildStdFragments_standardizeBreaksBy)
-#   g$s <- paste(g$s, g$repLeaderSeqGroup)
-#   
-#   if(opt$buildStdFragments_standardizeBreaks){
-#     g <- unlist(GenomicRanges::GRangesList(parallel::parLapply(cluster, split(g, g$s), function(x){
-#            library(dplyr) 
-#            library(GenomicRanges)
-#            source(file.path(opt$softwareDir, 'lib.R'))
-# 
-#            x$breakPointRefined <- FALSE
-#            out <- tryCatch({
-#                               o <- refine_breakpoints(x, counts.col = 'reads')
-#                               o$breakPointRefined <- TRUE
-#                               o
-#                            },
-#                            error=function(cond) {
-#                                                    x
-#                            },
-#                            warning=function(cond) {
-#                                                     o
-#                              })
-# 
-#                    return(out)
-#     })))
-#   } else {
-#     g$breakPointRefined <- FALSE
-#   }
-# 
-#   g$s <- NULL
-#   data.frame(g)
-# }
 
 
 golayCorrection <- function(x, tmpDirPath = NA){
@@ -966,30 +788,6 @@ blastReads <- function(reads, wordSize = 5, evalue = 100, tmpDirPath = NA, dbPat
 
 
 
-
-# blatReads <- function(reads, minIdentity=90, stepSize = 11, tileSize = 11, tmpDirPath = NA){
-#   library(Biostrings)
-#   library(dplyr)
-# 
-#   f <- tmpFile()
-#   writeXStringSet(reads,  file.path(tmpDirPath, paste0(f, '.fasta')))
-# 
-#   system(paste0(file.path(opt$softwareDir, 'bin', 'blat'), ' ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd'), ' ',
-#                 file.path(tmpDirPath, paste0(f, '.fasta')), ' ',
-#                 file.path(tmpDirPath, paste0(f, '.psl')), ' -minIdentity=', minIdentity,
-#                 ' -stepSize=', stepSize, ' -tileSize=', tileSize, ' -out=psl -noHead -minScore=0'),
-#          ignore.stdout = TRUE, ignore.stderr = TRUE)
-# 
-#   waitForFile(file.path(tmpDirPath, paste0(f, '.psl')))
-# 
-#   if(file.info(file.path(tmpDirPath, paste0(f, '.psl')))$size > 0){
-#     return(parseBLAToutput(file.path(tmpDirPath, paste0(f, '.psl'))))
-#   } else {
-#     return(tibble())
-#   }
-# }
-
-
 nearestGene <- function(posids, genes, exons, CPUs = 20){
   library(dplyr)
   library(parallel)
@@ -1082,98 +880,18 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
 }
 
 
-# determine_RC_I1 <- function(){
-#   I1 <- as.character(ShortRead::readFastq(opt$demultiplex_index1ReadsFile)@sread)
-#   
-#   d <- select(samples, subject, sample, replicate, index1Seq)
-#   
-#   d <- dplyr::bind_rows(lapply(split(d, 1:nrow(d)), function(x){
-#          x$barcodePercent <- sum(I1 %in% x$index1Seq)/length(I1) * 100
-#          x$barcodePercentRC <- sum(I1 %in% as.character(Biostrings::reverseComplement(Biostrings::DNAString(x$index1Seq))))/length(I1) * 100
-#          x
-#        }))
-#   
-#   ifelse(sum(d$barcodePercent) > sum(d$barcodePercentRC), FALSE, TRUE)
-# }
+parseBLAToutput <- function(f, convertToBlatPSL = FALSE){
+  if(! file.exists(f) | file.info(f)$size == 0) return(tibble::tibble())
+  b <- readr::read_delim(f, delim = '\t', col_names = FALSE, col_types = 'iiiiiiiicciiiciiiiccc')
 
-
-
-
-
-#' #' Annotate genomic ranges
-#' #'
-#' #' Create a dataframe of sequencing run ids associated with 1 or more patient identifiers.
-#' #'
-#' #' @param d Data frame containing genomic ranges to be added to UCSC track.
-#' #' @param abundCuts Cut points for estimated abundance (estAbund) values. 
-#' #' @param posColors Color codes for binned abundances (positive integrations).
-#' #' @param negColors Color codes for binned abundances (positive integrations).
-#' #' @param title Track title.
-#' #' @param outputFile Track output file.
-#' #' @param visibility Track default visibility (0 - hide, 1 - dense, 2 - full, 3 - pack, and 4 - squish).
-#' #' @param position Deafult track position.
-#' #' @param padSite Number of NTs to pad sites with for increased visibility.
-#' #' @param siteLabel Text to appear next to sites, ie. 'Patient X, chr12+1052325'.
-#' #' 
-#' #' @return Nothing.
-#' #'
-#' #' @export
-#' createIntUCSCTrack <- function(d, abundCuts = c(5,10,50), 
-#'                                posColors = c("#8C9DFF", "#6768E3", "#4234C7", "#1D00AB"),
-#'                                negColors = c("#FF8C8C", "#E35D5D", "#C72E2E", "#AB0000"),
-#'                                title = 'intSites', outputFile = 'track.ucsc', visibility = 1, 
-#'                                position = 'chr7:127471196-127495720', padSite = 0,
-#'                                siteLabel = NA){
-#'   
-#'   # Check function inputs.
-#'   if(length(posColors) != length(negColors)) 
-#'     stop('The pos and neg color vectors are not the same length.')
-#'   
-#'   if(length(abundCuts) != length(posColors) - 1) 
-#'     stop('The number of aundance cut offs must be one less than the number of provided colors.')
-#'   
-#'   if(! all(c('start', 'end', 'strand', 'seqnames', 'estAbund') %in% names(d))) 
-#'     stop("The expected column names 'start', 'end', 'strand', 'seqnames', 'estAbund' were not found.") 
-#'   
-#'   if(is.na(siteLabel) | ! siteLabel %in% names(d)) 
-#'     stop('The siteLabel parameter is not defined or can not be found in your data.')
-#'   
-#'   
-#'   # Cut the abundance data. Abundance bins will be used to look up color codes.
-#'   # We flank the provided cut break points with 0 and Inf in order to bin all values outside of breaks.
-#'   cuts <- cut(d$estAbund, breaks = c(0, abundCuts, Inf), labels = FALSE)
-#'   
-#'   
-#'   # Convert Hex color codes to RGB color codes. 
-#'   # col2rgb() returns a matrix, here we collapse the columns into comma delimited strings.
-#'   #   grDevices::col2rgb(posColors)
-#'   #         [,1] [,2] [,3] [,4]
-#'   #   red    140  103   66   29
-#'   #   green  157  104   52    0
-#'   #   blue   255  227  199  171
-#'   
-#'   posColors <- apply(grDevices::col2rgb(posColors), 2, paste0, collapse = ',')
-#'   negColors <- apply(grDevices::col2rgb(negColors), 2, paste0, collapse = ',')
-#'   
-#'   
-#'   # Create data fields needed for track table.
-#'   d$score <- 0
-#'   d$color <- ifelse(d$strand == '+', posColors[cuts], negColors[cuts])
-#'   
-#'   # Pad the site n NTs to increase visibility.
-#'   if(padSite > 0){
-#'     d$start <- floor(d$start - padSite/2)
-#'     d$end   <- ceiling(d$end + padSite/2)
-#'   }
-#'   
-#'   # Define track header.
-#'   trackHead <- sprintf("track name='%s' description='%s' itemRgb='On' visibility=%s\nbrowser position %s",
-#'                        title, title, visibility, position)
-#'   
-#'   # Write out track table.
-#'   write(trackHead, file = outputFile, append = FALSE)
-#'   write.table(d[, c('seqnames', 'start', 'end', siteLabel, 'score', 'strand', 'start', 'end', 'color')], 
-#'               sep = '\t', col.names = FALSE, row.names = FALSE, file = outputFile, append = TRUE, quote = FALSE)
-#' }
-#' 
-
+  names(b) <- c('matches', 'misMatches', 'repMatches', 'nCount', 'qNumInsert', 'qBaseInsert', 'tNumInsert', 'tBaseInsert', 'strand',
+                'qName', 'qSize', 'qStart', 'qEnd', 'tName', 'tSize', 'tStart', 'tEnd', 'blockCount', 'blockSizes', 'qStarts', 'tStarts')
+  
+  b$tEnd <- b$tEnd - 1
+  b$queryPercentID       <- (b$matches / b$qSize)*100
+  b$tAlignmentWidth      <- (b$tEnd - b$tStart) + 1
+  b$queryWidth           <- (b$qEnd - b$qStart) + 1
+  b$alignmentPercentID   <- (b$matches / b$tAlignmentWidth)*100
+  
+  dplyr::select(b, qName, strand, qSize, qStart, qEnd, tName, tNumInsert, qNumInsert, tBaseInsert, qBaseInsert, tStart, tEnd, alignmentPercentID)
+}

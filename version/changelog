@@ -90,3 +90,7 @@ Added dual detection test and prep. scripts.
 1.45
 Updated standardization position function calls.
 Added additional tests.
+1.46
+Rewrote buildSites.
+Added multiple new options to config file.
+Created a small test set of select hg38 sites.
