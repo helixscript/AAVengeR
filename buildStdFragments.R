@@ -305,23 +305,24 @@ if(opt$buildStdFragments_standardizeBreakPositions){
     updateLog('Standardizing break positions within replicates.')
     
     # Create a fragment read tally split vector. posid already has a leaderSeqGroup suffix.
-    frags <- tidyr::unite(frags, z, trial, subject, posid, strand, fragStart, fragEnd, sample, replicate, sep = ':', remove = FALSE)
+    frags <- tidyr::unite(frags, z, trial, subject, sample, replicate,       strand, fragStart, fragEnd, sep = ':', remove = FALSE)
     
     # Create a parallelization split vector. 
     # Including the leaderSeqGroup will prevent proximal sites with different remnants and same position from being merged.
     # Including chromosome helps spread out the parallelization.
+    # Should not need to separate out by position ids for refine_breakpoints() according to testing with toy data.
     frags <- tidyr::unite(frags, s, trial, subject, sample, replicate, leaderSeqGroup, chromosome, sep = ':', remove = FALSE)
     
   } else if(opt$buildStdFragments_standardizeBreakPositionsWithin == 'samples'){
     updateLog('Standardizing break positions within samples.')
     
-    frags <- tidyr::unite(frags, z, trial, subject, posid, strand, fragStart, fragEnd, sample, sep = ':', remove = FALSE)
+    frags <- tidyr::unite(frags, z, trial, subject, sample,     strand, fragStart, fragEnd, sep = ':', remove = FALSE)
     frags <- tidyr::unite(frags, s, trial, subject, sample, leaderSeqGroup, chromosome, sep = ':', remove = FALSE)
     
   } else{
     updateLog('Standardizing break positions within subject.')
     
-    frags <- tidyr::unite(frags, z, trial, subject, posid, strand, fragStart, fragEnd, sep = ':', remove = FALSE)
+    frags <- tidyr::unite(frags, z, trial, subject,      strand, fragStart, fragEnd, sep = ':', remove = FALSE)
     frags <- tidyr::unite(frags, s, trial, subject, leaderSeqGroup, chromosome, sep = ':', remove = FALSE)
   }
 
