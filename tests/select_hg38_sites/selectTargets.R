@@ -26,12 +26,13 @@ targets <- bind_rows(lapply(sample(names(g), nSites, replace = TRUE), function(x
   # Define the position as the center of the 10,000 NT frag without Ns.
   tibble(chromosome = x, 
          strand = sample(c('+', '-'), 1), 
-         position = as.integer(stringr::str_extract(names(frag), '\\d+')) + 5000)
+         position = as.integer(stringr::str_extract(names(frag), '\\d+')) + 5000,
+         desc = 'none')
 }))
 
-readr::write_tsv(targets, file.path(outputDir, 'targets1.tsv'))   
+readr::write_tsv(targets, file.path(outputDir, 'U5_target_candidates.tsv'))   
 
 targets$strand <- ifelse(targets$strand == '+', '-', '+')
-targets$position <- targets$position + 4
+targets$position <- targets$position - 4
 
-readr::write_tsv(targets, file.path(outputDir, 'targets2.tsv'))
+readr::write_tsv(targets, file.path(outputDir, 'U3_target_candidates.tsv'))

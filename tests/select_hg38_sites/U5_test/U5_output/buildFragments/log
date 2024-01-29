@@ -1,0 +1,12 @@
+01.29.2024  3:40am	Reading in anchor and adrift read alignments.
+01.29.2024  3:40am	Preparing alignment data for fragment generation.
+01.29.2024  3:40am	Building initial fragments.
+01.29.2024  3:40am	Building rational fragments from alignment data.
+01.29.2024  3:40am	1/1: 923 anchorRead alignments, 2242 adriftRead_alignments.
+01.29.2024  3:40am	Fragment generation complete.
+01.29.2024  3:40am	Writing fragment data to the database.
+01.29.2024  3:40am	Uploaded fragment data for validation~validationSubject~sample1~1 to the database.
+01.29.2024  3:40am	Uploaded fragment data for validation~validationSubject~sample1~2 to the database.
+01.29.2024  3:40am	Uploaded fragment data for validation~validationSubject~sample1~3 to the database.
+01.29.2024  3:40am	Uploaded fragment data for validation~validationSubject~sample1~4 to the database.
+01.29.2024  3:40am	buildFragments completed.

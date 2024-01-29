@@ -94,3 +94,7 @@ Added additional tests.
 Rewrote buildSites.
 Added multiple new options to config file.
 Created a small test set of select hg38 sites.
+1.47
+Removed bwa support.
+Updated database fuctions to archive xy compressed tsv files to database.
+Added new select hg38 test sites.

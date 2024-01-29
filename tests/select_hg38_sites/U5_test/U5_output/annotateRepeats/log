@@ -1,0 +1,4 @@
+01.29.2024  3:41am	Starting annotateRepeats.
+01.29.2024  3:41am	Loading annotation table: /home/ubuntu/AAVengeR/data/genomeAnnotations/hg38.repeatTable.gz
+01.29.2024  3:42am	Updating multi-hit clusters found at: U5_output/buildStdFragments/multiHitClusters.rds
+01.29.2024  3:42am	annotateRepeats completed.

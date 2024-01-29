@@ -1,9 +1,0 @@
-01.28.2024  5:09am	Reading in fragment file(s).
-01.28.2024  5:09am	Categorizing leader sequences.
-01.28.2024  5:09am	Standardizing integration positions within subjects.
-01.28.2024  5:09am	Standardizing break positions within replicates.
-01.28.2024  5:09am	Updating positions and fragment ids.
-01.28.2024  5:09am	Idenitfying uniquely called postions.
-01.28.2024  5:09am	Reevaluating leader sequence classification after standardization.
-01.28.2024  5:09am	Bundling fragment reads into fragment records.
-01.28.2024  5:09am	buildStdFragments completed.

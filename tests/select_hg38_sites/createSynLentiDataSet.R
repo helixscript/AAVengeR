@@ -11,7 +11,7 @@ library(parallel)
 direction <- 'U3' # Select U3 or U5
 
 # Data paths.
-dbPath    <- '../../data/referenceGenomes/blat/hg38.2bit'
+dbPath    <- '../../../data/referenceGenomes/blat/hg38.2bit'
 outputDir <- './'
 
 
@@ -101,11 +101,15 @@ r <- bind_rows(lapply(split(r, paste(r$target, r$fragID)), function(x){
 
 # Extract genomic sequences and build read sequences.
 r <- bind_rows(parLapply(cluster, split(r, ntile(1:nrow(r), nCPUs)), function(k){
+#r <- bind_rows(lapply(split(r, ntile(1:nrow(r), nCPUs)), function(k){
        library(dplyr)
        library(Biostrings)
   
        bind_rows(lapply(split(k, 1:nrow(k)), function(x){
-  
+         
+         if((x$readStartPos + readWidth) > width(g[names(g) == x$chromosome]) |
+            x$readEndPos > width(g[names(g) == x$chromosome])) return(tibble())
+         
          a <- subseq(g[names(g) == x$chromosome], x$readStartPos, x$readStartPos + readWidth)
          b <- subseq(g[names(g) == x$chromosome], x$readEndPos - readWidth, x$readEndPos)
   

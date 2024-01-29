@@ -1,0 +1,9 @@
+01.29.2024  3:34am	Reading in prepped reads.
+01.29.2024  3:34am	Aligning 471 anchor reads to reference genomes.
+01.29.2024  3:37am	100.00% of prepped anchor reads aligned to the reference genome.
+01.29.2024  3:37am	0.00% of anchor reads removed because their alignments ended more than 5 NTs from the end of reads.
+01.29.2024  3:37am	Aligning 471 adrift reads to reference genomes.
+01.29.2024  3:40am	100.00% of prepped adrift reads aligned to the reference genome.
+01.29.2024  3:40am	0.00% of adrift reads removed because their alignments ended more than 5 NTs from the end of reads.
+01.29.2024  3:40am	Finding read pairs where both anchor and adrift read pair mates aligned well.
+01.29.2024  3:40am	alignReads completed.

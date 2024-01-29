@@ -6,19 +6,21 @@
 
 mode: integrase                                                                 # [integrase, AAV, transposase, or manual] Software mode.
 
-Rscript:           /usr/bin/Rscript                                             # [file path] Path to Rscript interpreter.
-softwareDir:       /home/ubuntu/AAVengeR                                        # [file path] Path to AAVengeR software directory.
+databaseGroup: none                                                             # Database credential block name in ~/.my.cnf file. Set to none to disable.
 
-outputDir: merged_output_unique
+Rscript: /usr/bin/Rscript                                                       # [file path] Path to Rscript interpreter.
+softwareDir: /home/ubuntu/AAVengeR                                              # [file path] Path to AAVengeR software directory.
 
-core_CPUs: 15
+outputDir: U5_output
+
+core_CPUs: 5
 core_keepIntermediateFiles: TRUE
 
 demultiplex_seqRunID: xxx
-demultiplex_anchorReadsFile: merged_syn_R2.fastq.gz
-demultiplex_adriftReadsFile: merged_syn_R1.fastq.gz
-demultiplex_index1ReadsFile: merged_syn_I1.fastq.gz
-demultiplex_sampleDataFile:  merged_sampleData.tsv
+demultiplex_anchorReadsFile: U5_syn_R2.fastq.gz
+demultiplex_adriftReadsFile: U5_syn_R1.fastq.gz
+demultiplex_index1ReadsFile: U5_syn_I1.fastq.gz
+demultiplex_sampleDataFile:  U5_sampleData.tsv
 demultiplex_replicateMergingInstructions: none
 demultiplex_level: unique
 demultiplex_quickAlignFilter: FALSE                                              # (!) Designed for AAV work - will be slow for integrase work.
@@ -30,15 +32,15 @@ processAdriftReadLinkerUMIs: FALSE
 
 modules:
     - core
+    - callNearestGenes
+    - annotateRepeats
 
 # Additional parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
-#databaseGroup:     AAVengeR
-
 compressDataFiles: FALSE
 
-demultiplex_CPUs: 5                                                            # [integer]   Number of CPUs to use for demultiplexing.
+demultiplex_CPUs: 5                                                             # [integer]   Number of CPUs to use for demultiplexing.
 demultiplex_outputDir: demultiplex                                              # [character] Demultiplexing ouput directory name that will be created in the output directory.
 demultiplex_RC_I1_barcodes: FALSE                                               # [boolean]   Use the reverse compliment of I1 barcode sequences found in [sampleConfigFile].
 demultiplex_RC_I1_barcodes_auto: TRUE                                           # [boolean]   Attempt to automatically determine best setting for demultiplex_RC_I1_barcodes. Will override [demultiplex_RC_I1_barcodes].
@@ -95,7 +97,7 @@ alignReads_blat_fastMap: FALSE
 alignReads_blatUseOocFile: FALSE
 alignReads_genomeAlignment_anchorRead_maxStartPos: 3                            # [integer]   Max. start position along trimmed anchor reads that an alignment can begin. (!) Set to a small value such as 3 when using HMMs, large value such as 250 for AAV analyses.
 alignReads_genomeAlignment_adriftRead_maxStartPos: 3                            # [integer]   Max. start position along trimmed adrift reads that an alignment can begin.
-alignReads_genomeAlignment_minPercentID: 99                                     # [float]     Min. % seq id required to accept an alignment to the reference genome.
+alignReads_genomeAlignment_minPercentID: 97                                     # [float]     Min. % seq id required to accept an alignment to the reference genome.
 alignReads_genomeAlignment_blatStepSize: 9                                      # [integer]   BLAT step size parameter. BLAT default 9.
 alignReads_genomeAlignment_blatTileSize: 11                                     # [integer]   BLAT tile size parameter. BLAT default 11.
 alignReads_genomeAlignment_blatRepMatch: 1024                                   # [integer]   BLAT repMatch parameter. Number of times a tile needs to be seen before masking.
@@ -125,6 +127,7 @@ buildStdFragments_outputDir: buildStdFragments
 buildStdFragments_remnantClusterParams: >-
   -c 0.85 -d 0 -M 0 -G 1 -aS 0.90 -aL 0.90 -s 0.90 -n 4
 buildStdFragments_autoPullTrialSamples: FALSE                                   # [boolean]   Automatically pull additional trial samples from the database to co-standardize with data found in buildStdFragments_inputFile.
+buildStdFragments_trialSubjectList: none                                        # Format:  trial;subject|trial;subject, eg. 'Sabatino;pM50|Sabatino;pLinus'
 buildStdFragments_randomIDdupReadMult: 3                                        # [integer]   When evaluating UMI sequences, if the most common position id associated with anUMI is x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
 buildStdFragments_randomIDdupAbundMult: 2                                       # [integer]   When evaluating UMI sequences, if the most common position id associated with an UMI has a sonicLength abundance x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
 buildStdFragments_standardizeIntegrationPositions: TRUE
@@ -143,7 +146,7 @@ buildSites_enableDualDetection: TRUE
 buildSites_dualDetectWidth: 6
 buildSites_sumSonicBreaksWithin: samples                                        # [samples, replicates]
 
-predictPCRartifacts_CPUs: 15
+predictPCRartifacts_CPUs: 5
 predictPCRartifacts_inputFile: core/sites.rds
 predictPCRartifacts_outputDir: predictPCRartifacts
 predictPCRartifacts_adjacentSeqLength: 14
@@ -175,7 +178,7 @@ barcodeAssocLinkers_excludePolyG_index1BarCodes: TRUE                           
 barcodeAssocLinkers_adriftReadUniqueLinkerLength: 20                            # [integer]   First n NTs of adrift read NTs to consider as a unique linker sequence.
 
 
-anchorReadRearrangements_CPUs: 15
+anchorReadRearrangements_CPUs: 5
 anchorReadRearrangements_outputDir: anchorReadRearrangements
 anchorReadRearrangements_readsTable: core/demultiplex/reads.rds
 anchorReadRearrangements_abundSeqMinCount: 10
@@ -191,12 +194,12 @@ addSampleDetails_inputFile:  callNearestGenesFiltered/sites.rds
 addSampleDetails_detailsFile: data/sampleDetails.tsv
 addSampleDetails_addAfter: sample
 
-annotateRepeats_CPUs: 15
-annotateRepeats_inputFile: core/sites.rds
+annotateRepeats_CPUs: 5
+annotateRepeats_inputFile: callNearestGenes/sites.rds
 annotateRepeats_outputDir: annotateRepeats
 annotateRepeats_addAfter: nRepsObs
 
-mapSiteLeaderSequences_CPUs: 15
+mapSiteLeaderSequences_CPUs: 5
 mapSiteLeaderSequences_outputDir: mapSiteLeaderSequences
 mapSiteLeaderSequences_inputFile: core/sites.rds
 mapSiteLeaderSequences_addAfter: repLeaderSeq
@@ -205,7 +208,7 @@ mapSiteLeaderSequences_alignmentChunkSize: 5000
 mapSiteLeaderSequences_minAlignmentPercentID: 90
 mapSiteLeaderSequences_minAlignmentLength: 15
 
-callNearestGenes_CPUs: 15
+callNearestGenes_CPUs: 5
 callNearestGenes_inputFile: buildSites/sites.rds
 callNearestGenes_outputDir: callNearestGenes
 callNearestGenes_addAfter: nRepsObs
@@ -225,7 +228,7 @@ callNearestGenes_boundaries:
         exons: macFas5.humanXeno.exons.rds
 
 
-callNearestGenesFiltered_CPUs: 15
+callNearestGenesFiltered_CPUs: 5
 callNearestGenesFiltered_columnPrefix: oncoGenes
 callNearestGenesFiltered_inputFile: annotateRepeats/sites.rds
 callNearestGenesFiltered_outputDir: callNearestGenesFiltered

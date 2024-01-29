@@ -1,0 +1,5 @@
+sample	demultiplexedIndex1Reads	demultiplexedLinkerReads	demultiplexedReads
+validation~validationSubject~sample1~1	450	1800	450
+validation~validationSubject~sample1~2	450	1800	450
+validation~validationSubject~sample1~3	450	1800	450
+validation~validationSubject~sample1~4	450	1800	450

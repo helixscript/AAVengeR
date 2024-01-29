@@ -1,0 +1,5 @@
+trial	subject	sample	replicate	adriftReadLinkerSeq	index1Seq	refGenome	vectorFastaFile	leaderSeqHMM	flags
+validation	validationSubject	sample1	1	CATCCATTAGTTCAATGCGCNNNNNNNNNNNNCTCCGCTTAAGGGACT	ATAGCGGTGGTC	hg38	HXB2.fasta	HXB2_U5.hmm	IN_u5
+validation	validationSubject	sample1	2	CATCCATTAGTTCAATGCGCNNNNNNNNNNNNCTCCGCTTAAGGGACT	GTTTTGGACAAT	hg38	HXB2.fasta	HXB2_U5.hmm	IN_u5
+validation	validationSubject	sample1	3	CATCCATTAGTTCAATGCGCNNNNNNNNNNNNCTCCGCTTAAGGGACT	TAACGCCATGCT	hg38	HXB2.fasta	HXB2_U5.hmm	IN_u5
+validation	validationSubject	sample1	4	CATCCATTAGTTCAATGCGCNNNNNNNNNNNNCTCCGCTTAAGGGACT	ATATTGCGCCTC	hg38	HXB2.fasta	HXB2_U5.hmm	IN_u5
