@@ -143,7 +143,7 @@ buildStdFragments_breakPointStdWindowWidth: 3                                   
 buildStdFragments_minReadsPerFrag: 1                                            # [integer]   Min number of reads required to reatin a UMI specific fragment.
 buildStdFragments_createMultiHitClusters: TRUE                                  # [boolean]   Create networks of sites for reads that align well to multiple locations in a reference genome.
 buildStdFragments_UMIminPercentReads: 15
-
+buildStdFragments_standardizeBreakPositionsWithin: samples
 
 buildSites_CPUs: 5
 buildSites_inputFile: buildStdFragments/stdFragments.rds

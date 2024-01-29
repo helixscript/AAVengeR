@@ -102,3 +102,6 @@ Added new select hg38 test sites.
 Added .my.cnf patch to database calls.
 prepReads code cleanup.
 config file updates.
+1.49
+Added standardizeBy options for buildStdFragments.
+Added parallelization for standardization with logging to make sure it takes place.

@@ -1,19 +1,14 @@
-01.29.2024  5:48pm	Reading sample data.
-01.29.2024  5:48pm	Reading in demultiplexed reads.
-01.29.2024  5:48pm	Trimming anchor read over-reading.
-01.29.2024  5:49pm	Aligning ends of anchor reads to vector sequences.
-01.29.2024  5:49pm	No reads aligned to the vector.
-01.29.2024  5:49pm	0.00% unique reads removed because they aligned to the vector.
-01.29.2024  5:49pm	Using leader sequence HMM to define mappings.
-01.29.2024  5:49pm	Leader sequences determined for 100.00% of unqiue read pairs.
-01.29.2024  5:49pm	Removing indentified leader sequences from anchor reads.
-01.29.2024  5:49pm	0.00% of reads removed because they were less than 20 NTs after trimming.
-01.29.2024  5:49pm	Creating adrift read over-reading trim sequences.
-01.29.2024  5:49pm	Triming adrift read over-reading.
-01.29.2024  5:49pm	0.00% of reads removed because their trimmed lengths were less than 20 NTs.
-01.29.2024  5:49pm	prepReads completed.
-01.29.2024  6:00pm	Reading sample data.
-01.29.2024  6:00pm	Reading in demultiplexed reads.
-01.29.2024  6:00pm	Trimming anchor read over-reading.
-01.29.2024  6:00pm	Aligning ends of anchor reads to vector sequences.
-01.29.2024  6:01pm	0.00% unique reads removed because they aligned to the vector.
+01.29.2024 11:16pm	Reading sample data.
+01.29.2024 11:16pm	Reading in demultiplexed reads.
+01.29.2024 11:16pm	Trimming anchor read over-reading.
+01.29.2024 11:16pm	Aligning ends of anchor reads to vector sequences.
+01.29.2024 11:16pm	No reads aligned to the vector.
+01.29.2024 11:16pm	0.00% unique reads removed because they aligned to the vector.
+01.29.2024 11:16pm	Using leader sequence HMM to define mappings.
+01.29.2024 11:16pm	Leader sequences determined for 100.00% of unqiue read pairs.
+01.29.2024 11:16pm	Removing indentified leader sequences from anchor reads.
+01.29.2024 11:16pm	0.00% of reads removed because they were less than 20 NTs after trimming.
+01.29.2024 11:16pm	Creating adrift read over-reading trim sequences.
+01.29.2024 11:17pm	Triming adrift read over-reading.
+01.29.2024 11:17pm	0.00% of reads removed because their trimmed lengths were less than 20 NTs.
+01.29.2024 11:17pm	prepReads completed.
