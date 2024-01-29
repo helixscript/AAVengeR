@@ -199,14 +199,15 @@ saveRDS(vectorHits, file.path(opt$outputDir, opt$prepReads_outputDir, 'vectorHit
 
 # If alignments to the vector are found, create reports and remove them from reads table.
 
+nReadsPreFilter <- n_distinct(reads$readID)
+
 if(nrow(vectorHits) > 0){
   updateLog(paste0(ppNum(n_distinct(vectorHits)), ' reads aligned to the vector and will be exlcuded.'))
+  reads <- subset(reads, ! readID %in% vectorHits$qname)
 } else {
   updateLog('No reads aligned to the vector.')
 }  
 
-nReadsPreFilter <- n_distinct(reads$readID)
-reads <- subset(reads, ! readID %in% vectorHits$qname)
 nReadsPostFilter <- n_distinct(reads$readID)
 
 updateLog(paste0(sprintf("%.2f%%", 100 - (nReadsPostFilter/nReadsPreFilter)*100), ' unique reads removed because they aligned to the vector.'))

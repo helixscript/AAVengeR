@@ -1,13 +1,13 @@
-01.29.2024  3:40am	Reading in fragment file(s).
-01.29.2024  3:40am	Categorizing leader sequences.
-01.29.2024  3:40am	Standardizing integration positions within subjects.
-01.29.2024  3:40am	Standardizing break positions within replicates.
-01.29.2024  3:40am	Updating positions and fragment ids.
-01.29.2024  3:40am	Idenitfying uniquely called postions.
-01.29.2024  3:40am	Resolving multi-hit reads.
-01.29.2024  3:40am	Reevaluating leader sequence classification after standardization.
-01.29.2024  3:40am	Building mulit-hit networks.
-01.29.2024  3:40am	Uploaded multihit data for validation~validationSubject~sample1 to the database.
-01.29.2024  3:40am	Uploaded multihit data for validation~validationSubject~sample1 to the database.
-01.29.2024  3:40am	Bundling fragment reads into fragment records.
-01.29.2024  3:40am	buildStdFragments completed.
+01.29.2024  5:55pm	Reading in fragment file(s).
+01.29.2024  5:55pm	Categorizing leader sequences.
+01.29.2024  5:55pm	Standardizing integration positions within subjects.
+01.29.2024  5:55pm	Standardizing break positions within replicates.
+01.29.2024  5:55pm	Updating positions and fragment ids.
+01.29.2024  5:55pm	Idenitfying uniquely called postions.
+01.29.2024  5:55pm	Resolving multi-hit reads.
+01.29.2024  5:55pm	Reevaluating leader sequence classification after standardization.
+01.29.2024  5:55pm	Building mulit-hit networks.
+01.29.2024  5:55pm	Uploaded multihit data for validation~validationSubject~sample1 to the database.
+01.29.2024  5:55pm	Uploaded multihit data for validation~validationSubject~sample1 to the database.
+01.29.2024  5:55pm	Bundling fragment reads into fragment records.
+01.29.2024  5:55pm	buildStdFragments completed.

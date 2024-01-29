@@ -40,23 +40,30 @@ updateLog('Reading in fragment file(s).')
 
 # Check for configuration errors.
 # ------------------------------------------------------------------------------
-if(opt$buildStdFragments_autoPullTrialSamples & opt$databaseGroup == 'none'){
-  updateLog('Error -- the databaseGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')
+if(opt$buildStdFragments_autoPullTrialSamples & opt$databaseConfigGroup == 'none'){
+  updateLog('Error -- the databaseConfigGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')
   q(save = 'no', status = 1, runLast = FALSE)
 }
 
-if(opt$buildStdFragments_trialSubjectList != 'none' & opt$databaseGroup == 'none'){
-  updateLog('Error -- the databaseGroup option must be provided with the buildStdFragments_trialSubjectList option.')
+if(opt$buildStdFragments_trialSubjectList != 'none' & opt$databaseConfigGroup == 'none'){
+  updateLog('Error -- the databaseConfigGroup option must be provided with the buildStdFragments_trialSubjectList option.')
   q(save = 'no', status = 1, runLast = FALSE)
 }
 
 
 # Create a database connection if requested in the configuration file.
-if(opt$databaseGroup != 'none'){
+if(opt$databaseConfigGroup != 'none'){
   library(RMariaDB)
   
+  if(! file.exists('~/.my.cnf')) file.copy(opt$databaseConfigFile, '~/.my.cnf')
+  if(! file.exists('~/.my.cnf')){
+    updateLog('Error - can not find ~/.my.cnf file.')
+    if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
+  
   dbConn <- tryCatch({
-    dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+    dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
   },
   error=function(cond) {
     updateLog('Error - could not connect to the database.')
@@ -98,7 +105,7 @@ if(opt$buildStdFragments_trialSubjectList != 'none'){
   }
 }
 
-if(opt$databaseGroup != 'none') RMariaDB::dbDisconnect(dbConn)
+if(opt$databaseConfigGroup != 'none') RMariaDB::dbDisconnect(dbConn)
 
 # Make sure fragments were retrieved.
 if(nrow(frags) == 0){
@@ -722,11 +729,11 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'), compress = opt$compressDataFiles)
   readr::write_tsv(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.tsv.gz'))
   
-  if(opt$databaseGroup != 'none'){
+  if(opt$databaseConfigGroup != 'none'){
     library(RMariaDB)
     
     dbConn <- tryCatch({
-      dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+      dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
     },
     error=function(cond) {
       updateLog('Error - could not connect to the database.')
@@ -760,7 +767,6 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       
       if(r == 0){
         updateLog(paste0('Error -- could not upload multihit data for ', x$sample[1], ' to the database.'))
-        
         if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
         q(save = 'no', status = 1, runLast = FALSE)
       } else {

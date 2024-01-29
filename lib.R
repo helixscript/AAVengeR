@@ -199,7 +199,9 @@ demultiplex <- function(x){
     index1Reads.org <- index1Reads
     index1Reads <- golayCorrection(index1Reads, tmpDirPath = tmpDir)
     percentChanged <- (sum(! as.character(index1Reads.org) == as.character(index1Reads)) / length(index1Reads))*100
-    message('Golay correction complete.', sprintf("%.2f", percentChanged), '% of reads updated via Golay correction.')
+    
+    updateLog(paste0('Golay correction complete.', sprintf("%.2f", percentChanged), '% of reads updated via Golay correction.'))
+    
     rm(index1Reads.org)
     invisible(unlink(tmpDir, recursive = TRUE))
     
@@ -294,7 +296,6 @@ alignReadEndsToVector <- function(y){
   }
   
   if(nrow(b) > 0){
-    message('f3')
     b <- left_join(b, data.table(qname = names(s), testSeq = as.character(s)), by = 'qname')
     b$start  <- ifelse(b$sstart > b$send, b$send, b$sstart)
     b$end    <- ifelse(b$sstart > b$send, b$sstart, b$send)

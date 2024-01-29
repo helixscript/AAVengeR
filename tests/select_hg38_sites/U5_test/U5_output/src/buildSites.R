@@ -212,18 +212,24 @@ openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$buildSites_outputDir, '
 readr::write_tsv(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.tsv.gz'))
 write(date(), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.done'))
 
-if(opt$databaseGroup != 'none'){
+if(opt$databaseConfigGroup != 'none'){
   library(RMariaDB)
   
   updateLog('Writing fragment data to the database.')
   
+  if(! file.exists('~/.my.cnf')) file.copy(opt$databaseConfigFile, '~/.my.cnf')
+  if(! file.exists('~/.my.cnf')){
+    updateLog('Error - can not find ~/.my.cnf file.')
+    if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
+  
   conn <- tryCatch({
-    dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+    dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
   },
   error=function(cond) {
     updateLog('Error - could not connect to the database.')
-    
-    if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
+    if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
     q(save = 'no', status = 1, runLast = FALSE) 
   })
   
@@ -248,8 +254,7 @@ if(opt$databaseGroup != 'none'){
                                  list(serialize(tab, NULL))))
     if(r == 0){
       updateLog(paset0('Error -- could not upload site data for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
-      
-      if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
+      if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
       q(save = 'no', status = 1, runLast = FALSE)
     } else {
       updateLog(paste0('Uploaded fragment data for ',  x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))

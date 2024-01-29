@@ -252,17 +252,22 @@ if(any(! incomingSamples %in% frags$uniqueSample) & opt$core_createFauxFragDoneF
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.rds'), compress = opt$compressDataFiles)
 write(date(), file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.done'))
 
-if(opt$databaseGroup != 'none'){
+if(opt$databaseConfigGroup != 'none'){
   library(RMariaDB)
   
   updateLog('Writing fragment data to the database.')
   
+  if(! file.exists('~/.my.cnf')) file.copy(opt$databaseConfigFile, '~/.my.cnf')
+  if(! file.exists('~/.my.cnf')){
+    if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
+    updateLog('Error - can not find ~/.my.cnf file.')
+  }
+  
   conn <- tryCatch({
-    dbConnect(RMariaDB::MariaDB(), group = opt$databaseGroup)
+    dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
   },
   error=function(cond) {
     updateLog('Error - could not connect to the database.')
-    
     if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
     q(save = 'no', status = 1, runLast = FALSE) 
   })

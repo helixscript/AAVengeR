@@ -6,7 +6,9 @@
 
 mode: integrase                                                                 # [integrase, AAV, transposase, or manual] Software mode.
 
-databaseGroup: AAVengeR                                                         # Database credential block name in ~/.my.cnf file. Set to none to disable.
+databaseConfigFile: /home/ubuntu/.my.cnf
+databaseConfigGroup: AAVengeR                                                         # Database credential block name in ~/.my.cnf file. Set to none to disable.
+
 
 Rscript: /usr/bin/Rscript                                                       # [file path] Path to Rscript interpreter.
 softwareDir: /home/ubuntu/AAVengeR                                              # [file path] Path to AAVengeR software directory.
@@ -16,7 +18,6 @@ outputDir: U5_output
 core_CPUs: 5
 core_keepIntermediateFiles: TRUE
 
-demultiplex_seqRunID: xxx
 demultiplex_anchorReadsFile: U5_syn_R2.fastq.gz
 demultiplex_adriftReadsFile: U5_syn_R1.fastq.gz
 demultiplex_index1ReadsFile: U5_syn_I1.fastq.gz
@@ -27,8 +28,6 @@ demultiplex_quickAlignFilter: FALSE                                             
 demultiplex_useAdriftReadUniqueLinkers: TRUE
 demultiplex_requirePostUmiLinker: TRUE
 demultiplex_requirePostUmiLinker_maxMismatch: 2
-
-processAdriftReadLinkerUMIs: FALSE
 
 modules:
     - demultiplex
@@ -44,9 +43,11 @@ modules:
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
 compressDataFiles: FALSE
+processAdriftReadLinkerUMIs: FALSE
 
 demultiplex_CPUs: 5                                                            # [integer]   Number of CPUs to use for demultiplexing.
 demultiplex_outputDir: demultiplex                                              # [character] Demultiplexing ouput directory name that will be created in the output directory.
+demultiplex_seqRunID: none
 demultiplex_RC_I1_barcodes: FALSE                                               # [boolean]   Use the reverse compliment of I1 barcode sequences found in [sampleConfigFile].
 demultiplex_RC_I1_barcodes_auto: TRUE                                           # [boolean]   Attempt to automatically determine best setting for demultiplex_RC_I1_barcodes. Will override [demultiplex_RC_I1_barcodes].
 demultiplex_qualtrim_code: '5'                                                  # [character] ASCII Q-score threshold to fail sliding window read quality trimming.

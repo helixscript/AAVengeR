@@ -98,3 +98,7 @@ Created a small test set of select hg38 sites.
 Removed bwa support.
 Updated database fuctions to archive xy compressed tsv files to database.
 Added new select hg38 test sites.
+1.48
+Added .my.cnf patch to database calls.
+prepReads code cleanup.
+config file updates.
