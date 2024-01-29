@@ -291,7 +291,6 @@ if(opt$buildStdFragments_standardizeIntegrationPositions){
                         chromosome, strand, fragStart, fragEnd, leaderSeqGroup, randomLinkerSeq, sep = ':', remove = FALSE)
 
   rm(f, g, g2)
-  
   frags <- dplyr::select(frags, -z)
 }
 
@@ -304,26 +303,25 @@ if(opt$buildStdFragments_standardizeBreakPositions){
   if(opt$buildStdFragments_standardizeBreakPositionsWithin == 'replicates'){
     updateLog('Standardizing break positions within replicates.')
     
-    # Create a fragment read tally split vector. posid already has a leaderSeqGroup suffix.
-    frags <- tidyr::unite(frags, z, trial, subject, sample, replicate,       strand, fragStart, fragEnd, sep = ':', remove = FALSE)
-    
-    # Create a parallelization split vector. 
+    # Create a fragment read tally split vector and a parallelization split vector (posid already has a leaderSeqGroup suffix).
     # Including the leaderSeqGroup will prevent proximal sites with different remnants and same position from being merged.
     # Including chromosome helps spread out the parallelization.
     # Should not need to separate out by position ids for refine_breakpoints() according to testing with toy data.
-    frags <- tidyr::unite(frags, s, trial, subject, sample, replicate, leaderSeqGroup, chromosome, sep = ':', remove = FALSE)
+    
+    frags <- tidyr::unite(frags, z, trial, subject, sample, replicate, posid,     strand, fragStart, fragEnd, sep = ':', remove = FALSE)
+    frags <- tidyr::unite(frags, s, trial, subject, sample, replicate,            leaderSeqGroup, chromosome, sep = ':', remove = FALSE)
     
   } else if(opt$buildStdFragments_standardizeBreakPositionsWithin == 'samples'){
     updateLog('Standardizing break positions within samples.')
     
-    frags <- tidyr::unite(frags, z, trial, subject, sample,     strand, fragStart, fragEnd, sep = ':', remove = FALSE)
-    frags <- tidyr::unite(frags, s, trial, subject, sample, leaderSeqGroup, chromosome, sep = ':', remove = FALSE)
+    frags <- tidyr::unite(frags, z, trial, subject, sample, posid,     strand, fragStart, fragEnd, sep = ':', remove = FALSE)
+    frags <- tidyr::unite(frags, s, trial, subject, sample,            leaderSeqGroup, chromosome, sep = ':', remove = FALSE)
     
   } else{
-    updateLog('Standardizing break positions within subject.')
+    updateLog('Standardizing break positions within subjects.')
     
-    frags <- tidyr::unite(frags, z, trial, subject,      strand, fragStart, fragEnd, sep = ':', remove = FALSE)
-    frags <- tidyr::unite(frags, s, trial, subject, leaderSeqGroup, chromosome, sep = ':', remove = FALSE)
+    frags <- tidyr::unite(frags, z, trial, subject, posid,      strand, fragStart, fragEnd, sep = ':', remove = FALSE)
+    frags <- tidyr::unite(frags, s, trial, subject,             leaderSeqGroup, chromosome, sep = ':', remove = FALSE)
   }
 
   f <- lazy_dt(frags) %>%
@@ -345,7 +343,7 @@ if(opt$buildStdFragments_standardizeBreakPositions){
           library(dplyr)
           library(GenomicRanges)
           source(file.path(opt$softwareDir, 'stdPos.lib.R'))
-          refine_breakpoints(x, counts.col = 'reads', sata.gap = opt$buildStdFragments_intSiteStdWindowWidth)
+          refine_breakpoints(x, counts.col = 'reads', sata.gap = opt$buildStdFragments_breakPointStdWindowWidth)
   })))
   
   g2 <- g2[order(g2$n)]
