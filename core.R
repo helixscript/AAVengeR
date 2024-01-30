@@ -18,7 +18,7 @@ dir.create(file.path(opt$outputDir, 'core', 'subject_analyses'))
 write(paste0(date(), ' - start'), file = file.path(opt$outputDir, 'core', 'log'))
 
 # Gather select sections from the configuration file.
-o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
+o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^database|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
 o$outputDir <- file.path(opt$outputDir, 'core')
 
 # Run demultiplex module.
@@ -47,7 +47,7 @@ if(n_distinct(reads$uniqueSample) == 1){
 } else if (n_distinct(reads$uniqueSample) == 4){
   opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs/4)
 } else {
-  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs * 0.20)
+  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs * 0.10)
 }
 
 # Define max percent CPUs allowed for a process.
@@ -124,7 +124,7 @@ while(! all(jobTable$done == TRUE)){
   }
 
   # Gather select sections from the configuration file and set CPU values.
-  o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
+  o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^database|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
   o$prepReads_CPUs <- as.integer(tab$CPUs)
   o$alignReads_CPUs <- as.integer(tab$CPUs)
   o$buildFragments_CPUs <- as.integer(tab$CPUs)
@@ -248,7 +248,7 @@ while(! all(jobTable$done == TRUE)){
   }
 
   # Gather select sections from the configuration file and set CPU values.
-  o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^databaseGroup|^core|^buildStdFragments|^buildSites|^demultiplex', names(opt))]
+  o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^database|^core|^buildStdFragments|^buildSites|^demultiplex', names(opt))]
   o$buildStdFragments_CPUs <- as.integer(tab$CPUs)
   o$buildSites_CPUs <- as.integer(tab$CPUs)
   o$outputDir <- file.path(opt$outputDir, 'core', 'subject_analyses', tab$id)
@@ -281,6 +281,7 @@ while(! all(jobTable$done == TRUE)){
   CPUs_used <- CPUs_used + tab$CPUs
   
   jobTable[which(jobTable$id == tab$id),]$active <- TRUE
+  jobTable[which(jobTable$id == tab$id),]$startTimeDsp <- base::format(Sys.time(), "%m.%d.%Y %l:%M%P")
   jobTable[which(jobTable$id == tab$id),]$startTime <- as.character(lubridate::now())
   
   jobStatus(searchPattern = 'sites.done', outputFileName = 'subjectJobTable')

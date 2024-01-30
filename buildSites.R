@@ -239,14 +239,14 @@ if(opt$databaseConfigGroup != 'none'){
                            "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
     
     f <- tmpFile()
-    readr::write_tsv(x, file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', f))
-    system(paste0('xz ', file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', f)))
+    readr::write_tsv(x, file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp', f))
+    system(paste0('xz ', file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp', f)))
     
-    fp <- file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', paste0(f, '.xz'))
+    fp <- file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp', paste0(f, '.xz'))
     
     tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
     
-    invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+    invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
   
     r <- dbExecute(conn,
                    "insert into sites values (?, ?, ?, ?, ?, ?)",

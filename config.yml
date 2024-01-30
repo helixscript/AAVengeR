@@ -7,20 +7,20 @@
 mode: integrase                                                                # [integrase, AAV, transposase, or manual] Software mode.
 
 databaseConfigFile: /home/ubuntu/.my.cnf                                       # [file path] Path to .my.cnf file that will be copied to  ~/.my.cnf if file is missing.
-databaseConfigGroup: AAVengeR                                                  # [character] Database credential block name in ~/.my.cnf file. Set to none to disable.
+databaseConfigGroup: none                                                      # [character] Database credential block name in ~/.my.cnf file. Set to none to disable.
 
 
 Rscript: /usr/bin/Rscript                                                      # [file path] Path to Rscript interpreter.
 softwareDir: /home/ubuntu/AAVengeR                                             # [file path] Path to AAVengeR software directory.
 
-outputDir: U5_output                                                           # [file path] Output directory path.
+outputDir: output                                                              # [file path] Output directory path.
 
-core_CPUs: 5                                                                   # [integer] Number of CPUs the core module is allowed to use.
+core_CPUs: 15                                                                  # [integer] Number of CPUs the core module is allowed to use.
 
-demultiplex_anchorReadsFile: U5_syn_R2.fastq.gz                                # [file path] Path to anchor reads fastq file.
-demultiplex_adriftReadsFile: U5_syn_R1.fastq.gz                                # [file path] Path to adrift reads fastq file.
-demultiplex_index1ReadsFile: U5_syn_I1.fastq.gz                                # [file path] Path to index1 reads fastq file.
-demultiplex_sampleDataFile:  U5_sampleData.tsv                                 # [file path] Path to sample configuration file.
+demultiplex_anchorReadsFile: data/Undetermined_S0_R2_001.fastq.gz              # [file path] Path to anchor reads fastq file.
+demultiplex_adriftReadsFile: data/Undetermined_S0_R1_001.fastq.gz              # [file path] Path to adrift reads fastq file.
+demultiplex_index1ReadsFile: data/Undetermined_S0_I1_001.fastq.gz              # [file path] Path to index1 reads fastq file.
+demultiplex_sampleDataFile:  data/sampleData.tsv                               # [file path] Path to sample configuration file.
 demultiplex_replicateMergingInstructions: none                                 # [file path] (optional) Path to instructions for reassinging replicate ids after demultiplexing. Helpful when merging seq runs.
 demultiplex_level: unique                                                      # [boolean] (all, unique, or clustered) Level of reads to pass through the pipeline.
 demultiplex_quickAlignFilter: FALSE                                            # [boolean] Align all demultiplexed readsa against reference genomes with bwa2 and only allow aligning reads to progress to BLAT alignments. Designed for AAV work.
@@ -29,7 +29,7 @@ demultiplex_requirePostUmiLinker: TRUE                                         #
 demultiplex_requirePostUmiLinker_maxMismatch: 2                                # [boolean] Max. number of mismatches allowed when evalatuating common linker sequences.
 
 modules:
-    - core
+#    - core
     - callNearestGenes
     - annotateRepeats
 
@@ -39,7 +39,7 @@ modules:
 compressDataFiles: FALSE
 processAdriftReadLinkerUMIs: FALSE
 
-core_keepIntermediateFiles: FALSE
+core_keepIntermediateFiles: TRUE
 
 demultiplex_CPUs: 5                                                            # [integer]   Number of CPUs to use for demultiplexing.
 demultiplex_outputDir: demultiplex                                             # [character] Demultiplexing ouput directory name that will be created in the output directory.
@@ -131,6 +131,7 @@ buildStdFragments_randomIDdupReadMult: 3                                        
 buildStdFragments_randomIDdupAbundMult: 2                                       # [integer]   When evaluating UMI sequences, if the most common position id associated with an UMI has a sonicLength abundance x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
 buildStdFragments_standardizeIntegrationPositions: TRUE
 buildStdFragments_standardizeBreakPositions: TRUE
+buildStdFragments_standardizeBreakPositionsWithin: samples                      # [controled vocab] (replicates, samples, subjects)
 buildStdFragments_intSiteStdWindowWidth: 5                                      # [integer]   Half width of window centered on each intSite when looking for other sites to merge.
 buildStdFragments_breakPointStdWindowWidth: 3                                   # [integer]   Half width of window centered on each sonic break when looking for other break points to merge.
 buildStdFragments_minReadsPerFrag: 1                                            # [integer]   Min number of reads required to reatin a UMI specific fragment.
@@ -193,7 +194,7 @@ addSampleDetails_inputFile:  callNearestGenesFiltered/sites.rds
 addSampleDetails_detailsFile: data/sampleDetails.tsv
 addSampleDetails_addAfter: sample
 
-annotateRepeats_CPUs: 5
+annotateRepeats_CPUs: 15
 annotateRepeats_inputFile: callNearestGenes/sites.rds
 annotateRepeats_outputDir: annotateRepeats
 annotateRepeats_addAfter: nRepsObs
@@ -207,8 +208,8 @@ mapSiteLeaderSequences_alignmentChunkSize: 5000
 mapSiteLeaderSequences_minAlignmentPercentID: 90
 mapSiteLeaderSequences_minAlignmentLength: 15
 
-callNearestGenes_CPUs: 5
-callNearestGenes_inputFile: buildSites/sites.rds
+callNearestGenes_CPUs: 15
+callNearestGenes_inputFile: core/sites.rds
 callNearestGenes_outputDir: callNearestGenes
 callNearestGenes_addAfter: nRepsObs
 callNearestGenes_TU_position: either

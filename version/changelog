@@ -105,3 +105,8 @@ config file updates.
 1.49
 Added standardizeBy options for buildStdFragments.
 Added parallelization for standardization with logging to make sure it takes place.
+1.50
+Fixed db upload issue in buildSites.
+Fixed start time bug in core module.
+Updated buildStdFragments to include reporting on number of fragment position shifts. 
+Added buildStdFragments_standardizeBreakPositionsWithin to config file.
