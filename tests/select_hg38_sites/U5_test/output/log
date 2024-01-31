@@ -1,0 +1,20 @@
+Wed Jan 31 04:07:13 2024
+1706674033
+2024-01-31 04:07:13    Paths of expected software packages:
+                       blat	/usr/bin/blat
+                       cutadapt	/usr/bin/cutadapt
+                       hmmbuild	/usr/bin/hmmbuild
+                       hmmsearch	/usr/bin/hmmsearch
+                       blastn	/usr/bin/blastn
+                       makeblastdb	/usr/bin/makeblastdb
+                       muscle	/usr/bin/muscle
+                       python2	/usr/bin/python2
+                       cd-hit-est	/usr/bin/cd-hit-est
+2024-01-31 04:07:13 Starting demultiplex
+2024-01-31 04:07:41 Starting prepReads
+2024-01-31 04:08:28 Starting alignReads
+2024-01-31 04:20:39 Starting buildFragments
+2024-01-31 04:20:46 Starting buildStdFragments
+2024-01-31 04:21:10 Starting buildSites
+2024-01-31 04:21:12 Starting callNearestGenes
+2024-01-31 04:21:14 module callNearestGenes failed, please see log for details.

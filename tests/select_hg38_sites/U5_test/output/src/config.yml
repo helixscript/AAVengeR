@@ -44,7 +44,6 @@ modules:
   - callNearestGenes
   - annotateRepeats
 
-
 # Additional parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 
@@ -167,7 +166,7 @@ annotateRepeats_outputDir: annotateRepeats                                     #
 annotateRepeats_addAfter: nRepsObs                                             # [string]     Name of column in the input table after which new columns should be added.
                                                                                #
 callNearestGenes_CPUs: 15                                                      # [integer]   Max. number of CPUs callNearestGenes modules is allowed to use.
-callNearestGenes_inputFile: buildSites/sites.rds                                     # [file path] (@) File path to input file creatd by any module buildSites or any module following buildSites.
+callNearestGenes_inputFile: core/sites.rds                                     # [file path] (@) File path to input file creatd by any module buildSites or any module following buildSites.
 callNearestGenes_outputDir: callNearestGenes                                   # [file path] (@) callNearestGenes output folder.
 callNearestGenes_addAfter: nRepsObs                                            # [string]    Name of column in the input table after which new columns should be added.
 callNearestGenes_TU_position: either                                           # [controlled vocabulary] (center, start, end, either) Transcription unit boundary that should be used when calling nearest genes.
