@@ -113,7 +113,7 @@ alignReads_blat_fastMap: FALSE                                                 #
 alignReads_blatUseOocFile: FALSE                                               # [boolean]   Creaet an OOC file on the fly based on the value of [alignReads_genomeAlignment_blatRepMatch] and employ it.
 alignReads_genomeAlignment_anchorRead_maxStartPos: 3                           # [integer]   Max. start position along trimmed anchor reads that an alignment can begin. Set to a small value such as 3 when using HMMs, large value such as 250 for AAV analyses.
 alignReads_genomeAlignment_adriftRead_maxStartPos: 3                           # [integer]   Max. start position along trimmed adrift reads that an alignment can begin.
-alignReads_genomeAlignment_minPercentID: 97                                    # [float]     Min. % seq id required to accept an alignment to the reference genome.
+alignReads_genomeAlignment_minPercentID: 98                                    # [float]     Min. % seq id required to accept an alignment to the reference genome.
 alignReads_genomeAlignment_blatStepSize: 9                                     # [integer]   BLAT step size parameter. BLAT default 9.
 alignReads_genomeAlignment_blatTileSize: 11                                    # [integer]   BLAT tile size parameter. BLAT default 11.
 alignReads_genomeAlignment_blatRepMatch: 3000                                  # [integer]   BLAT repMatch parameter. Number of times a tile needs to be seen before masking.
@@ -147,7 +147,7 @@ buildStdFragments_randomIDdupReadMult: 3                                       #
 buildStdFragments_randomIDdupAbundMult: 2                                      # [integer]   When evaluating UMI sequences, if the most common position id associated with an UMI has a sonicLength abundance x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
 buildStdFragments_standardizeIntegrationPositions: TRUE                        # [boolean]   (!) Standardize integration positions. Turn off with caution.
 buildStdFragments_standardizeBreakPositions: TRUE                              # [boolean]   (!) Standardize sonic break positiosn. Turn off with caution.
-buildStdFragments_standardizeBreakPositionsWithin: samples                     # [controled vocab] (replicates, samples or subjects) Level within sonic breaks should be standardized. 
+buildStdFragments_standardizeBreakPositionsWithin: replicates                  # [controled vocab] (replicates, samples or subjects) Level within sonic breaks should be standardized. 
 buildStdFragments_intSiteStdWindowWidth: 5                                     # [integer]   Half width of window centered on each intSite when looking for other sites to merge beyond calculated Gaussians. 
 buildStdFragments_breakPointStdWindowWidth: 3                                  # [integer]   Half width of window centered on each sonic break when looking for other break points to merge beyond calculated Guassians.
 buildStdFragments_minReadsPerFrag: 1                                           # [integer]   Min. number of reads required to reatin a UMI specific fragment.
