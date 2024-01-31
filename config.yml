@@ -1,5 +1,6 @@
 # AAVegneR configuration file.                                               
-# This file contains settings and parameters for AAVengeR's modules.               
+# This file contains settings and parameters for AAVengeR's modules.
+# Modules are chained together within the modules: list below.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~                     
 
 mode: integrase                                                                # [controlled vocab] (integrase, AAV, transposase, or manual) Software mode will set certain parameters to optimized values unless set to manual.
