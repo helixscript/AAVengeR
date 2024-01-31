@@ -1,0 +1,14 @@
+01.30.2024  4:16pm	Reading sample data.
+01.30.2024  4:16pm	Reading in demultiplexed reads.
+01.30.2024  4:16pm	Trimming anchor read over-reading.
+01.30.2024  4:16pm	Aligning ends of anchor reads to vector sequences.
+01.30.2024  4:16pm	No reads aligned to the vector.
+01.30.2024  4:16pm	0.00% unique reads removed because they aligned to the vector.
+01.30.2024  4:16pm	Using leader sequence HMM to define mappings.
+01.30.2024  4:16pm	Leader sequences determined for 100.00% of unqiue read pairs.
+01.30.2024  4:16pm	Removing indentified leader sequences from anchor reads.
+01.30.2024  4:16pm	0.00% of reads removed because they were less than 20 NTs after trimming.
+01.30.2024  4:16pm	Creating adrift read over-reading trim sequences.
+01.30.2024  4:16pm	Triming adrift read over-reading.
+01.30.2024  4:16pm	0.00% of reads removed because their trimmed lengths were less than 20 NTs.
+01.30.2024  4:16pm	prepReads completed.

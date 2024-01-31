@@ -47,7 +47,7 @@ if(n_distinct(reads$uniqueSample) == 1){
 } else if (n_distinct(reads$uniqueSample) == 4){
   opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs/4)
 } else {
-  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs * 0.08)
+  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs * 0.10)
 }
 
 # Define max percent CPUs allowed for a process.
@@ -183,7 +183,7 @@ if(nrow(u) == 1){
 } else if (nrow(u) == 4){
   opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs/4)
 } else {
-  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs * 0.08)
+  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs * 0.09)
 }
 
 opt$core_maxPercentCPUs <- floor((opt$core_maxCPUsPerProcess / opt$core_CPUs) * 100)
