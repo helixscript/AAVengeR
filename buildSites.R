@@ -207,6 +207,12 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
 s <- unique(paste0(sites$trial, '~', sites$subject, '~', sites$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
+# Set nRepsObs to NA for dual detections since these have values of 1 after 
+# moving dual detections to rep-0.
+
+sites[sites$flags == 'dual detect',]$nRepsObs <- NA
+
+# Save outputs.
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'), compress = opt$compressDataFiles)
 openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
 readr::write_tsv(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.tsv.gz'))
