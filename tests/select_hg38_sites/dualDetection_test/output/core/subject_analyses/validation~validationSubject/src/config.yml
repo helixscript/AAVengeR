@@ -4,7 +4,7 @@ databaseConfigGroup: none
 Rscript: /usr/bin/Rscript
 softwareDir: /home/ubuntu/AAVengeR
 outputDir: output/core/subject_analyses/validation~validationSubject
-core_CPUs: 96
+core_CPUs: 15
 demultiplex_anchorReadsFile: merged_syn_R2.fastq.gz
 demultiplex_adriftReadsFile: merged_syn_R1.fastq.gz
 demultiplex_index1ReadsFile: merged_syn_I1.fastq.gz
@@ -38,7 +38,7 @@ demultiplex_mergeSimilarReadPairsParams: -c 0.98 -d 0 -M 0 -G 1 -aS 0.98 -aL 0.9
 demultiplex_quickAlignFilter_minPercentID: 97
 demultiplex_quickAlignFilter_minMatches: 30
 demultiplex_quickAlignFilter_minEstLeaderSeqLength: 15
-buildStdFragments_CPUs: 96
+buildStdFragments_CPUs: 15
 buildStdFragments_inputFile: validation~validationSubject.CORE_TMP.rds
 buildStdFragments_outputDir: buildStdFragments
 buildStdFragments_remnantClusterParams: -c 0.85 -d 0 -M 0 -G 1 -aS 0.90 -aL 0.90 -s
@@ -55,15 +55,16 @@ buildStdFragments_breakPointStdWindowWidth: 3
 buildStdFragments_minReadsPerFrag: 1
 buildStdFragments_createMultiHitClusters: yes
 buildStdFragments_UMIminPercentReads: 15
-buildSites_CPUs: 96
+buildSites_CPUs: 15
 buildSites_inputFile: buildStdFragments/stdFragments.rds
 buildSites_outputDir: buildSites
 buildSites_enableDualDetection: yes
 buildSites_dualDetectWidth: 6
 buildSites_sumSonicBreaksWithin: samples
-core_maxCPUsPerProcess: 96
+core_maxCPUsPerProcess: 15
 core_maxPercentCPUs: 100.0
 core_createFauxSiteDoneFiles: yes
 modules:
 - buildStdFragments
 - buildSites
+softwareCaller: core

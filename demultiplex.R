@@ -4,54 +4,54 @@
 # This module demultiplexes paired-end reads based on barcode sequences found
 # in the sampleData configuration file pointed to by the AAVengeR configuration file.
 
-library(ShortRead)
-library(readr)
-library(parallel)
-library(lubridate)
-library(dplyr)
-library(data.table)
-library(dtplyr)
+suppressPackageStartupMessages(library(ShortRead))
+suppressPackageStartupMessages(library(readr))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(dtplyr))
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
-setOptimalParameters()
-set.seed(1)
 
-opt$defaultLogFile <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'log')
-
-if(! file.exists(opt$demultiplex_sampleDataFile)){
-  updateLog('Error - the sample configuration file could not be found.')
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
-
-# Create required directory structure.
-if(! dir.exists(file.path(opt$outputDir))) dir.create(file.path(opt$outputDir))
+createOuputDir()
 if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
 if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp')))  dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'))
 if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))
+
+# Start log.
+opt$defaultLogFile <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'log')
+logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
+write(logo, opt$defaultLogFile, append = FALSE)
+write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
+
+
+setOptimalParameters()
+set.seed(1)
+
+quitOnErorr <- function(msg){
+  updateLog(msg)
+  message(msg)
+  message(paste0('See log for more details: ', opt$defaultLogFile))
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+
+if(! file.exists(opt$demultiplex_sampleDataFile)) quitOnErorr('Error - the sample configuration file could not be found.')
+
 
 # Read in sample data.
 updateLog('Loading sample data.')
 samples <- loadSamples()
 
 # Throw errors if expected files are missing.
-if(! file.exists(opt$demultiplex_adriftReadsFile)){
-  updateLog('Error - the adrift reads file could not be found.')
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
-
-if(! file.exists(opt$demultiplex_anchorReadsFile)){
-  updateLog('Error - the index reads file could not be found.')
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
-
-if(! file.exists(opt$demultiplex_index1ReadsFile)){
-  updateLog('Error - the anchor reads file could not be found.')
-  q(save = 'no', status = 1, runLast = FALSE) 
-} 
-
+if(! file.exists(opt$demultiplex_adriftReadsFile)) quitOnErorr('Error - the adrift reads file could not be found.')
+if(! file.exists(opt$demultiplex_anchorReadsFile)) quitOnErorr('Error - the index reads file could not be found.')
+if(! file.exists(opt$demultiplex_index1ReadsFile)) quitOnErorr('Error - the anchor reads file could not be found.')
 
 # Read in the I1 fastq file which will be used to determine the length of the data set
 # and to determine if the reverse compliment of I1 should be used.
@@ -148,12 +148,12 @@ updateLog('Completed processing read batches.')
 
 updateLog('Colating data files.')
 
-counter <- 1
-totalRepSamples <- n_distinct(samples$uniqueSample)
+### counter <- 1
+### totalRepSamples <- n_distinct(samples$uniqueSample)
 
 reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
-  message(counter, '/', totalRepSamples)
-  counter <<- counter + 1
+  ### message(counter, '/', totalRepSamples)
+  ### counter <<- counter + 1
 
   f1 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.[^\\.]+\\.anchorReads'), full.names = TRUE)
   f2 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.[^\\.]+\\.adriftReads'), full.names = TRUE)
@@ -177,10 +177,9 @@ reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
              vectorFastaFile = r$vectorFastaFile, refGenome = r$refGenome, flags = r$flags)
 }))
 
-if(nrow(reads) == 0){
-  updateLog('Error - no reads were demultiplexed for any sample.')
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
+
+
+if(nrow(reads) == 0) quitOnErorr('Error - no reads were demultiplexed for any sample.')
 
 updateLog('Clearing tmp files.')
 
@@ -250,7 +249,7 @@ if(opt$demultiplex_level == 'all'){
   
   reads <- data.table(reads)
   o <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
-              library(data.table)
+              suppressPackageStartupMessages(library(data.table))
               rbindlist(lapply(split(x, paste(x$anchorReadSeq, x$adriftReadSeq)), function(x2){
                           if(nrow(x2) > 1 ) x2 <- x2[order(x2$readID)]
                           x2$duplicated <- TRUE

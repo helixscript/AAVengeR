@@ -53,7 +53,7 @@ processAdriftReadLinkerUMIs: FALSE                                             #
                                                                                #             removed from the analysis if the same UMI sequence is seen across samples. 
 core_keepIntermediateFiles: TRUE                                               # [boolean]   Keep intermediate data files during the analysis which may be helpful for debugging.
                                                                                #  
-demultiplex_CPUs: 15                                                            # [integer]   Number of CPUs to use for demultiplexing.
+demultiplex_CPUs: 5                                                            # [integer]   Number of CPUs to use for demultiplexing.
 demultiplex_outputDir: demultiplex                                             # [character] Demultiplexing ouput directory name that will be created in the output directory.
 demultiplex_seqRunID: none                                                     # [character] Sequencing run id. Not currently used. Set to none not known.
 demultiplex_RC_I1_barcodes: FALSE                                              # [boolean]   Use the reverse compliment of I1 barcode sequences found in [sampleConfigFile].
@@ -68,8 +68,8 @@ demultiplex_index1ReadMaxMismatch: 1                                           #
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1                              # [integer]   (evaluated if demultiplex_useAdriftReadUniqueLinkers = TRUE) Max. number of mismatches allowed in R1 unique linker sequences.
 demultiplex_anchorReadStartSeq.maxMisMatch: 1                                  # [integer]   (evaluated if anchorReadStartSeq column provided in sampleData file) Max. number of mismatches allowed in anchor read start sequences.
 demultiplex_exportFASTQ: FALSE                                                 # [bollean]   Export demultiplexed reads as FASTQ to the demultiplex output folder.
-demultiplex_mergeSimilarReadPairsParams: >-                                    # [string]    CD-HIT-EST parameters for clustering similiar read pairs.
-  -c 0.98 -d 0 -M 0 -G 1 -aS 0.98 -aL 0.98 -s 0.98 -n 10 -gap -1000
+                                                                               # [string]    CD-HIT-EST parameters for clustering similiar read pairs.
+demultiplex_mergeSimilarReadPairsParams: -c 0.98 -d 0 -M 0 -G 1 -aS 0.98 -aL 0.98 -s 0.98 -n 10 -gap -1000
 demultiplex_quickAlignFilter_minPercentID: 97                                  # [float]     Min. percent id for a match when running a quick bwa2 alignment to filter reads prior to blat.
 demultiplex_quickAlignFilter_minMatches: 30                                    # [float]     Min. number of matched NTs required to accept a quick alignment.
 demultiplex_quickAlignFilter_minEstLeaderSeqLength: 15                         # [integer]   Reads are aligned without removing leader sequences (LTR/ITR). 
@@ -80,7 +80,7 @@ demultiplex_quickAlignFilter_minEstLeaderSeqLength: 15                         #
                                                                                # (@) path relative to output directory
                                                                                # (^) evaluated if leaderSeqHMM is a column in the sampleDetails file
                                                                                #
-prepReads_CPUs: 15                                                             # [integer]   Number of CPUs to use when preparing reads for alignment to a reference genome.
+prepReads_CPUs: 5                                                             # [integer]   Number of CPUs to use when preparing reads for alignment to a reference genome.
 prepReads_outputDir: prepReads                                                 # [character] prepReads ouput directory name that will be created in the output directory.
 prepReads_readsTable:  demultiplex/reads.rds                                   # [file path] (@) Path to input reads data object created by demultiplex.R.
 prepReads_excludeAnchorReadVectorHits: TRUE                                    # [boolean]   Exclude anchor reads whoes ends align strongly to the vector sequence.
@@ -106,7 +106,7 @@ prepReads_limitLeaderSeqsWithQuickAlignFilter: TRUE                            #
 prepReads_additionalAnchorReadOverReadingSeqs: none                            # [string]    Comma delimited string of additional anchor read over-read trimming sequences to be passed to cutAdapt.
 prepReads_cutAdaptErrorRate: 0.15                                              # [float]     CutAdapt error rate per the cutAdapt manual.
                                                                                #
-alignReads_CPUs: 15                                                             # [integer]   Number of CPUs to use when aligning reads to a reference genome.
+alignReads_CPUs: 5                                                             # [integer]   Number of CPUs to use when aligning reads to a reference genome.
 alignReads_outputDir: alignReads                                               # [character] alignReads ouput directory name that will be created in the output directory.
 alignReads_inputFile: prepReads/reads.rds                                      # [file path] (@) Path to input reads RDS file.
 alignReads_blat_fastMap: FALSE                                                 # [boolean]   enable BLAT's fastMap option. 
@@ -122,7 +122,7 @@ alignReads_genomeAlignment_adriftReadEnd_maxUnaligned: 5                       #
                                                                                #             This value should be generous for AAV analysis, eg. 10, since ITR remnants can not always be fully modeled
                                                                                #             and trimmed before aligning to genomes. Unlaligned NTs may arise from over-reading into poorly ITR remnants.
                                                                                #
-buildFragments_CPUs: 15                                                         # [integer]   Number of CPUs to use when generating initial fragments.
+buildFragments_CPUs: 5                                                         # [integer]   Number of CPUs to use when generating initial fragments.
 buildFragments_outputDir: buildFragments                                       # [character] buildFragments ouput directory name that will be created in the output directory.
 buildFragments_duplicateReadFile: prepReads/duplicateReads.rds                 # [file path] (@)(optional) Path to input duplicate reads RDS file. Typically created by prepReads module.
 buildFragments_anchorReadsAlignmentFile: alignReads/anchorReadAlignments.rds   # [file path] (@)Path to anchor reads alignment data RDS file.
@@ -136,11 +136,11 @@ buildFragments_randomLinkerID_minReadCountToSegreagate: 10                     #
 buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90               # [integer]   When testing random linker ids for sample crossover, a single sample must have this majority percentage for a correction to occur.
 
                                                                                # (!) other modudules need to be completed first.
-buildStdFragments_CPUs: 15                                                      # [integer]   Number of CPUs to use when generating standardized fragments.
+buildStdFragments_CPUs: 5                                                      # [integer]   Number of CPUs to use when generating standardized fragments.
 buildStdFragments_inputFile: buildFragments/fragments.rds                      # [file path] (@) Path to initial fragment RDS file (ouput of buildFragments module).
 buildStdFragments_outputDir: buildStdFragments                                 # [file path] (@) buildStdFragments output directory.
-buildStdFragments_remnantClusterParams: >-                                     # [string]    CD-HIT-EST parameters for clustering leader sequences.
-  -c 0.85 -d 0 -M 0 -G 1 -aS 0.90 -aL 0.90 -s 0.90 -n 4                        #
+                                                                               # [string]    CD-HIT-EST parameters for clustering leader sequences.
+buildStdFragments_remnantClusterParams: -c 0.85 -d 0 -M 0 -G 1 -aS 0.90 -aL 0.90 -s 0.90 -n 4
 buildStdFragments_autoPullTrialSamples: FALSE                                  # [boolean]   Automatically pull additional trial samples from the database to co-standardize with data found in buildStdFragments_inputFile.
 buildStdFragments_trialSubjectList: none                                       # [string]    Rather than parsing [buildStdFragments_inputFile], pull data directly from the AAVengeR database. Format:  trial;subject|trial;subject, eg. 'Sabatino;pM50|Sabatino;pLinus'
 buildStdFragments_randomIDdupReadMult: 3                                       # [integer]   When evaluating UMI sequences, if the most common position id associated with anUMI is x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
@@ -154,19 +154,19 @@ buildStdFragments_minReadsPerFrag: 1                                           #
 buildStdFragments_createMultiHitClusters: TRUE                                 # [boolean]   Create networks of sites for reads that align well to multiple locations in a reference genome.
 buildStdFragments_UMIminPercentReads: 15                                       # [float]     Min. percentage of reads needed to support an UMI sequence when reporting fUMIs.
                                                                                #
-buildSites_CPUs: 15                                                             # [integer]   Max. number of CPUs buildSites module is allowed to use.
+buildSites_CPUs: 5                                                             # [integer]   Max. number of CPUs buildSites module is allowed to use.
 buildSites_inputFile: buildStdFragments/stdFragments.rds                       # [file path] (@) File path to the buildSites input file created by buildStdFragments.
 buildSites_outputDir: buildSites                                               # [file path] (@) buildSites output folder.
 buildSites_enableDualDetection: TRUE                                           # [boolean]    When two sites, with opposite orientations, are indentified [buildSites_dualDetectWidth] NTs appart, merge them into a dual detection site.
 buildSites_dualDetectWidth: 6                                                  # [integer]    Max. numbers of NTs two sites with opposite orientaions can be apart to call them a dual deteciton.
 buildSites_sumSonicBreaksWithin: samples                                       # [controlled vocab] (samples, replicates, or subjects) Level in sonic breaks are summed.
                                                                                #
-annotateRepeats_CPUs: 15                                                       # [integer]   Max. number of CPUs annotateRepeats modules is allowed to use.
+annotateRepeats_CPUs: 5                                                       # [integer]   Max. number of CPUs annotateRepeats modules is allowed to use.
 annotateRepeats_inputFile: callNearestGenes/sites.rds                          # [file path] (@) File path to input file creatd by any module buildSites or any module following buildSites.
 annotateRepeats_outputDir: annotateRepeats                                     # [file path] (@) annotateRepeats output folder.
 annotateRepeats_addAfter: nRepsObs                                             # [string]     Name of column in the input table after which new columns should be added.
                                                                                #
-callNearestGenes_CPUs: 15                                                      # [integer]   Max. number of CPUs callNearestGenes modules is allowed to use.
+callNearestGenes_CPUs: 5                                                      # [integer]   Max. number of CPUs callNearestGenes modules is allowed to use.
 callNearestGenes_inputFile: buildSites/sites.rds                                     # [file path] (@) File path to input file creatd by any module buildSites or any module following buildSites.
 callNearestGenes_outputDir: callNearestGenes                                   # [file path] (@) callNearestGenes output folder.
 callNearestGenes_addAfter: nRepsObs                                            # [string]    Name of column in the input table after which new columns should be added.

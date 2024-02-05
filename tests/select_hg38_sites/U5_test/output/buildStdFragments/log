@@ -1,14 +1,13 @@
-01.31.2024  4:20am	Reading in fragment file(s).
-01.31.2024  4:20am	Categorizing leader sequences.
-01.31.2024  4:21am	Standardizing integration positions within subjects.
-01.31.2024  4:21am	59.41% integration positions shifted for 887 fragments.
-01.31.2024  4:21am	Standardizing break positions.
-01.31.2024  4:21am	Standardizing break positions within samples.
-01.31.2024  4:21am	69.91% break points shifted for 432 fragments.
-01.31.2024  4:21am	Updating positions and fragment ids.
-01.31.2024  4:21am	Idenitfying uniquely called postions.
-01.31.2024  4:21am	Resolving multi-hit reads.
-01.31.2024  4:21am	Reevaluating leader sequence classification after standardization.
-01.31.2024  4:21am	Building mulit-hit networks.
-01.31.2024  4:21am	Bundling fragment reads into fragment records.
-01.31.2024  4:21am	buildStdFragments completed.
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 2.00
+
+02.05.2024  5:39pm	Reading in fragment file(s).
+02.05.2024  5:39pm	Categorizing leader sequences.

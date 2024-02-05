@@ -1,18 +1,32 @@
-library(dplyr)
-library(lubridate)
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(lubridate))
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
-setMissingOptions()
-setOptimalParameters()
 
+createOuputDir()
 dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 dir.create(file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp'))
 
+# Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$buildSites_outputDir, 'log')
+logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
+write(logo, opt$defaultLogFile, append = FALSE)
+write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
+
+quitOnErorr <- function(msg){
+  if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
+  updateLog(msg)
+  message(msg)
+  message(paste0('See log for more details: ', opt$defaultLogFile))
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+setMissingOptions()
+setOptimalParameters()
 
 # Read in Standardized fragments.
 updateLog('Reading standardized fragment data.')
@@ -35,7 +49,8 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
   if(opt$buildSites_enableDualDetection){
     updateLog('Processing dual detections.')
     
-    processed_fragments <- tibble()
+    processed_fragments <- frags[1,]
+    processed_fragments[1,] <- NA
   
     # Dual detection - look for samples with both u3 and u5 entries.
     invisible(lapply(split(samples, paste(samples$trial, samples$subject, samples$sample)), function(x){
@@ -207,30 +222,30 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
 s <- unique(paste0(sites$trial, '~', sites$subject, '~', sites$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
+# Set nRepsObs to NA for dual detections since these have values of 1 after 
+# moving dual detections to rep-0.
+
+sites[sites$flags == 'dual detect',]$nRepsObs <- NA
+
+# Save outputs.
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'), compress = opt$compressDataFiles)
 openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
 readr::write_tsv(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.tsv.gz'))
 write(date(), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.done'))
 
 if(opt$databaseConfigGroup != 'none'){
-  library(RMariaDB)
+  suppressPackageStartupMessages(library(RMariaDB))
   
   updateLog('Writing fragment data to the database.')
   
   if(! file.exists('~/.my.cnf')) file.copy(opt$databaseConfigFile, '~/.my.cnf')
-  if(! file.exists('~/.my.cnf')){
-    updateLog('Error - can not find ~/.my.cnf file.')
-    if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
-    q(save = 'no', status = 1, runLast = FALSE) 
-  }
+  if(! file.exists('~/.my.cnf')) quitOnErorr('Error - can not find ~/.my.cnf file.')
   
   conn <- tryCatch({
     dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
   },
   error=function(cond) {
-    updateLog('Error - could not connect to the database.')
-    if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
-    q(save = 'no', status = 1, runLast = FALSE) 
+    quitOnErorr('Error - could not connect to the database.')
   })
   
   invisible(lapply(split(sites, paste(sites$trial, sites$subject, sites$sample, sites$refGenome)), function(x){
@@ -253,9 +268,7 @@ if(opt$databaseConfigGroup != 'none'){
                    params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], as.character(lubridate::today()),
                                  list(serialize(tab, NULL))))
     if(r == 0){
-      updateLog(paset0('Error -- could not upload site data for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
-      if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
-      q(save = 'no', status = 1, runLast = FALSE)
+      quitOnErorr(paset0('Error -- could not upload site data for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
     } else {
       updateLog(paste0('Uploaded fragment data for ',  x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
     }

@@ -30,14 +30,15 @@ demultiplex_requirePostUmiLinker: TRUE
 demultiplex_requirePostUmiLinker_maxMismatch: 2
 
 modules:
-    - demultiplex
-    - prepReads
-    - alignReads
-    - buildFragments
-    - buildStdFragments
-    - buildSites
-    - callNearestGenes
-    - annotateRepeats
+    - core
+#    - demultiplex
+#    - prepReads
+#    - alignReads
+#    - buildFragments
+#    - buildStdFragments
+#    - buildSites
+#    - callNearestGenes
+#    - annotateRepeats
 
 # Additional parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~

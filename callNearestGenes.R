@@ -1,15 +1,20 @@
-library(dplyr)
-library(lubridate)
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(lubridate))
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+
 opt <- yaml::read_yaml(configFile)
-
-opt$defaultLogFile <- file.path(opt$outputDir, opt$callNearestGenes_outputDir, 'log')
-
 source(file.path(opt$softwareDir, 'lib.R'))
 
+createOuputDir()
 dir.create(file.path(opt$outputDir, opt$callNearestGenes_outputDir))
+
+# Start log.
+opt$defaultLogFile <- file.path(opt$outputDir, opt$callNearestGenes_outputDir, 'log')
+logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
+write(logo, opt$defaultLogFile, append = FALSE)
+write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
 
 updateLog('Starting callNearestGenes.')
 

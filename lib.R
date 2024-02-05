@@ -6,6 +6,19 @@ updateLog <- function(msg, logFile = NULL){
 
 ppNum <- function(n) format(n, big.mark = ",", scientific = FALSE, trim = TRUE)
 
+createOuputDir <- function(){
+  if(! dir.exists(opt$outputDir)){
+    invisible(sapply(readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt')), message))
+    
+    dir.create(file.path(opt$outputDir))
+    
+    if(! dir.exists(opt$outputDir)){
+      message('Error: Can not create the output directory.')
+      q(save = 'no', status = 1, runLast = FALSE)
+    }
+  }
+}
+
 setOptimalParameters <- function(){
   if(grepl('integrase', opt$mode, ignore.case = TRUE)){
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
@@ -79,7 +92,7 @@ core_createFauxSiteDoneFiles <- function(){
 # Check the system path for the presence of required system level software.
 
 checkSoftware <- function(){
-  s <- c('blat', 'cutadapt', 'hmmbuild', 'hmmsearch', 'blastn', 'makeblastdb', 'muscle', 'python2', 'cd-hit-est')
+  s <- c('blat', 'cutadapt', 'hmmbuild', 'hmmsearch', 'blastn', 'makeblastdb', 'python2', 'cd-hit-est')
   
   o <- bind_rows(lapply(s, function(x){
          r <- tryCatch({
@@ -96,11 +109,11 @@ checkSoftware <- function(){
   
         o$program <- paste0('                       ', o$program)
         
-        write(paste0(now(),         '    Paths of expected software packages:'), file = file.path(opt$outputDir, 'log'), append = TRUE)
-        readr::write_tsv(o, file = file.path(opt$outputDir, 'log'), append = TRUE, col_names = FALSE)
+        write(paste0('Paths of expected software packages:'), file = file.path(opt$outputDir, 'log'), append = TRUE)
+        write(pandoc.table.return(o, style = "simple", split.tables = Inf, plain.ascii = TRUE, justify = 'left'), file.path(opt$outputDir, 'log'), append = TRUE)
   
        if(any(is.na(o$path))){
-         write(c(paste(lubridate::now(), 'Error - one or more of the expected softwares are not in your search path.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+         write(c(paste('Error - one or more of the expected softwares are not in your search path.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
          q(save = 'no', status = 1, runLast = FALSE) 
        } 
 }
@@ -113,8 +126,11 @@ CD_HIT_clusters <- function(x, dir, params){
   
   comm <- paste0("cd-hit-est -i ", file.path(dir, paste0(f, '.fasta')), 
                 " -o ", file.path(dir, f), " -T ", opt$buildStdFragments_CPUs, 
-                " ", params, ' 1> /dev/null')
-  system(comm)
+                "  ", params, ' 1> /dev/null')
+  
+  m <- system(comm)
+  
+  if(m != 0) quitOnErorr(paste0('cd-hit-est failed in run dir: ', dir))
   
   r <- paste0(readLines(paste0(file.path(dir, f), '.clstr')), collapse = '')
   invisible(file.remove(list.files(dir, pattern = f, full.names = TRUE)))
@@ -268,12 +284,11 @@ blat <- function(y, ref, dir){
   }
   
   system(paste0('blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
-  #system(paste0('/home/ubuntu/software/blat_37x1/blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
                 ' -tileSize=', opt$alignReads_genomeAlignment_blatTileSize, 
                 ' -stepSize=', opt$alignReads_genomeAlignment_blatStepSize, 
                 ' -repMatch=', opt$alignReads_genomeAlignment_blatRepMatch, 
                 ' -out=psl -t=dna -q=dna -minScore=0 -minIdentity=0 -noHead -noTrimA',
-                occFlag, ifelse(opt$alignReads_blat_fastMap, ' -fastMap', '')))
+                occFlag, ifelse(opt$alignReads_blat_fastMap, ' -fastMap', '')), ignore.stdout = TRUE, ignore.stderr = TRUE)
   
   write('done', paste0(f, '.done'))
 }
@@ -527,10 +542,10 @@ golayCorrection <- function(x, tmpDirPath = NA){
   writeFasta(x, file = f)
   
   system(paste('python2', file.path(opt$softwareDir, 'bin', 'golayCorrection', 'processGolay.py'), f))
-  file.remove(f)
+  invisible(file.remove(f))
   
   corrected <- readFasta(paste0(f, '.corrected'))
-  file.remove(paste0(f, '.corrected'))
+  invisible(file.remove(paste0(f, '.corrected')))
   
   a <- left_join(tibble(id = names(x), seq = as.character(x)),
                  tibble(id = as.character(corrected@id), seq2 = as.character(sread(corrected))), by = 'id')
@@ -742,7 +757,7 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
   reads2 <- reads[names(reads) %in% o$targetName]
   
   rm(reads)
-  gc()
+  suppressMessages(gc())
   
   # Arrange reads to match o data frame.
   reads2 <- reads2[match(o$targetName, names(reads2))]

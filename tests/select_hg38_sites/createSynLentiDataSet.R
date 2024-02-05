@@ -8,10 +8,10 @@ library(parallel)
 # Selecting either U3 or U5 will change the output labeling, LTR bit, 
 # and HMM in resulting sampleData file.
 
-direction <- 'U3' # Select U3 or U5
+direction <- 'U5' # Select U3 or U5
 
 # Data paths.
-dbPath    <- '../../../data/referenceGenomes/blat/hg38.2bit'
+dbPath    <- '../../../data/referenceGenomes/blat/GCA_009914755.4.2bit'
 outputDir <- './'
 
 
@@ -101,15 +101,15 @@ r <- bind_rows(lapply(split(r, paste(r$target, r$fragID)), function(x){
 
 # Extract genomic sequences and build read sequences.
 r <- bind_rows(parLapply(cluster, split(r, ntile(1:nrow(r), nCPUs)), function(k){
-#r <- bind_rows(lapply(split(r, ntile(1:nrow(r), nCPUs)), function(k){
        library(dplyr)
        library(Biostrings)
   
        bind_rows(lapply(split(k, 1:nrow(k)), function(x){
          
-         if((x$readStartPos + readWidth) > width(g[names(g) == x$chromosome]) |
-            x$readEndPos > width(g[names(g) == x$chromosome])) return(tibble())
+         # Error check.
+         if((x$readStartPos + readWidth) > width(g[names(g) == x$chromosome]) |  x$readEndPos > width(g[names(g) == x$chromosome])) return(tibble())
          
+         # Retrieve gDNA blocks from the left and right of the position 
          a <- subseq(g[names(g) == x$chromosome], x$readStartPos, x$readStartPos + readWidth)
          b <- subseq(g[names(g) == x$chromosome], x$readEndPos - readWidth, x$readEndPos)
   
@@ -124,6 +124,9 @@ r <- bind_rows(parLapply(cluster, split(r, ntile(1:nrow(r), nCPUs)), function(k)
          x
        }))
     }))
+
+
+
 
 # Split the reads across replicates while not breaking fragments across replicates.
 o <- split(r, r$fragID)

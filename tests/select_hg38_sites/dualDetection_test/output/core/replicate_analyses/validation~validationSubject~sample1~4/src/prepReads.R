@@ -5,13 +5,13 @@
 # read pairs, trimming adapter sequences, removing reads with high sequence homology to 
 # the vector and selecting anchor reads with the expected leader sequences. 
 
-library(ShortRead)
-library(dplyr)
-library(parallel)
-library(lubridate)
-library(Biostrings)
-library(data.table)
-library(dtplyr)
+suppressPackageStartupMessages(library(ShortRead))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(Biostrings))
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(dtplyr))
 options(stringsAsFactors = FALSE)
 
 # Read the configuration file and set additional parameters.
@@ -20,18 +20,30 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
-setMissingOptions()
-setOptimalParameters()
-set.seed(1)
 
-opt$defaultLogFile <- file.path(opt$outputDir, opt$prepReads_outputDir, 'log')
-
-# Create required directory structure.
-if(! dir.exists(file.path(opt$outputDir))) dir.create(file.path(opt$outputDir))
+createOuputDir()
 if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir))) dir.create(file.path(opt$outputDir, opt$prepReads_outputDir))
 if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))) dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))
 if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'))
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'), full.names = TRUE)))
+
+setMissingOptions()
+setOptimalParameters()
+set.seed(1)
+
+
+# Start log.
+opt$defaultLogFile <- file.path(opt$outputDir, opt$prepReads_outputDir, 'log')
+logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
+write(logo, opt$defaultLogFile, append = FALSE)
+
+quitOnErorr <- function(msg){
+  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
+  updateLog(msg)
+  message(msg)
+  message(paste0('See log for more details: ', opt$defaultLogFile))
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
 
 updateLog('Reading sample data.')
 samples <- loadSamples()
@@ -46,10 +58,14 @@ cluster <- makeCluster(opt$prepReads_CPUs)
 clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, 'opt')
 
+if(! file.exists(file.path(opt$outputDir, opt$prepReads_readsTable))) quitOnErorr('Error - the input data file does not exist.')
 
 # Read in the reads table.
 updateLog('Reading in demultiplexed reads.')
 reads <- readRDS(file.path(opt$outputDir, opt$prepReads_readsTable))
+
+if(nrow(reads) == 0) quitOnErorr('Error - the input table contained no rows.')
+
 incomingSamples <- unique(reads$uniqueSample)
 
 
@@ -59,11 +75,10 @@ incomingSamples <- unique(reads$uniqueSample)
 updateLog('Trimming anchor read over-reading.')
 
 reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nrow(reads), opt$prepReads_CPUs)), function(x){
-#reads <- data.table::rbindlist(lapply(split(reads, dplyr::ntile(1:nrow(reads), opt$prepReads_CPUs)), function(x){
            source(file.path(opt$softwareDir, 'lib.R'))
-           library(dplyr)
-           library(data.table)
-           library(Biostrings)
+           suppressPackageStartupMessages(library(dplyr))
+           suppressPackageStartupMessages(library(data.table))
+           suppressPackageStartupMessages(library(Biostrings))
   
            # Split reads in this CPU chunk by their adapter sequences.
            data.table::rbindlist(lapply(split(x, x$adriftReadTrimSeq), function(y){
@@ -74,7 +89,6 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
              names(o) <- y$readID
              Biostrings::writeXStringSet(o, f)
          
-            # browser()
              # Use cut adapt to trim anchor read over-reading.
              system(paste0('cutadapt -e ', opt$prepReads_cutAdaptErrorRate, ' -a ', y$adriftReadTrimSeq[1], ' ', opt$prepReads_additionalAnchorReadOverReadingSeqs, ' ', f, ' > ', paste0(f, '.cutAdapt')), ignore.stderr = TRUE)
          
@@ -101,13 +115,7 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
 
 stopCluster(cluster)
 
-if(nrow(reads) == 0){
-  updateLog('Error - no reads remaining after trimming.')
-  
-  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
-
+if(nrow(reads) == 0) quitOnErorr('Error - no reads remaining after trimming.')
 
 # Rename the trimmed reads back to their proper column names.
 reads$anchorReadSeq <- NULL
@@ -152,7 +160,8 @@ if(opt$prepReads_excludeAnchorReadVectorHits | opt$prepReads_excludeAdriftReadVe
             write(seq, file = file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp', f))
             
             system(paste0('makeblastdb -in ', file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp', f), 
-                          ' -dbtype nucl -out ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
+                          ' -dbtype nucl -out ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd')), ignore.stderr = TRUE, ignore.stdout = TRUE)
+            
             waitForFile(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd.nin'))
             
             invisible(file.remove(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp', f)))
@@ -208,6 +217,8 @@ if(nrow(vectorHits) > 0){
   updateLog('No reads aligned to the vector.')
 }  
 
+if(nrow(reads) == 0) quitOnErorr('Error - no reads remain after filtering for reads aligning to the vector.')
+  
 nReadsPostFilter <- n_distinct(reads$readID)
 
 updateLog(paste0(sprintf("%.2f%%", 100 - (nReadsPostFilter/nReadsPreFilter)*100), ' unique reads removed because they aligned to the vector.'))
@@ -226,17 +237,17 @@ if(! 'leaderSeqHMM' %in% names(reads)){
     
       # No masking here here
       
-      system(paste0('makeblastdb -in ', x$vectorFastaFile[1], ' -dbtype nucl -out ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
+      system(paste0('makeblastdb -in ', x$vectorFastaFile[1], ' -dbtype nucl -out ', file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd')), ignore.stderr = TRUE, ignore.stdout = TRUE)
+      
       waitForFile(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs', 'd.nin'))
     
       x$i <- group_by(x, anchorReadSeq) %>% group_indices() 
       x2 <- x[! duplicated(x$i),] 
       
       r <- bind_rows(parLapply(cluster,split(x2, ntile(1:nrow(x2), opt$prepReads_CPUs)), function(y){
-      #r <- bind_rows(lapply(split(x2, ntile(1:nrow(x2), opt$prepReads_CPUs)), function(y){
-             library(Biostrings)
-             library(data.table)
-             library(dplyr)
+             suppressPackageStartupMessages(library(Biostrings))
+             suppressPackageStartupMessages(library(data.table))
+             suppressPackageStartupMessages(library(dplyr))
         
              s <- DNAStringSet(y$anchorReadSeq)
              names(s) <- y$readID
@@ -264,12 +275,7 @@ if(! 'leaderSeqHMM' %in% names(reads)){
       }
     }))
     
-    if(nrow(vectorHits2) == 0){
-      updateLog('Error - reads aligned to the vector for leader seq generation.')
-      
-      if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-      q(save = 'no', status = 1, runLast = FALSE) 
-    }
+    if(nrow(vectorHits2) == 0) quitOnErorr('Error - no reads aligned to the vector for leader seq generation.')
     
     updateLog('Creating read maps from local alignments to the vector file.')
     
@@ -311,9 +317,8 @@ if(! 'leaderSeqHMM' %in% names(reads)){
   clusterExport(cluster, c('opt'))
   
   hmmResults <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
-  #hmmResults <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
-    library(Biostrings)
-    library(dplyr)
+    suppressPackageStartupMessages(library(Biostrings))
+    suppressPackageStartupMessages(library(dplyr))
     source(file.path(opt$softwareDir, 'lib.R'))
     
     seqs <- DNAStringSet(x$anchorReadSeq)
@@ -326,10 +331,7 @@ if(! 'leaderSeqHMM' %in% names(reads)){
   if(nrow(hmmResults) > 0){
     m <- tibble(id = hmmResults$id, leaderMapping.qStart = 1, leaderMapping.qEnd = nchar(hmmResults$LTRseq), leaderSeqMap = NA)
   } else {
-    updateLog('Error - no reads matched the HMMs.')
-    
-    if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-    q(save = 'no', status = 1, runLast = FALSE) 
+    quitOnErorr('Error - no reads matched the HMMs.')
   }
 }
 
@@ -357,14 +359,7 @@ if('anchorReadStartSeq' %in% names(reads)){
 
 reads <- subset(reads, readID %in% m$id)
 
-
-if(nrow(reads) == 0){
-  updateLog('Error - no reads remaining after trimming.')
-  
-  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
-
+if(nrow(reads) == 0) quitOnErorr('Error - no reads remaining after filtering for leader sequence hits.')
 
 reads <- left_join(reads, dplyr::select(m, id, leaderMapping.qStart, leaderMapping.qEnd), by = c('readID' = 'id'))
 reads$leaderSeq = substr(reads$anchorReadSeq, 1, reads$leaderMapping.qEnd)
@@ -380,12 +375,7 @@ reads <- dplyr::rename(reads, anchorReadSeq = anchorReadSeq2)
 nReadsPreFilter <- n_distinct(reads$readID)
 reads <- dplyr::filter(reads, nchar(anchorReadSeq) >= opt$prepReads_minAnchorReadLength)
 
-if(nrow(reads) == 0){
-  updateLog('Error - no reads remaining after trimming.')
-  
-   if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
+if(nrow(reads) == 0) quitOnErorr('Error - no reads remaining after trimming for min anchor read length.')
 
 nReadsPostFilter <- n_distinct(reads$readID)
 
@@ -411,9 +401,9 @@ nReadsPreFilter <- n_distinct(reads$readID)
 # Trim adrift reads with adapter sequences determined by the RC of their anchor read leader sequences.
 reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nrow(reads), opt$prepReads_CPUs)), function(x){
   source(file.path(opt$softwareDir, 'lib.R'))
-  library(dplyr)
-  library(data.table)
-  library(Biostrings)
+  suppressPackageStartupMessages(library(dplyr))
+  suppressPackageStartupMessages(library(data.table))
+  suppressPackageStartupMessages(library(Biostrings))
   
   data.table::rbindlist(lapply(split(x, x$adriftReadTrimSeq), function(y){
     f <- file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp',  tmpFile())
@@ -441,14 +431,7 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
   }))
 }))
 
-
-
-if(nrow(reads) == 0){
-  updateLog('Error - no reads remaining after trimming.')
-  
-  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
+if(nrow(reads) == 0) quitOnErorr('Error - no reads remaining after adrift read over-reading trimming.')
 
 updateLog(paste0(sprintf("%.2f%%", (1-n_distinct(reads$readID)/nReadsPreFilter)*100), 
                  ' of reads removed because their trimmed lengths were less than ', opt$prepReads_minAdriftReadLength, ' NTs.'))
@@ -488,8 +471,7 @@ if(! opt$processAdriftReadLinkerUMIs){
   reads <- left_join(reads, tab, by = 'adriftReadRandomID')
   reads <- arrange(reads, desc(n))
   
-  # UMIs read three or more times are considered abundant and are used as 
-  # truth for correcting less read UMIs.
+  # UMIs read three or more times are considered abundant and are used as truth for correcting less read UMIs.
   
   a <- reads[reads$n >= 3,]
   u <- unique(a$adriftReadRandomID)
@@ -499,34 +481,34 @@ if(! opt$processAdriftReadLinkerUMIs){
   b <- data.table(b)
   
   b <- rbindlist(parLapply(cluster, split(b, ntile(1:nrow(b), opt$demultiplex_CPUs)), function(k){
-    library(dplyr)
-    library(data.table)
-    library(stringdist)
+         suppressPackageStartupMessages(library(dplyr))
+         suppressPackageStartupMessages(library(data.table))
+         suppressPackageStartupMessages(library(stringdist))
     
-    t <- n_distinct(k$adriftReadRandomID)
-    n <- 1
-    f <- paste0('UMI_correction_log_', paste0(paste0(stringi::stri_rand_strings(8, 1, '[A-Za-z0-9_\\-\\!\\%]'), collapse = '')))
+         t <- n_distinct(k$adriftReadRandomID)
+         n <- 1
+         f <- paste0('UMI_correction_log_', paste0(paste0(stringi::stri_rand_strings(8, 1, '[A-Za-z0-9_\\-\\!\\%]'), collapse = '')))
     
-    logFile <- file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp', f)
+         logFile <- file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp', f)
     
-    rbindlist(lapply(split(k, k$adriftReadRandomID), function(x){
-      if(n %% 100 == 0) write(sprintf("%.2f%%", (n/t)*100), file = logFile)
-      n <<- n + 1
+         rbindlist(lapply(split(k, k$adriftReadRandomID), function(x){
+           if(n %% 100 == 0) write(sprintf("%.2f%%", (n/t)*100), file = logFile)
+           n <<- n + 1
       
-      d <- stringdist(x$adriftReadRandomID[1], u, nthread = 1)
+           d <- stringdist(x$adriftReadRandomID[1], u, nthread = 1)
       
-      if(any(which(d == 1))){
-        o <- u[which(d == 1)]
+           if(any(which(d == 1))){
+             o <- u[which(d == 1)]
         
-        if(length(o) == 1){
-          x$adriftReadRandomID <- o
-        } else {
-          # If an UMI is 1 away from two or more unique UMIs then we let it go.
-          x$adriftReadRandomID <- 'x'
-        }
-      }
-      x
-    }))
+             if(length(o) == 1){
+               x$adriftReadRandomID <- o
+             } else {
+               # If an UMI is 1 away from two or more unique UMIs then we let it go.
+              x$adriftReadRandomID <- 'x'
+             }
+          }
+          x
+         }))
   }))
   
   b <- b[b$adriftReadRandomID != 'x']

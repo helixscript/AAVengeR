@@ -1,5 +1,16 @@
-01.31.2024  4:21am	Reading standardized fragment data.
-01.31.2024  4:21am	Processing IN_u3 / IN_u5 flags.
-01.31.2024  4:21am	Processing dual detections.
-01.31.2024  4:21am	Building replicate level integration sites.
-01.31.2024  4:21am	buildSites completed.
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 2.00
+
+02.05.2024  5:32pm	Reading standardized fragment data.
+02.05.2024  5:32pm	Processing IN_u3 / IN_u5 flags.
+02.05.2024  5:32pm	Processing dual detections.
+02.05.2024  5:32pm	Building replicate level integration sites.
+02.05.2024  5:32pm	buildSites completed.

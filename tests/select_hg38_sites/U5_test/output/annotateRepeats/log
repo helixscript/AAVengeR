@@ -1,0 +1,15 @@
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 2.00
+
+02.05.2024  5:33pm	Starting annotateRepeats.
+02.05.2024  5:33pm	Loading annotation table: /home/ubuntu/AAVengeR/data/genomeAnnotations/hg38.repeatTable.gz
+02.05.2024  5:34pm	Updating multi-hit clusters found at: output/buildStdFragments/multiHitClusters.rds
+02.05.2024  5:34pm	annotateRepeats completed.

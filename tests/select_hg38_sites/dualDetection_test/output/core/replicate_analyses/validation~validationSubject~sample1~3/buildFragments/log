@@ -1,7 +1,16 @@
-01.30.2024  4:22pm	Reading in anchor and adrift read alignments.
-01.30.2024  4:22pm	Preparing alignment data for fragment generation.
-01.30.2024  4:22pm	Building initial fragments.
-01.30.2024  4:22pm	Building rational fragments from alignment data.
-01.30.2024  4:22pm	1/1: 128 anchorRead alignments, 128 adriftRead_alignments.
-01.30.2024  4:22pm	Fragment generation complete.
-01.30.2024  4:22pm	buildFragments completed.
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+02.05.2024  5:42am	Reading in anchor and adrift read alignments.
+02.05.2024  5:42am	Preparing alignment data for fragment generation.
+02.05.2024  5:42am	Building initial fragments.
+02.05.2024  5:42am	Building rational fragments from alignment data.
+02.05.2024  5:42am	1/1: 128 anchorRead alignments, 128 adriftRead_alignments.
+02.05.2024  5:42am	Fragment generation complete.
+02.05.2024  5:42am	buildFragments completed.

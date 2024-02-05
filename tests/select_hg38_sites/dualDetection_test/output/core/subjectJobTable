@@ -1,9 +1,9 @@
-Tue Jan 30 16:28:35 2024
-Available CPUs: 96
+Mon Feb  5 05:58:12 2024
+Available CPUs: 15
 
 
               id                reads   CPUs   active       startTime             endTime         done   duration  
 ------------------------------ ------- ------ -------- -------------------- -------------------- ------ -----------
- validation~validationSubject   1278     96      NA     01.30.2024  4:27pm   01.30.2024  4:28pm   TRUE   0 minutes 
+ validation~validationSubject   1278     15      NA     02.05.2024  5:57am   02.05.2024  5:58am   TRUE   0 minutes 
 
 

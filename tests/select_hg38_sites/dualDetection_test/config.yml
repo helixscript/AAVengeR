@@ -15,7 +15,7 @@ softwareDir: /home/ubuntu/AAVengeR                                             #
 
 outputDir: output                                                           # [file path] Output directory path.
 
-core_CPUs: 96                                                                   # [integer] Number of CPUs the core module is allowed to use.
+core_CPUs: 15                                                                   # [integer] Number of CPUs the core module is allowed to use.
 
 demultiplex_anchorReadsFile: merged_syn_R2.fastq.gz                                # [file path] Path to anchor reads fastq file.
 demultiplex_adriftReadsFile: merged_syn_R1.fastq.gz                                # [file path] Path to adrift reads fastq file.
@@ -30,8 +30,8 @@ demultiplex_requirePostUmiLinker_maxMismatch: 2                                #
 
 modules:
     - core
-    - callNearestGenes
-    - annotateRepeats
+#    - callNearestGenes
+#    - annotateRepeats
 
 # Additional parameters.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~

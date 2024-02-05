@@ -1,24 +1,38 @@
-library(dplyr)
-library(lubridate)
-library(parallel)
-library(data.table)
-library(GenomicRanges)
-library(Biostrings)
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(Biostrings))
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
+
+createOuputDir()
+if(! dir.exists(file.path(opt$outputDir, opt$buildFragments_outputDir)))  dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
+if(! dir.exists(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp')))  dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'))
+
+# Start log.
+opt$defaultLogFile <- file.path(opt$outputDir, opt$buildFragments_outputDir, 'log')
+logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
+write(logo, opt$defaultLogFile, append = FALSE)
+write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
+
+
+quitOnErorr <- function(msg){
+  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
+  updateLog(msg)
+  message(msg)
+  message(paste0('See log for more details: ', opt$defaultLogFile))
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
 setMissingOptions()
 setOptimalParameters()
 set.seed(1)
-
-dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
-dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'))
-dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'randomIDexcludedReads'))
-
-opt$defaultLogFile <- file.path(opt$outputDir, opt$buildFragments_outputDir, 'log')
 
 # Read in adrift alignment reads.
 updateLog('Reading in anchor and adrift read alignments.')
@@ -26,12 +40,7 @@ updateLog('Reading in anchor and adrift read alignments.')
 adriftReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_adriftReadsAlignmentFile))
 anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anchorReadsAlignmentFile))
 
-if(nrow(anchorReadAlignments) == 0 | nrow(adriftReadAlignments) == 0){
-  updateLog('Error - anchor and/or adrift alignment data files were empty.')
-
-  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
+if(nrow(anchorReadAlignments) == 0 | nrow(adriftReadAlignments) == 0) quitOnErorr('Error - anchor and/or adrift alignment data files were empty.')
 
 incomingSamples <- unique(anchorReadAlignments$uniqueSample)
 
@@ -57,8 +66,6 @@ adriftReadAlignments <- left_join(adriftReadAlignments, r, by = 'readID')
 updateLog('Preparing alignment data for fragment generation.')
 
 anchorReadAlignments <- subset(anchorReadAlignments, readID %in% adriftReadAlignments$readID)
-
-dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
 
 anchorReadAlignments <- select(anchorReadAlignments, uniqueSample, sample, readID, tName, strand, tStart, tEnd, leaderSeq, refGenome, seqRunID, flags, vectorFastaFile)
 adriftReadAlignments <- select(adriftReadAlignments, sample, readID, tName, strand, tStart, tEnd, randomLinkerSeq)
@@ -173,8 +180,9 @@ o <- lapply(id_groups, function(id_group){
             adriftReadAlignments[readID.adriftReads %in% id_group])
      })
 
-rm(anchorReadAlignments, adriftReadAlignments)
-gc()
+invisible(rm(anchorReadAlignments, adriftReadAlignments))
+
+invisible(gc())
 
 counter <- 1
 total <- length(o)
@@ -227,22 +235,17 @@ frags <- bind_rows(lapply(o, function(z){
 # Odd blat calls can lead to duplicate alignment entries, the blat parser is likely leaving out additional information about the alignments.
 frags <- distinct(frags)
 
-if(nrow(frags) == 0){
-  updateLog('Error - no fragments were identified.')
-  
-  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
+if(nrow(frags) == 0) quitOnErorr('Error - no fragments were identified.')
 
 updateLog('Fragment generation complete.')
 
 # Add duplicate read count column from demultiplex module.
 r <- readRDS(file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds'))
-frags <- left_join(frags, select(r, readID, nDuplicateReads))
 
-rm(o, r, id_groups)
-gc()
+frags <- left_join(frags, select(r, readID, nDuplicateReads), by = 'readID')
 
+invisible(rm(o, r, id_groups))
+invisible(gc())
 
 frags <- dplyr::rename(frags, leaderSeq = leaderSeq.anchorReads, randomLinkerSeq = randomLinkerSeq.adriftReads, refGenome = refGenome.anchorReads, 
                               vectorFastaFile = vectorFastaFile.anchorReads, seqRunID = seqRunID.anchorReads, flags = flags.anchorReads)
@@ -253,7 +256,7 @@ saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments
 write(date(), file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.done'))
 
 if(opt$databaseConfigGroup != 'none'){
-  library(RMariaDB)
+  suppressPackageStartupMessages(library(RMariaDB))
   
   updateLog('Writing fragment data to the database.')
   
@@ -267,9 +270,7 @@ if(opt$databaseConfigGroup != 'none'){
     dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
   },
   error=function(cond) {
-    updateLog('Error - could not connect to the database.')
-    if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-    q(save = 'no', status = 1, runLast = FALSE) 
+    quitOnErorr('Error - could not connect to the database.')
   })
   
   invisible(lapply(split(frags, frags$uniqueSample), function(x){
@@ -293,9 +294,7 @@ if(opt$databaseConfigGroup != 'none'){
                    params = list(x$trial[1], x$subject[1], x$sample[1], x$replicate[1], x$refGenome[1],
                                  list(serialize(tab, NULL)), as.character(lubridate::today())))
     if(r == 0){
-      updateLog(paset0('Error -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.'))
-      if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-      q(save = 'no', status = 1, runLast = FALSE)
+      quitOnErorr(paste0('Error -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.'))
     } else {
       updateLog(paste0('Uploaded fragment data for ', x$uniqueSample[1], ' to the database.'))
     }

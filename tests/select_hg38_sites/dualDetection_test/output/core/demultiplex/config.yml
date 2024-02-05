@@ -4,7 +4,7 @@ databaseConfigGroup: none
 Rscript: /usr/bin/Rscript
 softwareDir: /home/ubuntu/AAVengeR
 outputDir: output/core
-core_CPUs: 96
+core_CPUs: 15
 demultiplex_anchorReadsFile: merged_syn_R2.fastq.gz
 demultiplex_adriftReadsFile: merged_syn_R1.fastq.gz
 demultiplex_index1ReadsFile: merged_syn_I1.fastq.gz
@@ -18,7 +18,7 @@ demultiplex_requirePostUmiLinker_maxMismatch: 2
 compressDataFiles: no
 processAdriftReadLinkerUMIs: no
 core_keepIntermediateFiles: yes
-demultiplex_CPUs: 96
+demultiplex_CPUs: 15
 demultiplex_outputDir: demultiplex
 demultiplex_seqRunID: none
 demultiplex_RC_I1_barcodes: no
@@ -88,3 +88,4 @@ buildFragments_minFragLength: 20
 buildFragments_maxFragLength: 3000
 buildFragments_randomLinkerID_minReadCountToSegreagate: 10
 buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90
+softwareCaller: core

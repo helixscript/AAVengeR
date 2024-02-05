@@ -1,14 +1,23 @@
-01.30.2024  4:28pm	Reading in fragment file(s).
-01.30.2024  4:28pm	Categorizing leader sequences.
-01.30.2024  4:28pm	Standardizing integration positions within subjects.
-01.30.2024  4:28pm	62.13% integration positions shifted for 1278 fragments.
-01.30.2024  4:28pm	Standardizing break positions.
-01.30.2024  4:28pm	Standardizing break positions within samples.
-01.30.2024  4:28pm	70.12% break points shifted for 579 fragments.
-01.30.2024  4:28pm	Updating positions and fragment ids.
-01.30.2024  4:28pm	Idenitfying uniquely called postions.
-01.30.2024  4:28pm	Resolving multi-hit reads.
-01.30.2024  4:28pm	Reevaluating leader sequence classification after standardization.
-01.30.2024  4:28pm	Building mulit-hit networks.
-01.30.2024  4:28pm	Bundling fragment reads into fragment records.
-01.30.2024  4:28pm	buildStdFragments completed.
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+02.05.2024  6:00am	Reading in fragment file(s).
+02.05.2024  6:00am	Categorizing leader sequences.
+02.05.2024  6:00am	Standardizing integration positions within subjects.
+02.05.2024  6:00am	62.13% integration positions shifted for 1278 fragments.
+02.05.2024  6:00am	Standardizing break positions.
+02.05.2024  6:00am	Standardizing break positions within samples.
+02.05.2024  6:00am	70.12% break points shifted for 579 fragments.
+02.05.2024  6:01am	Updating positions and fragment ids.
+02.05.2024  6:01am	Idenitfying uniquely called postions.
+02.05.2024  6:01am	Resolving multi-hit reads.
+02.05.2024  6:01am	Reevaluating leader sequence classification after standardization.
+02.05.2024  6:02am	Building mulit-hit networks.
+02.05.2024  6:02am	Bundling fragment reads into fragment records.
+02.05.2024  6:02am	buildStdFragments completed.

@@ -4,7 +4,7 @@ databaseConfigGroup: none
 Rscript: /usr/bin/Rscript
 softwareDir: /home/ubuntu/AAVengeR
 outputDir: output/core/replicate_analyses/validation~validationSubject~sample1~6
-core_CPUs: 96
+core_CPUs: 15
 demultiplex_anchorReadsFile: merged_syn_R2.fastq.gz
 demultiplex_adriftReadsFile: merged_syn_R1.fastq.gz
 demultiplex_index1ReadsFile: merged_syn_I1.fastq.gz
@@ -38,7 +38,7 @@ demultiplex_mergeSimilarReadPairsParams: -c 0.98 -d 0 -M 0 -G 1 -aS 0.98 -aL 0.9
 demultiplex_quickAlignFilter_minPercentID: 97
 demultiplex_quickAlignFilter_minMatches: 30
 demultiplex_quickAlignFilter_minEstLeaderSeqLength: 15
-prepReads_CPUs: 9
+prepReads_CPUs: 2
 prepReads_outputDir: prepReads
 prepReads_readsTable: validation~validationSubject~sample1~6.CORE_TMP.rds
 prepReads_excludeAnchorReadVectorHits: yes
@@ -63,7 +63,7 @@ prepReads_HMMmatchTerminalSeq: CA
 prepReads_limitLeaderSeqsWithQuickAlignFilter: yes
 prepReads_additionalAnchorReadOverReadingSeqs: none
 prepReads_cutAdaptErrorRate: 0.15
-alignReads_CPUs: 9
+alignReads_CPUs: 2
 alignReads_outputDir: alignReads
 alignReads_inputFile: prepReads/reads.rds
 alignReads_blat_fastMap: no
@@ -76,7 +76,7 @@ alignReads_genomeAlignment_blatTileSize: 11
 alignReads_genomeAlignment_blatRepMatch: 3000
 alignReads_genomeAlignment_anchorReadEnd_maxUnaligned: 5
 alignReads_genomeAlignment_adriftReadEnd_maxUnaligned: 5
-buildFragments_CPUs: 9
+buildFragments_CPUs: 2
 buildFragments_outputDir: buildFragments
 buildFragments_duplicateReadFile: prepReads/duplicateReads.rds
 buildFragments_anchorReadsAlignmentFile: alignReads/anchorReadAlignments.rds
@@ -88,10 +88,11 @@ buildFragments_minFragLength: 20
 buildFragments_maxFragLength: 3000
 buildFragments_randomLinkerID_minReadCountToSegreagate: 10
 buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90
-core_maxCPUsPerProcess: 9.0
-core_maxPercentCPUs: 9.0
+core_maxCPUsPerProcess: 1.0
+core_maxPercentCPUs: 6.0
 core_createFauxFragDoneFiles: yes
 modules:
 - prepReads
 - alignReads
 - buildFragments
+softwareCaller: core

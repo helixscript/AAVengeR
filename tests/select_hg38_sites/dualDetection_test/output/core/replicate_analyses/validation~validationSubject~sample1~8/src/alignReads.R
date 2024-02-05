@@ -1,8 +1,8 @@
-library(lubridate)
-library(dplyr)
-library(parallel)
-library(data.table)
-library(Biostrings)
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(Biostrings))
 options(stringsAsFactors = FALSE)
 
 # Read in configuration file and set parameters.
@@ -11,24 +11,40 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
+
 setMissingOptions()
 setOptimalParameters()
 set.seed(1)
 
-
-# Create the required directory structure.
+createOuputDir()
 if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir))
 if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'tmp'))
 if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'))
 if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'))
 
+# Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$alignReads_outputDir, 'log')
+logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
+write(logo, opt$defaultLogFile, append = FALSE)
+
+quitOnErorr <- function(msg){
+  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
+  updateLog(msg)
+  message(msg)
+  message(paste0('See log for more details: ', opt$defaultLogFile))
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
 
 # Read in sequencing data.
 updateLog('Reading in prepped reads.')
-reads <- readRDS(file.path(opt$outputDir, opt$alignReads_inputFile))
-incomingSamples <- unique(reads$uniqueSample)
 
+if(! file.exists(file.path(opt$outputDir, opt$alignReads_inputFile))) quitOnErorr('Error - the input file does not exist.')
+
+reads <- readRDS(file.path(opt$outputDir, opt$alignReads_inputFile))
+
+if(nrow(reads) == 0) quitOnErorr('Error - the input table does not contain any rows.')
+
+incomingSamples <- unique(reads$uniqueSample)
 
 # Create a CPU cluster.
 cluster <- makeCluster(opt$alignReads_CPUs)
@@ -72,7 +88,6 @@ alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
   b
 }
 
-
 # Align anchor reads.
 updateLog(paste0('Aligning ', ppNum(n_distinct(reads$readID)), ' anchor reads to reference genomes.'))
 
@@ -96,18 +111,15 @@ anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   b
 }))
 
+if(nrow(anchorReadAlignments) == 0) quitOnErorr('Error - no anchor reads aligned to the reference genomes.')
+
 updateLog(paste0(sprintf("%.2f%%", (n_distinct(anchorReadAlignments$readID)/n_distinct(reads$readID))*100), 
                  ' of prepped anchor reads aligned to the reference genome.'))
 
 # Select anchor reads where the ends align to the genome.
 i <- (anchorReadAlignments$qSize - anchorReadAlignments$qEnd) <= opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned
 
-if(sum(i) == 0){
-  updateLog('Error - no anchor read alignments remain after alignReads_genomeAlignment_anchorReadEnd_maxUnaligned filter.')
- 
-  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-  q(save = 'no', status = 1, runLast = FALSE)
-}
+if(sum(i) == 0) quitOnErorr('Error - no anchor read alignments remain after alignReads_genomeAlignment_anchorReadEnd_maxUnaligned filter.')
 
 alignedReadIDsBeforeFilter <- n_distinct(anchorReadAlignments$readID)
 anchorReadAlignments <- anchorReadAlignments[i,]
@@ -145,18 +157,15 @@ adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   b
 }))
 
+if(nrow(adriftReadAlignments) == 0) quitOnErorr('Error - no adrift reads aligned to the reference genomes.')
+
 updateLog(paste0(sprintf("%.2f%%", (n_distinct(adriftReadAlignments$readID)/n_distinct(reads$readID))*100), 
                  ' of prepped adrift reads aligned to the reference genome.'))
 
 # Select adrift reads where the ends align to the genome.
 i <- (adriftReadAlignments$qSize - adriftReadAlignments$qEnd) <= opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned
 
-if(sum(i) == 0){
-  updateLog('Error - no adrift read alignments remain after alignReads_genomeAlignment_adriftReadEnd_maxUnaligned filter.')
- 
-  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-  q(save = 'no', status = 1, runLast = FALSE)
-}
+if(sum(i) == 0) quitOnErorr('Error - no adrift read alignments remain after alignReads_genomeAlignment_adriftReadEnd_maxUnaligned filter.')
 
 
 alignedReadIDsBeforeFilter <- n_distinct(adriftReadAlignments$readID)
@@ -170,12 +179,7 @@ updateLog(paste0(sprintf("%.2f%%", (1 - n_distinct(adriftReadAlignments$readID) 
 # Select adrift reads with alignments that start at the beginning of reads.
 i <- adriftReadAlignments$qStart <= opt$alignReads_genomeAlignment_adriftRead_maxStartPos
 
-if(sum(i) == 0){
-  updateLog('Error - no adrift read alignments remain after alignReads_genomeAlignment_adriftRead_maxStartPos filter.')
-
-  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-  q(save = 'no', status = 1, runLast = FALSE)
-}
+if(sum(i) == 0) quitOnErorr('Error - no adrift read alignments remain after alignReads_genomeAlignment_adriftRead_maxStartPos filter.')
 
 alignedReadIDsBeforeFilter <- n_distinct(adriftReadAlignments$readID)
 adriftReadAlignments <- adriftReadAlignments[i,]
@@ -189,12 +193,7 @@ updateLog('Finding read pairs where both anchor and adrift read pair mates align
 # Select read pairs that have both a good anchor and adrift alignment.
 i <- base::intersect(anchorReadAlignments$readID, adriftReadAlignments$readID)
 
-if(length(i) == 0){
-  updateLog('Error -- no alignments remaing after filtering for paired alignments.')
-  
-  if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-  q(save = 'no', status = 1, runLast = FALSE)
-}
+if(length(i) == 0) quitOnErorr('Error -- no alignments remaing after filtering for paired alignments.')
 
 anchorReadAlignments <- anchorReadAlignments[anchorReadAlignments$readID %in% i,]
 adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$readID %in% i,]

@@ -1,16 +1,16 @@
-Tue Jan 30 16:27:50 2024
-Available CPUs: 96
+Mon Feb  5 05:57:36 2024
+Available CPUs: 15
 
 
                    id                     reads   CPUs   active       startTime             endTime         done    duration  
 ---------------------------------------- ------- ------ -------- -------------------- -------------------- ------ ------------
- validation~validationSubject~sample1~1    122     9       NA     01.30.2024  4:15pm   01.30.2024  4:22pm   TRUE   7 minutes  
- validation~validationSubject~sample1~2    115     9       NA     01.30.2024  4:15pm   01.30.2024  4:25pm   TRUE   10 minutes 
- validation~validationSubject~sample1~3    128     9       NA     01.30.2024  4:15pm   01.30.2024  4:22pm   TRUE   7 minutes  
- validation~validationSubject~sample1~4    106     9       NA     01.30.2024  4:15pm   01.30.2024  4:24pm   TRUE   9 minutes  
- validation~validationSubject~sample1~5    117     9       NA     01.30.2024  4:15pm   01.30.2024  4:22pm   TRUE   7 minutes  
- validation~validationSubject~sample1~6    117     9       NA     01.30.2024  4:15pm   01.30.2024  4:27pm   TRUE   12 minutes 
- validation~validationSubject~sample1~7    119     9       NA     01.30.2024  4:15pm   01.30.2024  4:24pm   TRUE   9 minutes  
- validation~validationSubject~sample1~8    115     9       NA     01.30.2024  4:15pm   01.30.2024  4:24pm   TRUE   9 minutes  
+ validation~validationSubject~sample1~1    122     2       NA     02.05.2024  5:34am   02.05.2024  5:41am   TRUE   6 minutes  
+ validation~validationSubject~sample1~2    115     2       NA     02.05.2024  5:34am   02.05.2024  5:48am   TRUE   13 minutes 
+ validation~validationSubject~sample1~3    128     2       NA     02.05.2024  5:34am   02.05.2024  5:42am   TRUE   8 minutes  
+ validation~validationSubject~sample1~4    106     2       NA     02.05.2024  5:34am   02.05.2024  5:43am   TRUE   8 minutes  
+ validation~validationSubject~sample1~5    117     2       NA     02.05.2024  5:35am   02.05.2024  5:43am   TRUE   8 minutes  
+ validation~validationSubject~sample1~6    117     2       NA     02.05.2024  5:35am   02.05.2024  5:57am   TRUE   22 minutes 
+ validation~validationSubject~sample1~7    119     2       NA     02.05.2024  5:35am   02.05.2024  5:43am   TRUE   8 minutes  
+ validation~validationSubject~sample1~8    115     2       NA     02.05.2024  5:41am   02.05.2024  5:47am   TRUE   5 minutes  
 
 

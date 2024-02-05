@@ -1,19 +1,39 @@
-library(dplyr)
-library(lubridate)
-library(parallel)
-library(data.table)
-library(GenomicRanges)
-library(Biostrings)
-library(igraph)
-library(dtplyr)
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(Biostrings))
+suppressPackageStartupMessages(library(igraph))
+suppressPackageStartupMessages(library(dtplyr))
 
 configFile <- commandArgs(trailingOnly=TRUE)
 
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
-opt <- yaml::read_yaml(configFile)
 
+opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 source(file.path(opt$softwareDir, 'stdPos.lib.R'))
+
+createOuputDir()
+dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
+dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'))
+
+
+# Start log.
+opt$defaultLogFile <- file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log')
+logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
+write(logo, opt$defaultLogFile, append = FALSE)
+write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
+
+
+quitOnErorr <- function(msg){
+  if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
+  updateLog(msg)
+  message(msg)
+  message(paste0('See log for more details: ', opt$defaultLogFile))
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
 
 setMissingOptions()
 setOptimalParameters()
@@ -22,11 +42,6 @@ set.seed(1)
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, 'opt')
-
-dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
-dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'))
-
-opt$defaultLogFile <- file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log')
 
 
 # Load fragment data from database or local file depending on configuration file.
@@ -40,34 +55,22 @@ updateLog('Reading in fragment file(s).')
 
 # Check for configuration errors.
 # ------------------------------------------------------------------------------
-if(opt$buildStdFragments_autoPullTrialSamples & opt$databaseConfigGroup == 'none'){
-  updateLog('Error -- the databaseConfigGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')
-  q(save = 'no', status = 1, runLast = FALSE)
-}
-
-if(opt$buildStdFragments_trialSubjectList != 'none' & opt$databaseConfigGroup == 'none'){
-  updateLog('Error -- the databaseConfigGroup option must be provided with the buildStdFragments_trialSubjectList option.')
-  q(save = 'no', status = 1, runLast = FALSE)
-}
+if(opt$buildStdFragments_autoPullTrialSamples & opt$databaseConfigGroup == 'none') quitOnErorr('Error -- the databaseConfigGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')
+if(opt$buildStdFragments_trialSubjectList != 'none' & opt$databaseConfigGroup == 'none') quitOnErorr('Error -- the databaseConfigGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')
 
 
 # Create a database connection if requested in the configuration file.
 if(opt$databaseConfigGroup != 'none'){
-  library(RMariaDB)
+  suppressPackageStartupMessages(library(RMariaDB))
   
   if(! file.exists('~/.my.cnf')) file.copy(opt$databaseConfigFile, '~/.my.cnf')
-  if(! file.exists('~/.my.cnf')){
-    updateLog('Error - can not find ~/.my.cnf file.')
-    if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
-    q(save = 'no', status = 1, runLast = FALSE) 
-  }
+  if(! file.exists('~/.my.cnf')) quitOnErorr('Error - can not find ~/.my.cnf file.')
   
   dbConn <- tryCatch({
     dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
   },
   error=function(cond) {
-    updateLog('Error - could not connect to the database.')
-    q(save = 'no', status = 1, runLast = FALSE) 
+    quitOnErorr('Error - could not connect to the database.')
   })
 }
 
@@ -108,10 +111,7 @@ if(opt$buildStdFragments_trialSubjectList != 'none'){
 if(opt$databaseConfigGroup != 'none') RMariaDB::dbDisconnect(dbConn)
 
 # Make sure fragments were retrieved.
-if(nrow(frags) == 0){
-  updateLog('Error -- no fragments were loaded or retrieved.')
-  q(save = 'no', status = 1, runLast = FALSE)
-}
+if(nrow(frags) == 0) quitOnErorr('Error -- no fragments were loaded or retrieved.')
 
 incomingSamples <- unique(sub('~\\d+$', '', frags$uniqueSample))
 
@@ -169,14 +169,14 @@ frags <- rbindlist(lapply(split(frags, paste(frags$trial, frags$subject)), funct
     
              u <- rbindlist(parLapply(cluster, split(o, ntile(1:nrow(o), opt$buildStdFragments_CPUs)), function(d){
              #u <- rbindlist(lapply(split(o, ntile(1:nrow(o), opt$buildStdFragments_CPUs)), function(d){
-                    library(GenomicRanges)
-                    library(data.table)
-                    library(Biostrings)
-                    library(dplyr)
+                    suppressPackageStartupMessages(library(GenomicRanges))
+                    suppressPackageStartupMessages(library(data.table))
+                    suppressPackageStartupMessages(library(Biostrings))
+                    suppressPackageStartupMessages(library(dplyr))
       
                     rbindlist(lapply(split(d, 1:nrow(d)), function(j){
                       a <- distinct(ke[unlist(j$n)])
-      
+                      
                       if(n_distinct(a$leaderSeq) == 1){
                         return(data.table(readID = a$readID, leaderSeqGroupNum = 1))
                       } else {
@@ -260,8 +260,8 @@ if(opt$buildStdFragments_standardizeIntegrationPositions){
   g$n <- 1:length(g)
   
   g2 <- unlist(GRangesList(parLapply(cluster, split(g, g$s), function(x){
-          library(dplyr)
-          library(GenomicRanges)
+          suppressPackageStartupMessages(library(dplyr))
+          suppressPackageStartupMessages(library(GenomicRanges))
           source(file.path(opt$softwareDir, 'stdPos.lib.R'))
           standardize_sites(x, counts.col = 'reads', sata.gap = opt$buildStdFragments_intSiteStdWindowWidth)
         })))
@@ -339,8 +339,8 @@ if(opt$buildStdFragments_standardizeBreakPositions){
   g$n <- 1:length(g)
   
   g2 <- unlist(GRangesList(parLapply(cluster, split(g, g$s), function(x){
-          library(dplyr)
-          library(GenomicRanges)
+          suppressPackageStartupMessages(library(dplyr))
+          suppressPackageStartupMessages(library(GenomicRanges))
           source(file.path(opt$softwareDir, 'stdPos.lib.R'))
           refine_breakpoints(x, counts.col = 'reads', sata.gap = opt$buildStdFragments_breakPointStdWindowWidth)
   })))
@@ -388,17 +388,8 @@ u <- group_by(frags, readID) %>%
 frags_uniqPosIDs <- frags[frags$readID %in% u,] 
 frags_multPosIDs <- frags[! frags$readID %in% u,]
 
-
-
 # Do not continue unless we have at least one uniquely called fragment.
-if(nrow(frags_uniqPosIDs) == 0){
-  updateLog('Error - No unique position remain after filtering.')
- 
-  if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
-  q(save = 'no', status = 1, runLast = FALSE) 
-}
-
-
+if(nrow(frags_uniqPosIDs) == 0) quitOnErorr('Error - No unique position remain after filtering.')
 
 # Multihits
 # This block is here because some reads may be returned to frags_uniqPosIDs.
@@ -483,8 +474,8 @@ if(length(z) > 0){
   
   frags_uniqPosIDs <- bind_rows(a2, b)
   
-  rm(a, b, a2)
-  gc()
+  invisible(rm(a, b, a2))
+  invisible(gc())
 }
 
 
@@ -744,9 +735,9 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   multiHitNet_replicates <- left_join(multiHitNet_replicates, d, by = 'n')
 
   multiHitClusters <- rbindlist(parLapply(cluster, split(multiHitNet_replicates, multiHitNet_replicates$n2), function(x){
-    library(igraph)
-    library(dplyr)
-    library(data.table)
+    suppressPackageStartupMessages(library(igraph))
+    suppressPackageStartupMessages(library(dplyr))
+    suppressPackageStartupMessages(library(data.table))
     
     # Work within trial/subject/sample groupings...
     
@@ -760,33 +751,37 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       # Create cluster ids.
       o$clusterID <- paste0('MHC.', 1:nrow(o))
       
+      # `summarise()` has grouped output by 'trial', 'subject', 'sample'. You can override using the `.groups` argument.
+      
       tidyr::unnest(o, clusters) %>%
-      dplyr::left_join(subset(multiHitFragWidths, sample == x2$sample[1]) %>% dplyr::select(posid, reads, UMIs), by = c('clusters' = 'posid')) %>%
+      dplyr::left_join(subset(multiHitFragWidths, sample == x2$sample[1]) %>% 
+      dplyr::select(posid, reads, UMIs), by = c('clusters' = 'posid')) %>%
       tidyr::unnest(reads) %>%
       tidyr::unnest(UMIs) %>%
       dplyr::group_by(trial, subject, sample, clusterID) %>%
-      dplyr::summarise(nodes = n_distinct(clusters), readIDs = list(unique(reads)), reads = n_distinct(reads), UMIs = n_distinct(UMIs), posids = list(unique(clusters))) %>%
+      dplyr::summarise(nodes = n_distinct(clusters), 
+                       readIDs = list(unique(reads)), 
+                       reads = n_distinct(reads), 
+                       UMIs = n_distinct(UMIs), 
+                       posids = list(unique(clusters))) %>%
       dplyr::ungroup() %>%
       dplyr::relocate(readIDs, .after = posids)
     }))
   }))
    
   rm(frags_multPosIDs, multiHitNet_replicates, multiHitFragWidths) 
-  gc()
+  invisible(gc())
   
   saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'), compress = opt$compressDataFiles)
   
   if(opt$databaseConfigGroup != 'none'){
-    library(RMariaDB)
+    suppressPackageStartupMessages(library(RMariaDB))
     
     dbConn <- tryCatch({
       dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
     },
     error=function(cond) {
-      updateLog('Error - could not connect to the database.')
-     
-      if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
-      q(save = 'no', status = 1, runLast = FALSE) 
+      quitOnErorr('Error - could not connect to the database.')
     })
     
     multiHitClusters$i <- paste0(multiHitClusters$trial, '~', multiHitClusters$subject, '~', multiHitClusters$sample)
@@ -812,10 +807,8 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
                      "insert into multihits values (?, ?, ?, ?, ?, ?)",
                      params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], as.character(lubridate::today()), list(serialize(tab, NULL))))
       
-      if(r == 0){
-        updateLog(paste0('Error -- could not upload multihit data for ', x$sample[1], ' to the database.'))
-        if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
-        q(save = 'no', status = 1, runLast = FALSE)
+      if(r == 0) {
+        quitOnErorr(paste0('Error -- could not upload multihit data for ', x$sample[1], ' to the database.'))
       } else {
         updateLog(paste0('Uploaded multihit data for ', x$trial, '~', x$subject[1], '~', x$sample[1], ' to the database.'))
       }
