@@ -711,8 +711,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   # then export the data to the cluster nodes.
   multiHitFragWidths  <- mutate(frags_multPosIDs, width = fragEnd - fragStart + 1) %>%
                          group_by(trial, subject, sample, posid) %>%
-                         summarise(reads = list(readID), UMIs = list(randomLinkerSeq)) %>%
-                         ungroup() %>% 
+                         summarise(reads = list(readID), UMIs = list(randomLinkerSeq), .groups = 'drop') %>%
                          distinct()
     
   clusterExport(cluster, 'multiHitFragWidths')
@@ -723,8 +722,13 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
     
     # Create unique to - from permutations.
     node_pairs <- RcppAlgos::comboGeneral(unique(x$posid), 2)
-    data.table(trial = x[1,]$trial, subject = x[1,]$subject, sample = x[1,]$sample, 
-               replicate = x[1,]$replicate, from = node_pairs[,1], to = node_pairs[,2], readID = x[1,]$readID)
+    data.table(trial = x[1,]$trial, 
+               subject = x[1,]$subject,
+               sample = x[1,]$sample, 
+               replicate = x[1,]$replicate, 
+               from = node_pairs[,1], 
+               to = node_pairs[,2], 
+               readID = x[1,]$readID)
   }))
 
   # Create trial/subject/sample grouping indices that will be used to create a splitting vector.
@@ -735,6 +739,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   multiHitNet_replicates <- left_join(multiHitNet_replicates, d, by = 'n')
 
   multiHitClusters <- rbindlist(parLapply(cluster, split(multiHitNet_replicates, multiHitNet_replicates$n2), function(x){
+  #multiHitClusters <- rbindlist(lapply(split(multiHitNet_replicates, multiHitNet_replicates$n2), function(x){
     suppressPackageStartupMessages(library(igraph))
     suppressPackageStartupMessages(library(dplyr))
     suppressPackageStartupMessages(library(data.table))
@@ -751,21 +756,16 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       # Create cluster ids.
       o$clusterID <- paste0('MHC.', 1:nrow(o))
       
-      # `summarise()` has grouped output by 'trial', 'subject', 'sample'. You can override using the `.groups` argument.
-      
       tidyr::unnest(o, clusters) %>%
-      dplyr::left_join(subset(multiHitFragWidths, sample == x2$sample[1]) %>% 
-      dplyr::select(posid, reads, UMIs), by = c('clusters' = 'posid')) %>%
-      tidyr::unnest(reads) %>%
-      tidyr::unnest(UMIs) %>%
+      dplyr::left_join(subset(multiHitFragWidths, sample == x2$sample[1]) %>% dplyr::select(posid, reads, UMIs), by = c('clusters' = 'posid')) %>%
       dplyr::group_by(trial, subject, sample, clusterID) %>%
       dplyr::summarise(nodes = n_distinct(clusters), 
-                       readIDs = list(unique(reads)), 
-                       reads = n_distinct(reads), 
-                       UMIs = n_distinct(UMIs), 
+                       readIDs = list(unique(unlist(reads))), 
+                       reads = n_distinct(unlist(reads)), 
+                       UMIs = n_distinct(unlist(UMIs)), 
                        posids = list(unique(clusters))) %>%
-      dplyr::ungroup() %>%
-      dplyr::relocate(readIDs, .after = posids)
+        dplyr::ungroup() %>%
+        dplyr::relocate(readIDs, .after = posids)
     }))
   }))
    

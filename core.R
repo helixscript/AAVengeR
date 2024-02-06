@@ -49,7 +49,6 @@ system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE)
 
 updateLog('Demultiplex completed.')
 
-
 # Read in demultiplex result.
 reads <- readRDS(file.path(opt$outputDir, 'core', 'demultiplex', 'reads.rds'))
 
@@ -94,7 +93,7 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
       jobTable[jobTable$id == id,]$duration   <<- paste0(as.integer(as.character(difftime(lubridate::now(), lubridate::ymd_hms(jobTable[jobTable$id == o[length(o)-2],]$startTime), units="mins"))), ' minutes')
       
       CPUs_used <<- CPUs_used - jobTable[jobTable$id == id,]$CPUs
-      if(file.exists(f)) invisible(file.remove(f))
+      invisible(suppressWarnings(file.remove(f)))
     }))
   }
   
@@ -124,16 +123,19 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
 }
 
 # Build a jobs table for prepReads, alignReads, and buildFragments.
-jobTable <- data.frame(table(reads$uniqueSample)) %>% dplyr::rename(id = Var1) %>% dplyr::rename(reads = Freq)
-jobTable$CPUs <- as.integer(ceiling((((jobTable$reads / max(jobTable$reads)) * opt$core_maxPercentCPUs) / 100) * opt$core_CPUs))
-jobTable$CPUs <- ifelse(jobTable$CPUs == 1, 2, jobTable$CPUs)
-jobTable$active <- FALSE
-jobTable$startTime <- NA
-jobTable$endTime <- NA
+jobTable <- data.frame(table(reads$uniqueSample)) %>% 
+            dplyr::rename(id = Var1) %>%
+            dplyr::rename(reads = Freq)
+
+jobTable$CPUs         <- as.integer(ceiling((((jobTable$reads / max(jobTable$reads)) * opt$core_maxPercentCPUs) / 100) * opt$core_CPUs))
+jobTable$CPUs         <- ifelse(jobTable$CPUs == 1, 2, jobTable$CPUs)
+jobTable$active       <- FALSE
+jobTable$startTime    <- NA
+jobTable$endTime      <- NA
 jobTable$startTimeDsp <- NA
-jobTable$endTimeDsp <- NA
-jobTable$done <- FALSE
-jobTable$duration <- NA
+jobTable$endTimeDsp   <- NA
+jobTable$done         <- FALSE
+jobTable$duration     <- NA
 
 CPUs_used <- 0
 
@@ -231,17 +233,22 @@ jobTable$id <- sapply(jobTable$u, function(x) paste0(unlist(strsplit(x, '~'))[1:
 # Create a subject-level splitting vector for fragments records.
 frags <- left_join(frags, jobTable, by = c('uniqueSample' = 'u'))
 
-jobTable <- group_by(distinct(frags), id) %>% summarise(reads = n()) %>% ungroup() %>% arrange(desc(reads))
+# n is trial ~ subject
+# Fragments are on the read level.
+jobTable <- group_by(distinct(frags), id) %>% 
+            summarise(reads = n_distinct(readID)) %>% 
+            ungroup() %>% 
+            arrange(desc(reads))
 
-jobTable$CPUs <- as.integer(ceiling((((jobTable$reads / max(jobTable$reads)) * opt$core_maxPercentCPUs) / 100) * opt$core_CPUs))
-jobTable$CPUs <- ifelse(jobTable$CPUs == 1, 2, jobTable$CPUs)
-jobTable$active <- FALSE
-jobTable$startTime <- NA
-jobTable$endTime <- NA
+jobTable$CPUs         <- as.integer(ceiling((((jobTable$reads / max(jobTable$reads)) * opt$core_maxPercentCPUs) / 100) * opt$core_CPUs))
+jobTable$CPUs         <- ifelse(jobTable$CPUs == 1, 2, jobTable$CPUs)
+jobTable$active       <- FALSE
+jobTable$startTime    <- NA
+jobTable$endTime      <- NA
 jobTable$startTimeDsp <- NA
-jobTable$endTimeDsp <- NA
-jobTable$done <- FALSE
-jobTable$duration <- NA
+jobTable$endTimeDsp   <- NA
+jobTable$done         <- FALSE
+jobTable$duration     <- NA
 
 d <- tibble(uniqueSample = unique(frags$uniqueSample)) %>% tidyr::separate(uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~', remove = FALSE)
 d$trialSubject <- paste0(d$trial, '~', d$subject)
