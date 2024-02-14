@@ -1,6 +1,6 @@
-# AAVegneR configuration file.                                               
-# This file contains settings and parameters for AAVengeR's modules.
-# Modules are chained together within the modules: list below.
+# AAVegneR configuration file.                                                  (*) evaluated if prepReads_buildReadMaps_blastReconstruction = TRUE
+# This file contains settings and parameters for AAVengeR's modules.            (@) path relative to output directory
+# Modules are chained together within the modules: list below.                  (^) evaluated if leaderSeqHMM is a column in the sampleDetails file
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~                     
 
 mode: integrase                                                                # [controlled vocab] (integrase, AAV, transposase, or manual) Software mode will set certain parameters to optimized values unless set to manual.
@@ -51,7 +51,7 @@ modules:
 compressDataFiles: FALSE                                                       # [boolean]   Compress intermediate data files. No compression results in faster processing speeds. 
 processAdriftReadLinkerUMIs: FALSE                                             # [boolean]   Extract and consider UMI sequences found in adrift read linker sequences. This may result in reads being
                                                                                #             removed from the analysis if the same UMI sequence is seen across samples. 
-core_keepIntermediateFiles: TRUE                                               # [boolean]   Keep intermediate data files during the analysis which may be helpful for debugging.
+core_keepIntermediateFiles: FALSE                                              # [boolean]   Keep intermediate data files during the analysis which may be helpful for debugging.
                                                                                #  
 demultiplex_CPUs: 15                                                           # [integer]   Number of CPUs to use for demultiplexing.
 demultiplex_outputDir: demultiplex                                             # [character] Demultiplexing ouput directory name that will be created in the output directory.
@@ -75,10 +75,6 @@ demultiplex_quickAlignFilter_minMatches: 30                                    #
 demultiplex_quickAlignFilter_minEstLeaderSeqLength: 15                         # [integer]   Reads are aligned without removing leader sequences (LTR/ITR). 
                                                                                #             This is the estimated average length of leader sequences in the analyis and this number of NTs 
                                                                                #             will be removed from the start of anchor reads before the quick alignment. 
-
-                                                                               # (*) evaluated if prepReads_buildReadMaps_blastReconstruction = TRUE
-                                                                               # (@) path relative to output directory
-                                                                               # (^) evaluated if leaderSeqHMM is a column in the sampleDetails file
                                                                                #
 prepReads_CPUs: 15                                                             # [integer]   Number of CPUs to use when preparing reads for alignment to a reference genome.
 prepReads_outputDir: prepReads                                                 # [character] prepReads ouput directory name that will be created in the output directory.
@@ -173,6 +169,15 @@ callNearestGenes_outputDir: callNearestGenes                                   #
 callNearestGenes_addAfter: nRepsObs                                            # [string]    Name of column in the input table after which new columns should be added.
 callNearestGenes_TU_position: either                                           # [controlled vocabulary] (center, start, end, either) Transcription unit boundary that should be used when calling nearest genes.
                                                                                # For each reference genome identifer, these parameters define which resources in AAVengeR's data folder should be used.
+mapSiteLeaderSequences_CPUs: 15
+mapSiteLeaderSequences_outputDir: mapSiteLeaderSequences
+mapSiteLeaderSequences_inputFile: core/sites.rds
+mapSiteLeaderSequences_addAfter: repLeaderSeq
+mapSiteLeaderSequences_minLocalAlignmentLength: 12
+mapSiteLeaderSequences_minAlignmentPercentID: 90
+mapSiteLeaderSequences_minAlignmentLength: 15
+mapSiteLeaderSequences_maxMissingTailNTs: 5
+
 callNearestGenes_boundaries:
   hg38:
     TUs:   hg38.TUs.rds
@@ -188,10 +193,21 @@ callNearestGenes_boundaries:
         exons: macFas5.humanXeno.exons.rds
 
 
-# Experiment module parameters.
-#~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
+anchorReadRearrangements_CPUs: 15
+anchorReadRearrangements_outputDir: anchorReadRearrangements
+anchorReadRearrangements_inputFile: demultiplex/reads.rds
+anchorReadRearrangements_vectorLeaderSeqFilter: none                            # BushmanAAVcontrolsPlasmidLargestRemnant.fasta;TTCCTATCTAGATGC|pAAV-GFP.fasta;TTCCTTGTAGTTAAT|pCCVC-TTRm-8003-D3-SPDE.fasta;TTCCTACACAAAAAA,TTCCTACGCGTGTCT
+anchorReadRearrangements_vectorLeaderSeqFilterMaxMismatch: 1
+anchorReadRearrangements_additionalAnchorReadOverReadingSeqs: none
+anchorReadRearrangements_abundSeqMinCount: 100
+anchorReadRearrangements_minAnchorReadLength: 50
+anchorReadRearrangements_seqsMinPercentID: 95
+anchorReadRearrangements_minAlignmentLength: 12
+anchorReadRearrangements_excludeMissingTailsFromCounts: TRUE
+anchorReadRearrangements_cutAdaptErrorRate: 0.15
+anchorReadRearrangements_maxMissingTailNTs: 5
 
-predictPCRartifacts_CPUs: 5
+predictPCRartifacts_CPUs: 15
 predictPCRartifacts_inputFile: core/sites.rds
 predictPCRartifacts_outputDir: predictPCRartifacts
 predictPCRartifacts_adjacentSeqLength: 14
@@ -203,6 +219,17 @@ predictPCRartifacts_gapOpeningPenalty: 10
 predictPCRartifacts_gapExtensionPenalty: 5
 predictPCRartifacts_addAfter: posid
 
+barcodeAssocLinkers_outputDir: barcodeAssocLinkers                              # [character] barcodeAssocLinkers ouput directory name that will be created in the output directory.
+barcodeAssocLinkers_sampleDataFile:  data/sampleData.tsv                        # [file path] (@) sampleData file path.
+barcodeAssocLinkers_adriftReadsFile: data/Undetermined_S0_R1_001.fastq.gz       # [file path] (@) Adrift read FASTQ path.
+barcodeAssocLinkers_index1ReadsFile: data/Undetermined_S0_I1_001.fastq.gz       # [file path] (@) I1 barcode read FASTQ path.
+barcodeAssocLinkers_nCodes: 50                                                  # [integer]   Number of most abundant I1 barcodes to examine.
+barcodeAssocLinkers_excludePolyG_index1BarCodes: TRUE                           # [boolean]   Exclude I1 barcodes that contain GGGGG (most likely PhiX).
+barcodeAssocLinkers_adriftReadUniqueLinkerLength: 20                            # [integer]   First n NTs of adrift read NTs to consider as a unique linker sequence.
+
+
+# Experimental module parameters.
+#~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
                                                                                 # (!) mapSiteLeaderSequences 
 buildAAVremnantPlots_outputDir: buildAAVremnantPlots                            # [character] buildAAVremnantPlots ouput directory name that will be created in the output directory.
 buildAAVremnantPlots_inputFile: mapSiteLeaderSequences/sites.rds                # [file path] (@) path to the input site data which must have already passed through the mapSiteLeaderSequences module.
@@ -213,40 +240,9 @@ buildAAVremnantPlots_ITRdumbellTip1: 125
 buildAAVremnantPlots_ITRdumbellTip2: 147
 buildAAVremnantPlots_plotOutputWidthInches: 10
 
-                                                                                # (@) path relative to output directory
-barcodeAssocLinkers_outputDir: barcodeAssocLinkers                              # [character] barcodeAssocLinkers ouput directory name that will be created in the output directory.
-barcodeAssocLinkers_sampleDataFile:  data/sampleData.tsv                        # [file path] (@) sampleData file path.
-barcodeAssocLinkers_adriftReadsFile: data/Undetermined_S0_R1_001.fastq.gz       # [file path] (@) Adrift read FASTQ path.
-barcodeAssocLinkers_index1ReadsFile: data/Undetermined_S0_I1_001.fastq.gz       # [file path] (@) I1 barcode read FASTQ path.
-barcodeAssocLinkers_nCodes: 50                                                  # [integer]   Number of most abundant I1 barcodes to examine.
-barcodeAssocLinkers_excludePolyG_index1BarCodes: TRUE                           # [boolean]   Exclude I1 barcodes that contain GGGGG (most likely PhiX).
-barcodeAssocLinkers_adriftReadUniqueLinkerLength: 20                            # [integer]   First n NTs of adrift read NTs to consider as a unique linker sequence.
-
-
-anchorReadRearrangements_CPUs: 5
-anchorReadRearrangements_outputDir: anchorReadRearrangements
-anchorReadRearrangements_readsTable: core/demultiplex/reads.rds
-anchorReadRearrangements_abundSeqMinCount: 10
-anchorReadRearrangements_minAnchorReadLength: 25
-anchorReadRearrangements_minAdriftReadLength: 25
-anchorReadRearrangements_seqsMinPercentID: 95
-anchorReadRearrangements_seqsMinAlignmentLength: 15
-anchorReadRearrangements_seqsMaxGaps: 1
-anchorReadRearrangements_minAllowableGap: 5
-anchorReadRearrangements_removeTailingUnknownSegments: FALSE
-
 addSampleDetails_inputFile:  callNearestGenesFiltered/sites.rds
 addSampleDetails_detailsFile: data/sampleDetails.tsv
 addSampleDetails_addAfter: sample
-
-mapSiteLeaderSequences_CPUs: 5
-mapSiteLeaderSequences_outputDir: mapSiteLeaderSequences
-mapSiteLeaderSequences_inputFile: core/sites.rds
-mapSiteLeaderSequences_addAfter: repLeaderSeq
-mapSiteLeaderSequences_minAllowableGap: 5                                       # Min. space between blast hits allowed. Larger gaps will be filled with [x].
-mapSiteLeaderSequences_alignmentChunkSize: 5000
-mapSiteLeaderSequences_minAlignmentPercentID: 90
-mapSiteLeaderSequences_minAlignmentLength: 15
 
 callNearestGenesFiltered_CPUs: 5
 callNearestGenesFiltered_columnPrefix: oncoGenes

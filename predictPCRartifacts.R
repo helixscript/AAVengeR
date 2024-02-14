@@ -25,7 +25,7 @@ cluster <- makeCluster(opt$predictPCRartifacts_CPUs)
 clusterExport(cluster, c('opt', 'tmpFile'))
 
 sites$refGenome <- file.path(opt$softwareDir, 'data', 'referenceGenomes', 'blat', paste0(sites$refGenome, '.2bit'))
-sites$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', sites$vectorFastaFile)
+sites$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', sites$vector)
 
 ### sites.save <- sites
 ### sites <- subset(sites, posid == 'chr21-127223203.1')

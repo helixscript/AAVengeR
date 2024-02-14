@@ -40,9 +40,7 @@ quitOnErorr <- function(msg){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-
 if(! file.exists(opt$demultiplex_sampleDataFile)) quitOnErorr('Error - the sample configuration file could not be found.')
-
 
 # Read in sample data.
 updateLog('Loading sample data.')
@@ -148,12 +146,7 @@ updateLog('Completed processing read batches.')
 
 updateLog('Colating data files.')
 
-### counter <- 1
-### totalRepSamples <- n_distinct(samples$uniqueSample)
-
 reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
-  ### message(counter, '/', totalRepSamples)
-  ### counter <<- counter + 1
 
   f1 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.[^\\.]+\\.anchorReads'), full.names = TRUE)
   f2 <- list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = paste0(x, '\\.[^\\.]+\\.adriftReads'), full.names = TRUE)
@@ -329,7 +322,7 @@ reads$quickFilterStartPos <- NA
 if(opt$demultiplex_quickAlignFilter){
   readsLengthPreFilter <- n_distinct(reads$readID)
   
-  updateLog(paste0('Prefiltering', ppNum(readsLengthPreFilter), ' reads with bwa2.'))
+  updateLog(paste0('Prefiltering ', ppNum(readsLengthPreFilter), ' reads with bwa2.'))
   
   reads <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
     
@@ -400,7 +393,8 @@ if(opt$demultiplex_quickAlignFilter){
   
   d <- sprintf("%.2f%%", (1 - (n_distinct(reads$readID)/readsLengthPreFilter))*100)
   
-  updateLog(paste0('Prefiltering done.', ppNum(d), 'reads removed.'))
+  updateLog(paste0('Prefiltering done.'))
+  updateLog(paste0(ppNum(d), ' reads removed because they had no hit to the reference genome.'))
 }
 
 # FASTQ export if requested in the configuration file.
@@ -451,7 +445,7 @@ if(opt$demultiplex_requirePostUmiLinker){
 }
 
 
-# Replicate reassingment if requested.
+# Replicate reassignment if requested.
 if(file.exists(opt$demultiplex_replicateMergingInstructions)){
   updateLog('Found replicate merging instruction file.')
   

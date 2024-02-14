@@ -169,8 +169,8 @@ waitForFile <- function(f, seconds = 1){
 
 
 demultiplex <- function(x){
-  library(dplyr)
-  library(ShortRead)
+  suppressPackageStartupMessages(library(dplyr))
+  suppressPackageStartupMessages(library(ShortRead))
   source(file.path(opt$softwareDir, 'lib.R'))
   
   chunk <- x$n[1]
@@ -295,10 +295,10 @@ blat <- function(y, ref, dir){
 
 
 alignReadEndsToVector <- function(y){
-  library(Biostrings)
-  library(data.table)
-  library(dplyr)
-  library(lubridate)
+  suppressPackageStartupMessages(library(Biostrings))
+  suppressPackageStartupMessages(library(data.table))
+  suppressPackageStartupMessages(library(dplyr))
+  suppressPackageStartupMessages(library(lubridate))
   
   s <- DNAStringSet(y$testSeq)
   names(s) <- y$readID
@@ -535,8 +535,8 @@ standardizationSplitVector <- function(d, v){
 
 
 golayCorrection <- function(x, tmpDirPath = NA){
-  library(ShortRead)
-  library(dplyr)
+  suppressPackageStartupMessages(library(ShortRead))
+  suppressPackageStartupMessages(library(dplyr))
   
   f <- file.path(tmpDirPath, paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') )
   writeFasta(x, file = f)
@@ -565,35 +565,7 @@ golayCorrection <- function(x, tmpDirPath = NA){
 }
 
 
-blast2rearangements_worker <-  function(b){
-  library(IRanges)
-  library(dplyr)
-  library(data.table)
-  
-  data.table::rbindlist(lapply(split(b, b$qname), function(b2){
-    
-    # Alignment to the negative strand will result in the subject end to come before the start.
-    # Switch it back so that they are sequential.
-    b2 <- arrange(b2, qstart, evalue)
-    b2$sstart2 <- ifelse(b2$sstart > b2$send, b2$send, b2$sstart)
-    b2$send2   <- ifelse(b2$sstart > b2$send, b2$sstart, b2$send)
-    
-
-    ir <- IRanges(start = b2$qstart, end = b2$qend)
-    if(length(ir) == 0) return(data.table())
-    
-    r <- IRanges::reduce(ir, min.gapwidth = opt$prepReads_mapLeaderSeqsMaxGapBetweenAlignments)
-    r <- r[start(r) <= opt$prepReads_buildReadMaps_minMapStartPostion]
-    if(length(r) == 0) return(data.table())
-    
-    o <- data.table(qname = b2$qname[1], end = IRanges::end(r), width = width(r))
-    o <- o[o$width == max(o$width),]
-    o[1,]
-  }))
-}
-    
-
-buildRearrangementModel <- function(b, seqsMinAlignmentLength = 15){
+buildRearrangementModel <- function(b, seqsMinAlignmentLength){
   r <- vector()
   counter <- 0
   b <- b[(b$qend - b$qstart + 1) >= seqsMinAlignmentLength,]
@@ -615,10 +587,10 @@ buildRearrangementModel <- function(b, seqsMinAlignmentLength = 15){
   sub('^;', '', r)
 }
 
-blast2rearangements <- function(b, maxMissingTailNTs = 5){
-  library(dplyr)
-  library(IRanges)
-  library(data.table)
+blast2rearangements <- function(b, maxMissingTailNTs){
+  suppressPackageStartupMessages(library(dplyr))
+  suppressPackageStartupMessages(library(IRanges))
+  suppressPackageStartupMessages(library(data.table))
   
   bind_rows(lapply(split(b, b$qname), function(b){
     
@@ -630,34 +602,34 @@ blast2rearangements <- function(b, maxMissingTailNTs = 5){
     b$sstart2 <- ifelse(b$sstart > b$send, b$send, b$sstart)
     b$send2   <- ifelse(b$sstart > b$send, b$sstart, b$send)
     
-    r <- tibble(qname = b$qname[1], rearrangement = buildRearrangementModel(b))
+    r <- tibble(qname = b$qname[1], rearrangement = buildRearrangementModel(b, opt$mapSiteLeaderSequences_minLocalAlignmentLength))
+    
+    k <- unlist(stringr::str_extract_all(r$rearrangement, '\\.\\.\\d+'))
+    lastRangeEnd <- as.integer(sub('\\.\\.', '', stringr::str_extract(k[length(k)], '\\.\\.\\d+')))
     
     # Add missing internal segments.
     o <- unlist(strsplit(r$rearrangement, ';'))
+    
     if(length(o) > 1){
       for(i in c(2:length(o))){
         n1 <- as.integer(sub('\\[', '', stringr::str_extract(o[i-1], '\\d+\\[')))
         n2 <- as.integer(stringr::str_extract(o[i], '^\\d+'))
         if(n2 - n1 >= 10) o[i-1] <- paste0(o[i-1], ';', n1+1, '..', n2-1, '[x]')
       }
+      
       r$rearrangement <- paste0(o, collapse = ';')
-      
-      o <- unlist(stringr::str_extract_all(r$rearrangement, '\\.\\.\\d+'))
-      lastRangeEnd <- as.integer(sub('\\.\\.', '', stringr::str_extract(o[length(o)], '\\.\\.\\d+')))
-      
-      if(b$qlen[1] - lastRangeEnd >= maxMissingTailNTs){
-        
-        r$rearrangement <- paste0(r$rearrangement, ';', (lastRangeEnd+1), '..', b$qlen[1], '[x]')
-      }
     }
-    
+      
+    # Add an [x] segment to the end of models if it falls short of the end of the analyzed sequence.
+    if(b$qlen[1] - lastRangeEnd >= maxMissingTailNTs) r$rearrangement <- paste0(r$rearrangement, ';', (lastRangeEnd+1), '..', b$qlen[1], '[x]')
+
     r
   }))
 }
 
 
 parseHMMERsummaryResult <- function(x){
-  library(data.table)
+  suppressPackageStartupMessages(library(data.table))
 
   r <- readLines(x)
   r <- r[! grepl('^\\s*#', r)]
@@ -775,8 +747,8 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
 
 
 blastReads <- function(reads, wordSize = 5, evalue = 100, tmpDirPath = NA, dbPath = NA){
-  library(Biostrings)
-  library(dplyr)
+  suppressPackageStartupMessages(library(Biostrings))
+  suppressPackageStartupMessages(library(dplyr))
   
   f <- tmpFile()
   writeXStringSet(reads,  file.path(tmpDirPath, paste0(f, '.fasta')))
@@ -805,8 +777,8 @@ blastReads <- function(reads, wordSize = 5, evalue = 100, tmpDirPath = NA, dbPat
 
 
 nearestGene <- function(posids, genes, exons, CPUs = 20){
-  library(dplyr)
-  library(parallel)
+  suppressPackageStartupMessages(library(dplyr))
+  suppressPackageStartupMessages(library(parallel))
   
   o <- base::strsplit(posids, '[\\+\\-]')
   d <- tibble(chromosome = unlist(lapply(o, '[', 1)),
@@ -821,8 +793,8 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
   
   r <- bind_rows(parLapply(cluster, split(d, d$n), function(x){
   #r <- bind_rows(lapply(split(d, d$n), function(x){
-    library(dplyr)
-    library(GenomicRanges)
+    suppressPackageStartupMessages(library(dplyr))
+    suppressPackageStartupMessages(library(GenomicRanges))
     
     x$exon <- NA
     x$nearestGene <- NA
@@ -900,6 +872,11 @@ parseBLAToutput <- function(f, convertToBlatPSL = FALSE){
   if(! file.exists(f) | file.info(f)$size == 0) return(tibble::tibble())
   b <- readr::read_delim(f, delim = '\t', col_names = FALSE, col_types = 'iiiiiiiicciiiciiiiccc')
 
+  if(convertToBlatPSL){
+    b$X12 <- ifelse(b$X9 == '-', b$X11 - b$X13, b$X12)
+    b$X13 <- ifelse(b$X9 == '-', b$X11 - b$X12, b$X13)
+  }
+  
   names(b) <- c('matches', 'misMatches', 'repMatches', 'nCount', 'qNumInsert', 'qBaseInsert', 'tNumInsert', 'tBaseInsert', 'strand',
                 'qName', 'qSize', 'qStart', 'qEnd', 'tName', 'tSize', 'tStart', 'tEnd', 'blockCount', 'blockSizes', 'qStarts', 'tStarts')
   
@@ -909,5 +886,32 @@ parseBLAToutput <- function(f, convertToBlatPSL = FALSE){
   b$queryWidth           <- (b$qEnd - b$qStart) + 1
   b$alignmentPercentID   <- (b$matches / b$tAlignmentWidth)*100
   
-  dplyr::select(b, qName, strand, qSize, qStart, qEnd, tName, tNumInsert, qNumInsert, tBaseInsert, qBaseInsert, tStart, tEnd, alignmentPercentID)
+  dplyr::select(b, qName, matches, strand, qSize, qStart, qEnd, tName, tNumInsert, qNumInsert, tBaseInsert, qBaseInsert, tStart, tEnd, alignmentPercentID)
+}
+
+blast2rearangements_worker <-  function(b){
+  library(IRanges)
+  library(dplyr)
+  library(data.table)
+  
+  data.table::rbindlist(lapply(split(b, b$qname), function(b2){
+    
+    # Alignment to the negative strand will result in the subject end to come before the start.
+    # Switch it back so that they are sequential.
+    b2 <- arrange(b2, qstart, evalue)
+    b2$sstart2 <- ifelse(b2$sstart > b2$send, b2$send, b2$sstart)
+    b2$send2   <- ifelse(b2$sstart > b2$send, b2$sstart, b2$send)
+    
+    
+    ir <- IRanges(start = b2$qstart, end = b2$qend)
+    if(length(ir) == 0) return(data.table())
+    
+    r <- IRanges::reduce(ir, min.gapwidth = opt$prepReads_mapLeaderSeqsMaxGapBetweenAlignments)
+    r <- r[start(r) <= opt$prepReads_buildReadMaps_minMapStartPostion]
+    if(length(r) == 0) return(data.table())
+    
+    o <- data.table(qname = b2$qname[1], end = IRanges::end(r), width = width(r))
+    o <- o[o$width == max(o$width),]
+    o[1,]
+  }))
 }

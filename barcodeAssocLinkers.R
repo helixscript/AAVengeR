@@ -14,6 +14,11 @@ s$indexLinker <- paste0(s$index1Seq, substr(s$adriftReadLinkerSeq, 1, opt$barcod
 
 I1 <- readFastq(opt$barcodeAssocLinkers_index1ReadsFile)@sread
 R1 <- readFastq(opt$barcodeAssocLinkers_adriftReadsFile)@sread
+
+# tmp.
+# Add as an option.
+I1 <- reverseComplement(I1)
+
 I1 <- as.character(I1)
 
 tab <- table(I1)
