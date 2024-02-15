@@ -1,3 +1,10 @@
+# AAVengeR/buildStdFragments.R
+# John K. Everett, Ph.D.
+# 
+# This script accepts input from buildSites or modules following it and annotates
+# nearest genomic features. Details such as distance to nearest features and their
+# orientation are included.
+
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 

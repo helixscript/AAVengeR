@@ -1,3 +1,10 @@
+# AAVengeR/aavenger.R
+# John K. Everett, Ph.D.
+# 
+# This is the launch script for the AAVengeR pipeline.
+# Its primary function is to check for configuration errors and execute
+# the module list found in the configuration file.
+
 suppressPackageStartupMessages(library(yaml))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
@@ -28,14 +35,11 @@ logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
 write(logo, opt$defaultLogFile, append = FALSE)
 write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
 
-
 # Check for third party software.
 checkSoftware()
 
-
 invisible(file.copy(opt$sampleConfigFile, file.path(opt$outputDir, 'src', 'sampleData.tsv')))
 invisible(file.copy(configFile, file.path(opt$outputDir, 'src', 'config.yml')))
-
 
 updateLog("Starting AAVengeR's module chain.")
 updateLog("Each module will create its own output folder in the main output folder.")

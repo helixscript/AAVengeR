@@ -1,3 +1,10 @@
+# AAVengeR/alignReads.R
+# John K. Everett, Ph.D.
+# 
+# This scripts accepts prepared reads from the prepReads module and aligns
+# them to reference genomes. Alignments are filtered according to parameters
+# found in the configuration file.
+
 suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(parallel))

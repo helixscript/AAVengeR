@@ -75,7 +75,7 @@ demultiplex_quickAlignFilter_minMatches: 30                                    #
 demultiplex_quickAlignFilter_minEstLeaderSeqLength: 15                         # [integer]   Reads are aligned without removing leader sequences (LTR/ITR). 
                                                                                #             This is the estimated average length of leader sequences in the analyis and this number of NTs 
                                                                                #             will be removed from the start of anchor reads before the quick alignment. 
-                                                                               #
+
 prepReads_CPUs: 15                                                             # [integer]   Number of CPUs to use when preparing reads for alignment to a reference genome.
 prepReads_outputDir: prepReads                                                 # [character] prepReads ouput directory name that will be created in the output directory.
 prepReads_readsTable:  demultiplex/reads.rds                                   # [file path] (@) Path to input reads data object created by demultiplex.R.
@@ -101,7 +101,6 @@ prepReads_HMMmatchTerminalSeq: CA                                              #
 prepReads_limitLeaderSeqsWithQuickAlignFilter: TRUE                            # [boolean]   Always set to FALSE for non-AAV work. Reccomended for AAV work.
 prepReads_additionalAnchorReadOverReadingSeqs: none                            # [string]    Comma delimited string of additional anchor read over-read trimming sequences to be passed to cutAdapt.
 prepReads_cutAdaptErrorRate: 0.15                                              # [float]     CutAdapt error rate per the cutAdapt manual.
-
 
 alignReads_CPUs: 15                                                            # [integer]   Number of CPUs to use when aligning reads to a reference genome.
 alignReads_outputDir: alignReads                                               # [character] alignReads ouput directory name that will be created in the output directory.

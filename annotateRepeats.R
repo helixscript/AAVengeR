@@ -1,3 +1,11 @@
+# AAVengeR/annotateRepeats.R
+# John K. Everett, Ph.D.
+# 
+# This scripts accepts integration sites buildSites or any module following buildSites.
+# For each genome, a repeat table created by RepeatMasker should be available in AAVengeR's
+# data directory. This script will report both the type and class of repeats intersecting 
+# with integrations.
+
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(readr))

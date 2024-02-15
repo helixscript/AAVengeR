@@ -1,5 +1,11 @@
-library(dplyr)
-library(ggplot2)
+# AAVengeR/buildAAVremnantPlots.R
+# John K. Everett, Ph.D.
+# 
+# This script create ITR remnant plots for AAV experiments.
+# Plots are exported as png, pdf, and rds files. 
+
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
 
 # Read in configuration file.
 configFile <- commandArgs(trailingOnly=TRUE)
@@ -12,8 +18,6 @@ sites <- readRDS(file.path(opt$outputDir, opt$buildAAVremnantPlots_inputFile))
 
 x <- lapply(split(sites, sites$sample), function(x){
         message('sample: ', x$sample[1])
-  
-        if(x$sample[1] == 'GTSP5773') browser()
 
         range <- seq(0, opt$buildAAVremnantPlots_ITRlength, opt$buildAAVremnantPlots_NTbinSize)
   
@@ -49,7 +53,7 @@ x <- lapply(split(sites, sites$sample), function(x){
                     size = 7, shape="\u27A1", inherit.aes = FALSE) +
          coord_cartesian(clip = "off")
          
-   ### ggsave(file.path(opt$outputDir, opt$buildAAVremnantPlots_outputDir, paste0(x$trial[1], '~', x$subject[1], '~', x$sample[1], '.pdf')), p, width = opt$buildAAVremnantPlots_plotOutputWidthInches, units = 'in')
+   ggsave(file.path(opt$outputDir, opt$buildAAVremnantPlots_outputDir, paste0(x$trial[1], '~', x$subject[1], '~', x$sample[1], '.pdf')), p, width = opt$buildAAVremnantPlots_plotOutputWidthInches, units = 'in')
    ggsave(file.path(opt$outputDir, opt$buildAAVremnantPlots_outputDir, paste0(x$trial[1], '~', x$subject[1], '~', x$sample[1], '.png')), p, dpi = 300, width = opt$buildAAVremnantPlots_plotOutputWidthInches, units = 'in')
    saveRDS(p, file = file.path(opt$outputDir, opt$buildAAVremnantPlots_outputDir, paste0(x$trial[1], '~', x$subject[1], '~', x$sample[1], '.rds')))
    p    
@@ -58,4 +62,3 @@ x <- lapply(split(sites, sites$sample), function(x){
 saveRDS(x, file = file.path(opt$outputDir, opt$buildAAVremnantPlots_outputDir, 'plots.rds'))
 
 q(save = 'no', status = 0, runLast = FALSE) 
-

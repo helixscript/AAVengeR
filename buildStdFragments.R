@@ -1,3 +1,11 @@
+# AAVengeR/buildStdFragments.R
+# John K. Everett, Ph.D.
+# 
+# This script accepts input from the buildFragments module and standardizes
+# fragment boundaries to account for PCR, sequencing, and alignment errors.
+# UMIs are corrected as well if the processAdriftReadLinkerUMIs parameter is 
+# set to TRUE.
+
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(parallel))

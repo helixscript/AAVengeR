@@ -1,3 +1,11 @@
+# AAVengeR/anchorReadRearrangements.R
+# John K. Everett, Ph.D.
+# 
+# This scripts accepts the a demultiplexed read table from the demultiplex module
+# and identifies instances of vector rearrangements. This analysis focus on anchor
+# reads and it is often applied to sequencing experiments where anchor reads lengths
+# are prioritized over adrift read lengths.
+
 suppressPackageStartupMessages(library(ShortRead))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(parallel))
@@ -51,8 +59,14 @@ reads <- readRDS(file.path(opt$outputDir, opt$anchorReadRearrangements_inputFile
 
 reads <- reads[nchar(reads$anchorReadSeq) >= opt$anchorReadRearrangements_minAnchorReadLength,]
 
-# BushmanAAVcontrolsPlasmidLargestRemnant.fasta
+# o <- readr::read_csv('correctedMetaData.csv', col_names = TRUE)
+# o$uniqueSample <- paste0(o$trial, '~', o$subject, '~', o$sample, '~', o$replicate)
+# reads <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
+#            x$vectorFastaFile <- subset(o, uniqueSample == x$uniqueSample[1])$vectorFastaFile 
+#            x
+#          }))
 # reads$vectorFastaFile <- sub('BushmanAAVcontrols.fasta', 'BushmanAAVcontrolsPlasmidLargestRemnant.fasta', reads$vectorFastaFile)
+
 
 if(nrow(reads) == 0) quitOnErorr('Error - the input table contained no rows.')
 
@@ -195,6 +209,7 @@ if(length(k) > 0){
 g <- group_by(reads, adriftReadRandomID, uniqueSample) %>% summarise(n = n_distinct(readID), .groups = 'drop') 
 
 k <- tibble(reshape2::dcast(g, adriftReadRandomID ~ uniqueSample, value.var = 'n'))
+rm(g)
 
 k2 <- k[, 2:length(k)]
 k2[is.na(k2)] <- 0
@@ -203,13 +218,15 @@ k2$sum <- apply(k2, 1, sum)
 
 o <- bind_cols(k[,1], k2)
 
+rm(k, k1)
+
 # k1 contains UMIs that do not span multiple samples.
 o1 <- o[o$sum == 1,]
 reads1 <-subset(reads, reads$adriftReadRandomID %in% o1$adriftReadRandomID)
 
 reads2 <- tibble()
 
-# k2 contains UMIs that span multiple samples and requires more scrutiny.
+# o2 contains UMIs that span multiple samples and requires more scrutiny.
 o2 <- o[o$sum > 1,]
 
 if(nrow(o2) > 0){
@@ -237,23 +254,21 @@ if(nrow(o2) > 0){
            }))
          }))
 
-         if(any(! is.na(o2$keep))){
-           o2 <- o2[! is.na(o2$keep),]
+  if(any(! is.na(o2$keep))){
+    o2 <- o2[! is.na(o2$keep),]
            
-           reads$f <- paste(reads$uniqueSample, reads$adriftReadRandomID)
-           toKeep <- paste(o2$keep, o2$adriftReadRandomID)
-           reads2 <- subset(reads, f %in% toKeep)
-           reads2$f <- NULL
-           reads$f <- NULL
-           
-         } else {
-           reads2 <- tibble()
-         }
+    reads$f <- paste(reads$uniqueSample, reads$adriftReadRandomID)
+    toKeep  <- paste(o2$keep, o2$adriftReadRandomID)
+    reads2  <- subset(reads, f %in% toKeep)
+    reads2$f <- NULL
+    reads$f <- NULL
+  } else {
+     reads2 <- tibble()
+  }
 }
 
 reads <- data.table(bind_rows(reads1, reads2))
-rm(reads1, reads2)
-### save.image('~/myDev.RData')
+rm(o1, o2, reads1, reads2)
 
 d <- reads$adriftReadRandomID[duplicated(reads$adriftReadRandomID)]
 a <- reads[reads$adriftReadRandomID %in% d]
@@ -269,7 +284,6 @@ a <- left_join(a, v, by = 'i')
 
 # Determine consensus UMI sequences where possible.
 a1 <- rbindlist(parLapply(cluster, split(a, a$n), function(k){
-#a1 <- rbindlist(lapply(split(a, a$n), function(k){  
         suppressPackageStartupMessages(library(data.table))
         suppressPackageStartupMessages(library(Biostrings))
   
@@ -287,9 +301,8 @@ a1 <- rbindlist(parLapply(cluster, split(a, a$n), function(k){
          }))
        }))
 
-# Ensure that concensus sequences are reasonable and did not create several ambiguous codes.
+# Ensure that consensus sequences are reasonable and did not create several ambiguous codes.
 i <- (stringr::str_count(toupper(a1$seq), '[ATCG]')/nchar(a1$seq)) >= 0.95
-sum(i)/nrow(a1)
 
 a1 <- a1[i]
 
@@ -338,49 +351,44 @@ m <- rbindlist(lapply(split(o, o$vector), function(x){
   # of the software it typically denotes a single read.
 
   b <- bind_rows(parLapply(cluster, split(reads, s$n), function(a){
-  #### counter <- 0
-  ### b <- bind_rows(lapply(split(reads, s$n), function(a){
-       library(dplyr)
-       library(data.table)
-       library(Biostrings)
+         library(dplyr)
+         library(data.table)
+         library(Biostrings)
     
-       f <- tmpFile()
+         f <- tmpFile()
     
-    ### counter <<- counter + 1
-    ### message(counter)
+         # Write the chunk out to a tmp file.
+         writeXStringSet(a,  file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.fasta')))
     
-    # Write the chunk out to a tmp file.
-    writeXStringSet(a,  file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.fasta')))
+         # Align the chunk to the vector sequence.
+         system(paste0('blastn -dust no -soft_masking false -word_size 5 -evalue 50 -outfmt 6 -query ',
+                       file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
+                       file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'dbs', 'd'),
+                      ' -num_threads 1 -out ', file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.blast'))),
+                      ignore.stdout = TRUE, ignore.stderr = TRUE)
     
-    # Align the chunk to the vector sequence.
-    system(paste0('blastn -dust no -soft_masking false -word_size 5 -evalue 50 -outfmt 6 -query ',
-                  file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.fasta')), ' -db ',
-                  file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'dbs', 'd'),
-                  ' -num_threads 1 -out ', file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.blast'))),
-           ignore.stdout = TRUE, ignore.stderr = TRUE)
+         waitForFile(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.blast')))
     
-    waitForFile(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.blast')))
+         # Catch instances where no alignments were returned.
+         if(file.info(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.blast')))$size == 0) return(tibble())
     
-    # Catch instances where no alignments were returned.
-    if(file.info(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.blast')))$size == 0) return(tibble())
+         # Parse blastn result.
+         b <- read.table(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
+         names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
+         b$alignmentLength <- b$qend - b$qstart + 1
+         b$strand <- ifelse(b$sstart > b$send, '-', '+')
     
-    # Parse blastn result.
-    b <- read.table(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.blast')), sep = '\t', header = FALSE)
-    names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
-    b$alignmentLength <- b$qend - b$qstart + 1
-    b$strand <- ifelse(b$sstart > b$send, '-', '+')
+         # Limit repLeaderSeqs in this chunk to those with one or more alignments.
+         o <- a[names(a) %in% b$qname]
     
-    # Limit repLeaderSeqs in this chunk to those with one or more alignments.
-    o <- a[names(a) %in% b$qname]
+         # Add query lengths to the blastn alignments.
+         d <- tibble(qname = names(o), qlen = width(o))
     
-    # Add query lengths to the blastn alignments.
-    d <- tibble(qname = names(o), qlen = width(o))
+         b <- left_join(b, d, by = 'qname')
     
-    b <- left_join(b, d, by = 'qname')
-    
-    # Limit alignments based on parameters in the configuration file.
-    dplyr::filter(b, pident >= opt$anchorReadRearrangements_seqsMinPercentID, alignmentLength >= opt$anchorReadRearrangements_minAlignmentLength)
-  }))
+         # Limit alignments based on parameters in the configuration file.
+         dplyr::filter(b, pident >= opt$anchorReadRearrangements_seqsMinPercentID, alignmentLength >= opt$anchorReadRearrangements_minAlignmentLength)
+       }))
   
   # Create a grouping index for read IDs.
   b$i <- group_by(b, qname) %>% group_indices()
@@ -409,14 +417,31 @@ m$numRearrangements <- stringr::str_count(m$rearrangement, ';')
 if(opt$anchorReadRearrangements_excludeMissingTailsFromCounts) m[m$missingTailAssignment == TRUE,]$numRearrangements <- m[m$missingTailAssignment == TRUE,]$numRearrangements - 1
 
 m$missingTailAssignment <- NULL
-m <- arrange(m, desc(numRearrangements))
 
-saveRDS(m, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'output.rds'))
+seqLengths <- bind_rows(lapply(split(o, o$uniqueSample), function(x){
+                tibble(uniqueSample = x$uniqueSample[1], totalNTs = sum(nchar(x$seq)))
+              }))
+
+m <- left_join(m, seqLengths, by = 'uniqueSample')
+
+# Remove UMIs for which short hands could not be created.
+# This should be a small number if the min. alignment length is less than
+# the start sequence filters.
 
 m <- m[! is.na(m$rearrangement),]
 m$sample <- sub('~\\d+$', '', m$uniqueSample)
 
 r <- group_by(m, sample) %>%
-     summarise(nUMIs = n_distinct(adriftReadRandomID), percentRecombined = sprintf("%.2f%%", (sum(numRearrangements > 1)/n())*100)) %>%
-     ungroup() %>%
-     readr::write_tsv(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'summary.tsv'))
+     summarise(totalNTs = sum(totalNTs),
+               nUMIs = n_distinct(adriftReadRandomID), 
+               recombinationEvents = sum(numRearrangements),
+               recombinationsPerKB = sum(numRearrangements) / (totalNTs/1000),
+               recombinationsPer5KB = sum(numRearrangements) / (totalNTs/5000),
+               recombinationsPer100KB = sum(numRearrangements) / (totalNTs/100000),
+               percentrecombinedUMIs = sprintf("%.2f%%", (sum(numRearrangements > 1)/nUMIs)*100)) %>%
+     ungroup() 
+
+readr::write_tsv(r, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'summary.tsv'))
+openxlsx::write.xlsx(r, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'summary.xlsx'))
+
+saveRDS(m, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'output.rds'))

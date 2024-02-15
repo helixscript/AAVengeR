@@ -1,3 +1,10 @@
+# AAVengeR/filterVectorAgainstSeqs.R
+# John K. Everett, Ph.D.
+#
+# This script reads in repLeaderSeq strings from buildSites or subsequent modules
+# and aligns the against their respective vector sequences to build recombinations 
+# maps which are expressed using a custom shorthand.
+
 suppressPackageStartupMessages(library(ShortRead))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(stringr))

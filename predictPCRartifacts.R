@@ -1,8 +1,16 @@
-library(dplyr)
-library(lubridate)
-library(rtracklayer)
-library(Biostrings)
-library(parallel)
+# AAVengeR/predictPCRartifacts.R
+# John K. Everett, Ph.D.
+#
+# This script predicts potential PCR artifacts for AAV analyses.
+# Two types of predictions are provided.
+# 1. alignment between the ends of ITR remnants and gDNA preceding integration sites.
+# 2. alignment between the gDNA following integration sites and vector sequences.
+
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(rtracklayer))
+suppressPackageStartupMessages(library(Biostrings))
+suppressPackageStartupMessages(library(parallel))
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')

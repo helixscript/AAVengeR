@@ -1,3 +1,10 @@
+# AAVengeR/buildFragments.R
+# John K. Everett, Ph.D.
+# 
+# This script accepts input from the alignReads module and builds rationale
+# fragments where anchor and adrift reads alignments are near one another 
+# and have opposite orientations. 
+
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(parallel))

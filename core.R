@@ -1,3 +1,12 @@
+# AAVengeR/core.R
+# John K. Everett, Ph.D.
+# 
+# This script runs AAVengeR's six core modules:
+# demultiplex, prepReads, alignReads, buildFragments, buildStdFragments, and buildSites.
+# It is advantageous to use this module rather than calling the core modules serially
+# for large data sets since the core module dynamically sets CPU thresholds for each 
+# sample replicate according to the number of associated reads.
+
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(pander))

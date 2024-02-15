@@ -1,3 +1,10 @@
+# AAVengeR/buildSites.R
+# John K. Everett, Ph.D.
+# 
+# This script accepts input from the buildStdFragments and assembles fragments 
+# into integration events. Dual detections can be called if incoming fragments
+# have U3 and U5 flags set.
+
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 

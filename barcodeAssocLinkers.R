@@ -1,5 +1,12 @@
-library(ShortRead)
-library(dplyr)
+# AAVengeR/barcodeAssocLinkers.R
+# John K. Everett, Ph.D.
+# 
+# This script is a tool for working through barcoding and linker issues when
+# the demultiplexing module does not work as expected. This module provides 
+# useful summaries for technicians that can be used to check sample barcode/linker assignments.
+
+suppressPackageStartupMessages(library(ShortRead))
+suppressPackageStartupMessages(library(dplyr))
 
 # Read in configuration file.
 configFile <- commandArgs(trailingOnly=TRUE)
@@ -15,9 +22,8 @@ s$indexLinker <- paste0(s$index1Seq, substr(s$adriftReadLinkerSeq, 1, opt$barcod
 I1 <- readFastq(opt$barcodeAssocLinkers_index1ReadsFile)@sread
 R1 <- readFastq(opt$barcodeAssocLinkers_adriftReadsFile)@sread
 
-# tmp.
-# Add as an option.
-I1 <- reverseComplement(I1)
+#  Add as an option.
+#  I1 <- reverseComplement(I1)
 
 I1 <- as.character(I1)
 

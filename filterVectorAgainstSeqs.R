@@ -1,8 +1,6 @@
-library(dplyr)
-library(stringr)
-library(readr)
-library(Biostrings)
-
+# AAVengeR/filterVectorAgainstSeqs.R
+# John K. Everett, Ph.D.
+#
 # This script reads in a vector sequence and a second FASTA formatted file
 # and aligns the vector against the FASTA file. Significant alignments to the 
 # second file are masked with lowercase letters and written out to a second 
@@ -10,6 +8,11 @@ library(Biostrings)
 #
 # Input vectors should already be masked with repeatMasker, eg.
 # RepeatMasker -s -xsmall -species "Mus musculus" -dir tmp vector.ff
+
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(readr))
+suppressPackageStartupMessages(library(Biostrings))
 
 vectorIN <- 'data/vectors/Peranteau-AAV8-CAG-GFP.fasta'  
 vectorOUT <- 'data/vectors/Peranteau-AAV8-CAG-GFP.filtered.fasta'
