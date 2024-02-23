@@ -41,4 +41,6 @@ install.packages('dtplyr', repos='https://cloud.r-project.org/', quiet=FALSE)
 
 install.packages('argparse', repos='https://cloud.r-project.org/', quiet=FALSE)
 
-BiocManager::install(c("GenomicRanges", "ShortRead",'GenomicRanges','Biostrings'), update = FALSE)
+install.packages('RMariaDB', repos='https://cloud.r-project.org/', quiet=FALSE)
+
+BiocManager::install(c("GenomicRanges", "ShortRead",'GenomicRanges','Biostrings' , 'rtracklayer'), update = FALSE)
