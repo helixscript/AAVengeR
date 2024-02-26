@@ -59,6 +59,8 @@ reads <- readRDS(file.path(opt$outputDir, opt$anchorReadRearrangements_inputFile
 
 reads <- reads[nchar(reads$anchorReadSeq) >= opt$anchorReadRearrangements_minAnchorReadLength,]
 
+# Hot fix for SampleSheet errors during demultiplexing.
+#
 # o <- readr::read_csv('correctedMetaData.csv', col_names = TRUE)
 # o$uniqueSample <- paste0(o$trial, '~', o$subject, '~', o$sample, '~', o$replicate)
 # reads <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
@@ -66,7 +68,6 @@ reads <- reads[nchar(reads$anchorReadSeq) >= opt$anchorReadRearrangements_minAnc
 #            x
 #          }))
 # reads$vectorFastaFile <- sub('BushmanAAVcontrols.fasta', 'BushmanAAVcontrolsPlasmidLargestRemnant.fasta', reads$vectorFastaFile)
-
 
 if(nrow(reads) == 0) quitOnErorr('Error - the input table contained no rows.')
 
@@ -418,28 +419,41 @@ if(opt$anchorReadRearrangements_excludeMissingTailsFromCounts) m[m$missingTailAs
 
 m$missingTailAssignment <- NULL
 
-seqLengths <- bind_rows(lapply(split(o, o$uniqueSample), function(x){
-                tibble(uniqueSample = x$uniqueSample[1], totalNTs = sum(nchar(x$seq)))
-              }))
+o$sample <- sub('~\\d+$', '', o$uniqueSample)
 
-m <- left_join(m, seqLengths, by = 'uniqueSample')
+sampleTotalNTs <- bind_rows(lapply(split(o, o$sample), function(x){
+                    tibble(sample = x$sample[1], totalNTs = sum(nchar(x$seq)))
+                  }))
 
 # Remove UMIs for which short hands could not be created.
 # This should be a small number if the min. alignment length is less than
 # the start sequence filters.
 
 m <- m[! is.na(m$rearrangement),]
+
+# Create an alternative rearrangement shorthand that standardized the ends 
+# so that shorthands from different length reads can be compared.
+rearrangements2 <- bind_rows(lapply(unique(m$rearrangement), function(x){
+                      p <- unlist(strsplit(x, ';'))
+                      p[length(p)] <- sub('\\.\\.\\d+', '..end', p[length(p)])
+                      p[length(p)] <- sub('\\d+\\]$', 'end]', p[length(p)])
+                      tibble(rearrangement = x, rearrangement2 = paste0(p, collapse = ';'))
+                     }))
+
+
 m$sample <- sub('~\\d+$', '', m$uniqueSample)
 
+m <- left_join(m, rearrangements2, by = 'rearrangement')
+
 r <- group_by(m, sample) %>%
-     summarise(totalNTs = sum(totalNTs),
-               nUMIs = n_distinct(adriftReadRandomID), 
-               recombinationEvents = sum(numRearrangements),
-               recombinationsPerKB = sum(numRearrangements) / (totalNTs/1000),
-               recombinationsPer5KB = sum(numRearrangements) / (totalNTs/5000),
-               recombinationsPer100KB = sum(numRearrangements) / (totalNTs/100000),
-               percentrecombinedUMIs = sprintf("%.2f%%", (sum(numRearrangements > 1)/nUMIs)*100)) %>%
+     summarise(nUMIs = n_distinct(adriftReadRandomID), 
+               recombinationEvents = sum(numRearrangements), 
+               percentRecombinedUMIs = sprintf("%.2f%%", (sum(numRearrangements > 0)/nUMIs)*100)) %>%
      ungroup() 
+
+r <- left_join(r, sampleTotalNTs, by = 'sample')
+r$recombinationEventsPer1K  <- r$recombinationEvents / (r$totalNTs/1000)
+r$recombinationEventsPer5K  <- r$recombinationEvents / (r$totalNTs/5000)
 
 readr::write_tsv(r, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'summary.tsv'))
 openxlsx::write.xlsx(r, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'summary.xlsx'))

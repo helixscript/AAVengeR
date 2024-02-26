@@ -23,7 +23,7 @@ I1 <- readFastq(opt$barcodeAssocLinkers_index1ReadsFile)@sread
 R1 <- readFastq(opt$barcodeAssocLinkers_adriftReadsFile)@sread
 
 #  Add as an option.
-#  I1 <- reverseComplement(I1)
+I1 <- reverseComplement(I1)
 
 I1 <- as.character(I1)
 
