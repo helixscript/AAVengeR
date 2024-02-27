@@ -587,7 +587,7 @@ buildRearrangementModel <- function(b, seqsMinAlignmentLength){
   sub('^;', '', r)
 }
 
-blast2rearangements <- function(b, maxMissingTailNTs){
+blast2rearangements <- function(b, maxMissingTailNTs, minLocalAlignmentLength){
   suppressPackageStartupMessages(library(dplyr))
   suppressPackageStartupMessages(library(IRanges))
   suppressPackageStartupMessages(library(data.table))
@@ -602,7 +602,7 @@ blast2rearangements <- function(b, maxMissingTailNTs){
     b$sstart2 <- ifelse(b$sstart > b$send, b$send, b$sstart)
     b$send2   <- ifelse(b$sstart > b$send, b$sstart, b$send)
     
-    r <- tibble(qname = b$qname[1], rearrangement = buildRearrangementModel(b, opt$mapSiteLeaderSequences_minLocalAlignmentLength))
+    r <- tibble(qname = b$qname[1], rearrangement = buildRearrangementModel(b, minLocalAlignmentLength))
     
     k <- unlist(stringr::str_extract_all(r$rearrangement, '\\.\\.\\d+'))
     lastRangeEnd <- as.integer(sub('\\.\\.', '', stringr::str_extract(k[length(k)], '\\.\\.\\d+')))

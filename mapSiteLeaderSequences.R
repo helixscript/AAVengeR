@@ -133,7 +133,7 @@ m <- rbindlist(lapply(split(sites, sites$vector), function(x){
   # Pass alignment chunks to rearrangement function.
   
   #r <- rbindlist(lapply(split(b, b$n), blast2rearangements, opt$mapSiteLeaderSequences_maxMissingTailNTs))
-  r <- rbindlist(parallel::parLapply(cluster, split(b, b$n), blast2rearangements, opt$mapSiteLeaderSequences_maxMissingTailNTs))
+  r <- rbindlist(parallel::parLapply(cluster, split(b, b$n), blast2rearangements, opt$mapSiteLeaderSequences_maxMissingTailNTs, opt$mapSiteLeaderSequences_minLocalAlignmentLength))
   
   z <- left_join(tibble(qname = names(reads), leaderSeq = as.character(reads)), dplyr::rename(r, repLeaderSeqMap = rearrangement), by = 'qname')
   z$vector <- x$vector[1]
