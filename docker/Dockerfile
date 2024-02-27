@@ -24,6 +24,8 @@ RUN conda install -n python2_env numpy=1.16.6
 
 RUN conda env create -f bioinformatic_dependencies.yml
 
+RUN conda env create -f blat_dependency.yml
+
 RUN apt-get update
 
 RUN apt-get -y install libcurl4-openssl-dev
@@ -36,10 +38,14 @@ RUN apt-get -y install libgmp3-dev
 
 RUN apt-get -y install libmariadb-dev
 
+RUN apt-get -y install libmysqlclient-dev
+
 RUN Rscript ./R_dependencies.R
 
-RUN echo "export PATH=$PATH:/opt/conda/envs/bioinformatic_dependencies/bin:/opt/conda/envs/python2_env/bin" >> /root/.bashrc
+RUN echo "export PATH=$PATH:/opt/conda/envs/bioinformatic_dependencies/bin:/opt/conda/envs/python2_env/bin:/opt/conda/envs/blat_dependency/bin" >> /root/.bashrc
 
 RUN echo "alias python2=/opt/conda/envs/python2_env/bin/python" >> /root/.bashrc 
+
+RUN echo "ln -s /usr/lib/x86_64-linux-gnu/libmariadb.so.3 /usr/lib/x86_64-linux-gnu/libmysqlclient.so.18" >> /root/.bashrc
 
 #https://stackoverflow.com/questions/64323539/docker-run-interactive-with-conda-environment-already-activated
