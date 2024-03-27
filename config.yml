@@ -192,22 +192,23 @@ callNearestGenes_boundaries:
         exons: macFas5.humanXeno.exons.rds
 
 
-anchorReadRearrangements_CPUs: 15                                               # [integer] max number of CPUs module is allowed to use.
-anchorReadRearrangements_outputDir: anchorReadRearrangements                    # [file path] (@) module output folder.
-anchorReadRearrangements_inputFile: demultiplex/reads.rds                       # [file path] (@) path to output of demultiplex module.
-anchorReadRearrangements_vectorLeaderSeqFilterLength: 12                        # [integer] Length of NTs at the start of reads to compare to the start seqs of <anchorReadRearrangements_expectedSeqs> to filter in reads to consider.
-anchorReadRearrangements_vectorLeaderSeqFilterMaxMismatch: 1                    # [integer] max. mismatch allowed when filtering on reads start sequences.
-anchorReadRearrangements_minAlignmentLength: 10                                 # [integer] min. local alignment length to consider when building recombination models from local alignments to the vector -- should be shorter than anchorReadRearrangements_vectorLeaderSeqFilterLength
-anchorReadRearrangements_minAlignmentPercentID: 90                              # [integer] min. local alignment percent ID to use when building rearrangement models.
-anchorReadRearrangements_maxMissingTailNTs: 11                                  # [integer] number of NTs at the end of reads not covered by a model before reporting the missing NTs as [x] -- should be 1 more than anchorReadRearrangements_minAlignmentLength.
-anchorReadRearrangements_additionalAnchorReadOverReadingSeqs: none              # [string]   Comma delimited string of additional anchor read over-read trimming sequences to be passed to cutAdapt.
-anchorReadRearrangements_minAnchorReadLength: 50                                # [integer] min length of read to consider.
-anchorReadRearrangements_cutAdaptErrorRate: 0.15                                # [float]   max percent error for cutAdapt trimming. 
-anchorReadRearrangements_readEndAlignmentTestLength: 12                         # [integer] number of NTs at the end of reads to align to the vector when considering reads to analyze.
-anchorReadRearrangements_readEndAlignmentTestMinMatch: 11                       # [integer] min number of letter matches for the end of read alignment test - should be longer than min local alignment and less than anchorReadRearrangements_readEndAlignmentTestLength.
+anchorReadRearrangements_CPUs: 10
+anchorReadRearrangements_outputDir: anchorReadRearrangements
+anchorReadRearrangements_inputFile: demultiplex/reads.rds
+anchorReadRearrangements_vectorLeaderSeqFilterLength: 12
+anchorReadRearrangements_vectorLeaderSeqFilterMaxMismatch: 1
+anchorReadRearrangements_minAlignmentLength: 10                                 # Shorter than anchorReadRearrangements_vectorLeaderSeqFilterLength
+anchorReadRearrangements_minAlignmentPercentID: 90
+anchorReadRearrangements_maxMissingTailNTs: 11                                  # 1 more than anchorReadRearrangements_minAlignmentLength
+anchorReadRearrangements_additionalAnchorReadOverReadingSeqs: none
+anchorReadRearrangements_anchorReadCutPos: 300
+anchorReadRearrangements_adriftReadCutPos: 100
+anchorReadRearrangements_cutAdaptErrorRate: 0.15
+anchorReadRearrangements_readEndAlignmentTestLength: 12
+anchorReadRearrangements_readEndAlignmentTestMinMatch: 11                       # Longer than min local alignment
 anchorReadRearrangements_clusterParams: -c 0.90 -d 0 -aS 0.93 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -5 -gap-ext -1
-anchorReadRearrangements_expectedSeqs:                                          # [string(s)] Expected 500mers for each vector studied.
-  BushmanAAVcontrolsPlasmidLargestRemnant.fasta: 
+anchorReadRearrangements_expectedSeqs:
+  BushmanAAVcontrolsLargestRemnant-plasmid.fasta:
     - TTCCTATCTAGATGCATTCGCGAGGTACCGAGCTCGAATTCACTGGCCGTCGTTTTACAACGTCGTGACTGGGAAAACCCTGGCGTTACCCAACTTAATCGCCTTGCAGCACATCCCCCTTTCGCCAGCTGGCGTAATAGCGAAGAGGCCCGCACCGATCGCCCTTCCCAACAGTTGCGCAGCCTGAATGGCGAATGGCGCCTGATGCGGTATTTTCTCCTTACGCATCTGTGCGGTATTTCACACCGCATATGGTGCACTCTCAGTACAATCTGCTCTGATGCCGCATAGTTAAGCCAGCCCCGACACCCGCCAACACCCGCTGACGCGCCCTGACGGGCTTGTCTGCTCCCGGCATCCGCTTACAGACAAGCTGTGACCGTCTCCGGGAGCTGCATGTGTCAGAGGTTTTCACCGTCATCACCGAAACGCGCGAGACGAAAGGGCCTCGTGATACGCCTATTTTTATAGGTTAATGTCATGATAATAATGGTTTCTTA
   pAAV-GFP.fasta:
     - TTCCTTGTAGTTAATGATTAACCCGCCATGCTACTTATCTACGTAGCCATGCTCTAGCGGCCTCGGCCTCTGCATAAATAAAAAAAATTAGTCAGCCATGAGCTTGGCCCATTGCATACGTTGTATCCATATCATAATATGTACATTTATATTGGCTCATGTCCAACATTACCGCCATGTTGACATTGATTATTGACTAGTTATTAATAGTAATCAATTACGGGGTCATTAGTTCATAGCCCATATATGGAGTTCCGCGTTACATAACTTACGGTAAATGGCCCGCCTGGCTGACCGCCCAACGACCCCCGCCCATTGACGTCAATAATGACGTATGTTCCCATAGTAACGCCAATAGGGACTTTCCATTGACGTCAATGGGTGGAGTATTTACGGTAAACTGCCCACTTGGCAGTACATCAAGTGTATCATATGCCAAGTACGCCCCCTATTGACGTCAATGACGGTAAATGGCCCGCCTGGCATTATGCCCAGTACAT
@@ -215,7 +216,6 @@ anchorReadRearrangements_expectedSeqs:                                          
   pCCVC-TTRm-8003-D3-SPDE.fasta:
     - TTCCTACGCGTGTCTGTCTGCACATTTCGTAGAGCGAGTGTTCCGATACTCTAATCTCCCTAGGCAAGGTTCATATTGACTTAGGTTACTTATTCTCCTTTTGTTGACTAAGTCAATAATCAGAATCAGCAGGTTTGGAGTCAGCTTGGCAGGGATCAGCAGCCTGGGTTGGAAGGAGGGGGTATAAAAGCCCCTTCACCAGGAGAAGCCGTCACACAGATCCACAAGCTCCTGCTAGCAGGTAAGTGCCGTGTGTGGTTCCCGCGGGCCTGGCCTCTTTACGGGTTATGGCCCTTGCGTGCCTTGAATTACTGACACTGACATCCACTTTTTCTTTTTCTCCACAGGTTTAAACGCCACCATGCAGATTGAGCTGTCTACTTGTTTTTTTCTGTGCCTGCTGAGGTTCTGCTTCTCTGCCACCAGGAGGTATTACCTGGGGGCTGTGGAGCTGAGCTGGGATTACATGCAGTCTGATCTGGGGGAGCTGCCTGTGGATG
     - TTCCTACACAAAAAACCAACACACAGATCTCTAGAGCTCTGATCTTTTATTGCGGCCGCTCAGTACAGATCCTGGGCCTCACAGCCCAGCACCTCCATCCTCAGGGCAATCTGGTGCACCCAGCTCTGGGGGTGGATCCTCAGGTACCTGGTCAGCAGGGGGGGGTCCAGGCTGTTCACCACTGGGGTGAAGCTATCCTGATTGCCCTGAAACACCTTCACCTTCCCATTCTGGAAGAACAGGGTCCACTGGTGGCCATCCTGGCTGCTGCTAATCAGGAACTCCTTCACATACATGCTGGTCAGCAGGCTTTTCACCCCCTGGGTGGTCACCCCAGTCACTTTCATAGTCTTCTGGAAGTCCACCTGCAGCCACTCCTTGGGGTTGTTCACCTGGGGCCTCCAGGCATTAGACCTGCCCTGCAGATGCAGCCTAGCCTTGCTAGGGCTCCAAGTGGCAAACATATTGGTGAAATAGCTGCTGGCAGTGATCTGGGCATC
-
 
 predictPCRartifacts_CPUs: 15
 predictPCRartifacts_inputFile: core/sites.rds

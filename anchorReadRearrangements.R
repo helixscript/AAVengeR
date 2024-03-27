@@ -58,6 +58,11 @@ reads <- readRDS(file.path(opt$outputDir, opt$anchorReadRearrangements_inputFile
 
 reads <- reads[nchar(reads$anchorReadSeq) >= opt$anchorReadRearrangements_minAnchorReadLength,]
 
+# Limit anchor read lengths to the min. length to control NT level metrics.
+reads$anchorReadSeq <- substr(reads$anchorReadSeq, 1, opt$anchorReadRearrangements_minAnchorReadLength)
+
+
+
 # Hot fix for SampleSheet errors during demultiplexing.
 #
 o <- readr::read_csv('correctedMetaData.csv', col_names = TRUE)
@@ -66,7 +71,7 @@ reads <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
            x$vectorFastaFile <- subset(o, uniqueSample == x$uniqueSample[1])$vectorFastaFile
            x
          }))
-reads$vectorFastaFile <- sub('BushmanAAVcontrols.fasta', 'BushmanAAVcontrolsPlasmidLargestRemnant.fasta', reads$vectorFastaFile)
+reads$vectorFastaFile <- sub('BushmanAAVcontrols.fasta', 'BushmanAAVcontrolsLargestRemnant-plasmid.fasta', reads$vectorFastaFile)
 
 if(nrow(reads) == 0) quitOnErorr('Error - the input table contained no rows.')
 
@@ -86,6 +91,7 @@ if(! all(unique(reads$vectorFastaFile) %in%  names(opt$anchorReadRearrangements_
 
 nReadsPreFilter <- nrow(reads)
 
+# Limit reads to those that start wit the expected sequences.
 reads <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
            v <- unique(x$vectorFastaFile)
            updateLog(paste0('Limiting ', ppNum(nrow(x)), ' reads for vector:  ', v))
@@ -163,9 +169,13 @@ trimReport <- mutate(reads, sample = sub('~\\d+$', '', uniqueSample)) %>%
   ungroup() %>%
   readr::write_tsv(file = file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'commonLinkerTrimReport.tsv'), append = FALSE, col_names = TRUE)
 
+
 # Switch original sequences for trimmed sequences.
 reads$anchorReadSeq <- NULL
 reads <- dplyr::rename(reads, anchorReadSeq = anchorReadSeq2)
+
+# Remove reads that now fall below the minimum read length due to trimming.
+reads$anchorReadSeq <- substr(reads$anchorReadSeq, 1, opt$anchorReadRearrangements_minAnchorReadLength)
 
 nReadsPreFilter <- n_distinct(reads$readID)
 
