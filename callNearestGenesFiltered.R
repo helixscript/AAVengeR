@@ -4,8 +4,8 @@ library(GenomicRanges)
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
-opt <- yaml::read_yaml(configFile)
 
+opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
 dir.create(file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir))
@@ -90,6 +90,11 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
        })))
 
 sites <- arrange(sites, desc(sonicLengths))
+
+if(opt$databaseConfigGroup != 'none'){
+  suppressPackageStartupMessages(library(RMariaDB))
+  uploadSitesToDB(sites)
+}
 
 saveRDS(sites, file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir, 'sites.rds'))
 openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir, 'sites.xlsx'))

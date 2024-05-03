@@ -242,46 +242,7 @@ write(date(), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.done'))
 
 if(opt$databaseConfigGroup != 'none'){
   suppressPackageStartupMessages(library(RMariaDB))
-  
-  updateLog('Writing fragment data to the database.')
-  
-  if(! file.exists('~/.my.cnf')) file.copy(opt$databaseConfigFile, '~/.my.cnf')
-  if(! file.exists('~/.my.cnf')) quitOnErorr('Error - can not find ~/.my.cnf file.')
-  
-  conn <- tryCatch({
-    dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
-  },
-  error=function(cond) {
-    quitOnErorr('Error - could not connect to the database.')
-  })
-  
-  invisible(lapply(split(sites, paste(sites$trial, sites$subject, sites$sample, sites$refGenome)), function(x){
-    
-    dbExecute(conn, paste0("delete from sites where trial='", x$trial[1], "' and subject='", x$subject[1],
-                           "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
-    
-    f <- tmpFile()
-    readr::write_tsv(x, file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp', f))
-    system(paste0('xz ', file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp', f)))
-    
-    fp <- file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp', paste0(f, '.xz'))
-    
-    tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
-    
-    invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
-  
-    r <- dbExecute(conn,
-                   "insert into sites values (?, ?, ?, ?, ?, ?)",
-                   params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], as.character(lubridate::today()),
-                                 list(serialize(tab, NULL))))
-    if(r == 0){
-      quitOnErorr(paset0('Error -- could not upload site data for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
-    } else {
-      updateLog(paste0('Uploaded fragment data for ',  x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
-    }
-  }))
-  
-  dbDisconnect(conn)
+  uploadSitesToDB(sites)
 }
 
 updateLog('buildSites completed.')

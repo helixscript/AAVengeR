@@ -8,7 +8,6 @@ configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
 opt <- yaml::read_yaml(configFile)
 
-# 3595
 sites <- readRDS(file.path(opt$outputDir, opt$addSampleDetails_inputFile))
 details <- readr::read_tsv(opt$addSampleDetails_detailsFile)
 

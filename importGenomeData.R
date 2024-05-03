@@ -1,5 +1,5 @@
 #!/usr/bin/Rscript
-source('./lib.R')
+source(file.path(this.path::this.dir(), 'lib.R'))
 args = commandArgs(trailingOnly=TRUE)
 f <- tmpFile()
 system(paste0('wget -O ', f, ' http://bushmanlab.org/data/AAVengeR/genomeData/', args, '.tar'))

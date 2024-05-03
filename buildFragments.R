@@ -74,7 +74,7 @@ updateLog('Preparing alignment data for fragment generation.')
 
 anchorReadAlignments <- subset(anchorReadAlignments, readID %in% adriftReadAlignments$readID)
 
-anchorReadAlignments <- select(anchorReadAlignments, uniqueSample, sample, readID, tName, strand, tStart, tEnd, leaderSeq, refGenome, seqRunID, flags, vectorFastaFile)
+anchorReadAlignments <- select(anchorReadAlignments, uniqueSample, sample, readID, tName, strand, tStart, tEnd, leaderSeq, refGenome, pid, flags, vectorFastaFile)
 adriftReadAlignments <- select(adriftReadAlignments, sample, readID, tName, strand, tStart, tEnd, randomLinkerSeq)
 
 names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads')
@@ -235,7 +235,7 @@ frags <- bind_rows(lapply(o, function(z){
                 fragWidth >= opt$buildFragments_minFragLength) %>%
                 mutate(uniqueSample = uniqueSample.anchorReads, readID = readID.anchorReads) %>%
                 select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads, randomLinkerSeq.adriftReads, 
-                       refGenome.anchorReads, vectorFastaFile.anchorReads, seqRunID.anchorReads, flags.anchorReads)
+                       refGenome.anchorReads, vectorFastaFile.anchorReads, pid.anchorReads, flags.anchorReads)
    r
 }))
 
@@ -255,7 +255,7 @@ invisible(rm(o, r, id_groups))
 invisible(gc())
 
 frags <- dplyr::rename(frags, leaderSeq = leaderSeq.anchorReads, randomLinkerSeq = randomLinkerSeq.adriftReads, refGenome = refGenome.anchorReads, 
-                              vectorFastaFile = vectorFastaFile.anchorReads, seqRunID = seqRunID.anchorReads, flags = flags.anchorReads)
+                              vectorFastaFile = vectorFastaFile.anchorReads, pid = pid.anchorReads, flags = flags.anchorReads)
 
 if(any(! incomingSamples %in% frags$uniqueSample) & opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
 
@@ -267,18 +267,7 @@ if(opt$databaseConfigGroup != 'none'){
   
   updateLog('Writing fragment data to the database.')
   
-  if(! file.exists('~/.my.cnf')) file.copy(opt$databaseConfigFile, '~/.my.cnf')
-  if(! file.exists('~/.my.cnf')){
-    if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
-    updateLog('Error - can not find ~/.my.cnf file.')
-  }
-  
-  conn <- tryCatch({
-    dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
-  },
-  error=function(cond) {
-    quitOnErorr('Error - could not connect to the database.')
-  })
+  conn <- createDBconnection()
   
   invisible(lapply(split(frags, frags$uniqueSample), function(x){
     x <- tidyr::separate(x, uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~', remove = FALSE)
@@ -288,7 +277,7 @@ if(opt$databaseConfigGroup != 'none'){
     
     f <- tmpFile()
     readr::write_tsv(dplyr::select(x, -trial, -subject, -sample, -replicate), file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', f))
-    system(paste0('xz ', file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', f)))
+    system(paste0('xz --best ', file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', f)))
     
     fp <- file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', paste0(f, '.xz'))
     
@@ -297,9 +286,9 @@ if(opt$databaseConfigGroup != 'none'){
     invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
     
     r <- dbExecute(conn,
-                   "insert into fragments values (?, ?, ?, ?, ?, ?, ?)",
+                   "insert into fragments values (?, ?, ?, ?, ?, ?, ?, ?)",
                    params = list(x$trial[1], x$subject[1], x$sample[1], x$replicate[1], x$refGenome[1],
-                                 list(serialize(tab, NULL)), as.character(lubridate::today())))
+                                 list(serialize(tab, NULL)), as.character(lubridate::today()), x$pid[1]))
     if(r == 0){
       quitOnErorr(paste0('Error -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.'))
     } else {

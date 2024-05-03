@@ -1,0 +1,1 @@
+cd-hit-est -i ITR_sequences.fasta -o out -c 0.85 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -5 -gap-ext -1 -aS 0.85 -aL 0.85

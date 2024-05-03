@@ -326,11 +326,16 @@ if(opt$demultiplex_quickAlignFilter){
   
   reads <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
     
+    # Substr will not fail if boundaries are unrealistic.
     o <- DNAStringSet(substr(x$adriftReadSeq, x$adriftLinkerSeqEnd+1, nchar(x$adriftReadSeq)))
     names(o) <- x$readID
+    
+    minAdriftReadToAlign <- 30
+    o <- o[width(o) >= minAdriftReadToAlign]
+    
     writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'))
     
-    system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 100000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
+    system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 10000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'), ' > ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam')))
     
@@ -350,10 +355,14 @@ if(opt$demultiplex_quickAlignFilter){
     
     o <- DNAStringSet(substr(x$anchorReadSeq, opt$demultiplex_quickAlignFilter_minEstLeaderSeqLength, nchar(x$anchorReadSeq)))
     names(o) <- x$readID
+    
+    minAnchorReadToAlign <- 30
+    o <- o[width(o) >= minAnchorReadToAlign]
+    
     writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'))
     
     # -B -O flags makes bwa-mem2 more tolerant of mismatches near the ends of alignments.
-    system(paste0('bwa-mem2 mem -B 2 -O 4 -t ', opt$demultiplex_CPUs, ' -c 100000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
+    system(paste0('bwa-mem2 mem -B 2 -O 4 -t ', opt$demultiplex_CPUs, ' -c 10000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'), ' > ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam')))
     
@@ -465,7 +474,7 @@ if(file.exists(opt$demultiplex_replicateMergingInstructions)){
 updateLog('Writing output files.')
 
 # Save demultiplexed reads and clean up.
-reads$seqRunID <- opt$demultiplex_seqRunID
+reads$pid <- samples$pid[1]
 saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = opt$compressDataFiles)
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
 

@@ -23,7 +23,7 @@ createOuputDir()
 if(! dir.exists(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir))) dir.create(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir))
 if(! dir.exists(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'dbs'))) dir.create(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'dbs'))
 if(! dir.exists(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'))
-if(! dir.exists(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'repLeaderSeqStructs'))) dir.create(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'repLeaderSeqStructs'))
+if(! dir.exists(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'clusterSequences'))) dir.create(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'clusterSequences'))
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'), full.names = TRUE)))
 
 setMissingOptions()
@@ -49,39 +49,130 @@ updateLog('Reading sample data.')
 
 cluster <- makeCluster(opt$anchorReadRearrangements_CPUs)
 clusterSetRNGStream(cluster, 1)
+clusterExport(cluster, c('opt', 'quitOnErorr', 'buildRearrangementModel'))
 
 if(! file.exists(file.path(opt$outputDir, opt$anchorReadRearrangements_inputFile))) quitOnErorr('Error - the input data file does not exist.')
 
 # Read in the reads table.
 updateLog('Reading in demultiplexed reads.')
+
 reads <- readRDS(file.path(opt$outputDir, opt$anchorReadRearrangements_inputFile))
-
-reads <- reads[nchar(reads$anchorReadSeq) >= opt$anchorReadRearrangements_minAnchorReadLength,]
-
-# Limit anchor read lengths to the min. length to control NT level metrics.
-reads$anchorReadSeq <- substr(reads$anchorReadSeq, 1, opt$anchorReadRearrangements_minAnchorReadLength)
-
-
-
-# Hot fix for SampleSheet errors during demultiplexing.
-#
-o <- readr::read_csv('correctedMetaData.csv', col_names = TRUE)
-o$uniqueSample <- paste0(o$trial, '~', o$subject, '~', o$sample, '~', o$replicate)
-reads <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
-           x$vectorFastaFile <- subset(o, uniqueSample == x$uniqueSample[1])$vectorFastaFile
-           x
-         }))
-reads$vectorFastaFile <- sub('BushmanAAVcontrols.fasta', 'BushmanAAVcontrolsLargestRemnant-plasmid.fasta', reads$vectorFastaFile)
-
 if(nrow(reads) == 0) quitOnErorr('Error - the input table contained no rows.')
 
-reads <- select(reads, uniqueSample, readID, anchorReadSeq, adriftReadTrimSeq, vectorFastaFile)
+# Update
+reads[grepl('_LC~', reads$uniqueSample),]$vectorFastaFile <- 'Sabatino_PMC7855056_lightChain_plasmid.fasta'
+reads[grepl('_HC~', reads$uniqueSample),]$vectorFastaFile <- 'Sabatino_PMC7855056_heavyChain_plasmid.fasta'
 
-updateLog('Limiting reads to select anchor read start sequences.')
+rawAnchorReads <- readFastq(file.path(opt$demultiplex_anchorReadsFile))
+rawAdriftReads <- readFastq(file.path(opt$demultiplex_adriftReadsFile))
 
+rawAnchorReads@id <- BStringSet(sub('\\s+.+$', '', as.character(rawAnchorReads@id)))
+rawAdriftReads@id <- BStringSet(sub('\\s+.+$', '', as.character(rawAdriftReads@id)))
+
+
+z <- rawAnchorReads[rawAnchorReads@id %in% subset(reads, vectorFastaFile == 'pAAV-GFP-plasmid.fasta')$readID]
+i1 <- vcountPattern('TTCCTTGTAGTTAATGATTAACCCGCCATGCTACTTATCTACGTAGCCATGCTCTAGCGGCCTCGGCC', z@sread, max.mismatch = 1) == 1
+i2 <- vcountPattern('TTCCTTGTAGTTAATGATTAACCCGCCATGCTACTTATCTACGTAGCCATGCTCTAGATGTCGAGGGA', z@sread, max.mismatch = 1) == 1
+
+
+
+# r <- readFasta('readsToRemove')
+# reads <- reads[! reads$readID %in% as.character(r@id),]
+# rawAnchorReads <- rawAnchorReads[! rawAnchorReads@id %in% as.character(r@id)]
+# rawAdriftReads <- rawAdriftReads[! rawAdriftReads@id %in% as.character(r@id)]
+
+
+reads <- bind_rows(lapply(split(reads, reads$uniqueSample), function(x){
+           f <- paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = '')
+  
+           # Retrieve raw read sequences.
+           R1 <- rawAdriftReads[rawAdriftReads@id %in% x$readID]
+           R2 <- rawAnchorReads[rawAnchorReads@id %in% x$readID]
+           
+           # Quality trim read tails.
+           R1 <- trimTailw(R1, opt$anchorReadRearrangements_qualtrim_events, opt$anchorReadRearrangements_qualtrim_code, opt$anchorReadRearrangements_qualtrim_halfWidth)
+           R2 <- trimTailw(R2, opt$anchorReadRearrangements_qualtrim_events, opt$anchorReadRearrangements_qualtrim_code, opt$anchorReadRearrangements_qualtrim_halfWidth)
+           
+           # Limit R1 reads to those long enough to trim linker sequences.
+           R1 <- R1[width(R1) > max(x$adriftLinkerSeqEnd)+1]
+           if(length(R1) == 0) return(tibble())
+ 
+           # Trim R1 linker sequences using position information provided by demultiplex module.
+           R1 <- narrow(R1, (x[match(R1@id, x$readID),]$adriftLinkerSeqEnd + 1), width(R1))
+
+           # Trim R2 over-reading into the common linker sequence on R1.
+           writeFastq(R2, paste0(f, '.R2.fastq'), compress = FALSE)
+           system(paste0('cutadapt -e ', opt$anchorReadRearrangements_cutAdaptErrorRate, ' -a ', x$adriftReadTrimSeq[1], ' ', paste0(f, '.R2.fastq'), ' > ', paste0(f, '.R2.cutAdapt')), ignore.stderr = TRUE)
+           R2 <- readFastq(paste0(f, '.R2.cutAdapt'))
+           invisible(file.remove(list.files(pattern = f)))
+           
+           # Select reads that are at least 50 nt to move forward.
+           R1 <- R1[width(R1) >= 50]
+           R2 <- R2[width(R2) >= 50]
+           
+           # Limit reads to those with read IDs in both R1 and R2.
+           i <- base::intersect(as.character(R1@id), as.character(R2@id))
+           if(length(i) == 0) return(tibble())
+           
+           R1 <- R1[R1@id %in% i]
+           R2 <- R2[R2@id %in% i]
+           if(! all(R1@id == R2@id)) stop('Read id order error.')
+           
+           # Merge R1 and R2 where possible.
+           writeFastq(R1, paste0(f, '.R1.fastq'), compress = FALSE)
+           writeFastq(R2, paste0(f, '.R2.fastq'), compress = FALSE)
+           
+           message(x$uniqueSample[1])
+           system(paste0('pear ',
+                         ' -j ', opt$anchorReadRearrangements_CPUs, 
+                         ' -p ', opt$anchorReadRearrangements_maxReadOverlapPval,
+                         ' -v ', opt$anchorReadRearrangements_minReadOverlapNTs,
+                         ' -f ', paste0(f, '.R1.fastq'), 
+                         ' -r ', paste0(f, '.R2.fastq'), 
+                         ' -o ', f))
+  
+           a <- readFastq(paste0(f, '.assembled.fastq'))
+           b <- readFastq(paste0(f, '.unassembled.reverse.fastq'))
+  
+           # Include only reads that overlap if anchorReadRearrangements_requireReadPairOverlap = TRUE.
+           if(! opt$anchorReadRearrangements_requireReadPairOverlap){
+             o <- Reduce('append', list(a, b))
+           } else {
+             o <- a
+           }
+           
+           # Cleanup tmp files.
+           invisible(file.remove(list.files(pattern = f)))
+  
+           r <- tibble()
+           
+           if(length(o) > 0){
+             r <- tibble(readID = as.character(o@id),
+                         uniqueSample = x$uniqueSample[1],
+                         vectorFastaFile = x$vectorFastaFile[1],
+                         seq = as.character(reverseComplement(o@sread)))
+             
+             r$mergedRead <- r$readID %in% a@id
+           }
+           
+           r
+         }))
+
+
+reads$w <- nchar(reads$seq)
 reads$sample <- sub('~\\d+$', '', reads$uniqueSample)
+p <- ggplot(reads, aes(w)) + 
+     theme_bw() +
+     geom_histogram(bins = 80) + 
+     geom_vline(xintercept = 200, color = 'red') +
+      facet_wrap(sample~., scales = 'free_y', ncol = 3)
+ggsave(p, units = 'in', height = 20, width = 20, file = 'p.pdf')
+saveRDS(reads, 'myReads.rds')
 
-save.image('~/anchorReadRearrangements_save1.RData')
+reads <- reads[reads$w >= opt$anchorReadRearrangements_anchorReadCutPos,]
+reads$seq <- substr(reads$seq, 1, opt$anchorReadRearrangements_anchorReadCutPos)
+
+nReadsPreFilter <- nrow(reads)
 
 if(! all(unique(reads$vectorFastaFile) %in%  names(opt$anchorReadRearrangements_expectedSeqs))){
   updateLog('Error -- all the vector names found in the read data are not defined in the anchorReadRearrangements_expectedSeqs section of the config file.')
@@ -89,99 +180,37 @@ if(! all(unique(reads$vectorFastaFile) %in%  names(opt$anchorReadRearrangements_
   q()
 }
 
-nReadsPreFilter <- nrow(reads)
-
 # Limit reads to those that start wit the expected sequences.
+updateLog('Limiting reads to select anchor read start sequences.')
+
 reads <- rbindlist(lapply(split(reads, reads$vectorFastaFile), function(x){
-           v <- unique(x$vectorFastaFile)
-           updateLog(paste0('Limiting ', ppNum(nrow(x)), ' reads for vector:  ', v))
-
-           testSeqs <- substr(opt[['anchorReadRearrangements_expectedSeqs']][[v]], 1, opt$anchorReadRearrangements_vectorLeaderSeqFilterLength)
-
-           rbindlist(lapply(testSeqs, function(k){
-             updateLog(paste0('  Limiting reads for this vector to those starting with ', k))
-
-             r <- x[vcountPattern(k,
-                                  DNAStringSet(substr(x$anchorReadSeq, 1, nchar(k))),
-                                  max.mismatch = opt$anchorReadRearrangements_vectorLeaderSeqFilterMaxMismatch) == 1]
-             updateLog(paste0('    ', ppNum(nrow(r)), ' reads matched the leader sequence.'))
-             r
-           }))
-         }))
-
-if(nrow(reads) == 0) quitOnErorr('Error - not reads matched any of the provided leader sequences.')
-
-updateLog(paste0(sprintf("%.2f%%", (nrow(reads) / nReadsPreFilter)*100), ' reads retained.'))
-
-# Trim anchor read over-reading with cutadapt using the RC of the common linker in adrift reads.
-# The trim sequence is defined in the reads table created by demultiplex.R.
-
-updateLog('Trimming anchor read over-reading.')
-
-if(tolower(opt$anchorReadRearrangements_additionalAnchorReadOverReadingSeqs) != 'none'){
-  opt$anchorReadRearrangements_additionalAnchorReadOverReadingSeqs <- paste0(' -a ', paste0(unlist(strsplit(opt$anchorReadRearrangements_additionalAnchorReadOverReadingSeqs, ',')), collapse = ' -a '))
-} else{
-  opt$anchorReadRearrangements_additionalAnchorReadOverReadingSeqs = ''
-}
-
-clusterExport(cluster, c('opt', 'buildRearrangementModel'))
-
-reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nrow(reads), opt$anchorReadRearrangements_CPUs)), function(x){
-  source(file.path(opt$softwareDir, 'lib.R'))
-  suppressPackageStartupMessages(library(dplyr))
-  suppressPackageStartupMessages(library(data.table))
-  suppressPackageStartupMessages(library(Biostrings))
-
-  # Split reads in this CPU chunk by their adapter sequences.
-  data.table::rbindlist(lapply(split(x, x$adriftReadTrimSeq), function(y){
-
-    # Write out reads in this chunk to a tmp file.
-    f <- file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp',  tmpFile())
-    o <- DNAStringSet(y$anchorReadSeq)
-    names(o) <- y$readID
-    Biostrings::writeXStringSet(o, f)
-
-    # Use cut adapt to trim anchor read over-reading.
-    system(paste0('cutadapt -e ', opt$anchorReadRearrangements_cutAdaptErrorRate, ' -a ', y$adriftReadTrimSeq[1], ' ', opt$anchorReadRearrangements_additionalAnchorReadOverReadingSeqs, ' ', f, ' > ', paste0(f, '.cutAdapt')), ignore.stderr = TRUE)
-
-    # Read in the cutadapt trimmed sequences.
-    t <- readDNAStringSet(paste0(f, '.cutAdapt'))
-    invisible(file.remove(f, paste0(f, '.cutAdapt')))
-
-    # Remove reads that were trimmed too short.
-    t <- t[width(t) >= opt$anchorReadRearrangements_minAnchorReadLength]
-    if(length(t) == 0) return(data.table())
-
-    # Limit incoming reads to those found in the cutAdapt output.
-    o <- subset(y, readID %in% names(t))
-    trimmed <- data.table(readID = names(t), anchorReadSeq2 = as.character(t))
-
-    # Attach the trimmed sequences to the input sequence labeled as anchorReadSeq2.
-    data.table(left_join(o, trimmed, by = 'readID'))
+  v <- unique(x$vectorFastaFile)
+  updateLog(paste0('Limiting ', ppNum(nrow(x)), ' reads for vector:  ', v))
+  
+  testSeqs <- unique(substr(opt[['anchorReadRearrangements_expectedSeqs']][[v]], 1, opt$anchorReadRearrangements_vectorLeaderSeqFilterLength))
+  
+  rbindlist(lapply(testSeqs, function(k){
+    updateLog(paste0('  Limiting reads for this vector to those starting with ', k))
+    r <- x[vcountPattern(k,
+                         DNAStringSet(substr(x$seq, 1, nchar(k))),
+                         max.mismatch = opt$anchorReadRearrangements_vectorLeaderSeqFilterMaxMismatch) == 1,]
+    updateLog(paste0('    ', ppNum(nrow(r)), ' reads matched the leader sequence.'))
+    r
   }))
 }))
 
-
-# Report trimming stats.
-trimReport <- mutate(reads, sample = sub('~\\d+$', '', uniqueSample)) %>%
-  group_by(sample) %>%
-  summarise(reads = n_distinct(readID), percentTrimmed = sprintf("%.2f%%", (sum(anchorReadSeq != anchorReadSeq2)/n())*100)) %>%
-  ungroup() %>%
-  readr::write_tsv(file = file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'commonLinkerTrimReport.tsv'), append = FALSE, col_names = TRUE)
+updateLog(paste0(sprintf("%.2f%%", (nrow(reads) / nReadsPreFilter)*100), ' reads retained.'))
+if(nrow(reads) == 0) quitOnErorr('Error - not reads matched any of the provided leader sequences.')
 
 
-# Switch original sequences for trimmed sequences.
-reads$anchorReadSeq <- NULL
-reads <- dplyr::rename(reads, anchorReadSeq = anchorReadSeq2)
+reads$sample <- sub('~\\d+$', '', reads$uniqueSample)
 
-# Remove reads that now fall below the minimum read length due to trimming.
-reads$anchorReadSeq <- substr(reads$anchorReadSeq, 1, opt$anchorReadRearrangements_minAnchorReadLength)
+nReadsPreFilter <- nrow(reads)
 
-nReadsPreFilter <- n_distinct(reads$readID)
-
+# Remove reads whoes ends do not align with their vector plasmid.
 reads <- bind_rows(lapply(split(reads, reads$vectorFastaFile), function(x){
            f <- tmpFile()
-           x$lastNTs <- substr(x$anchorReadSeq, nchar(x$anchorReadSeq) - (opt$anchorReadRearrangements_readEndAlignmentTestLength - 1), nchar(x$anchorReadSeq))
+           x$lastNTs <- substr(x$seq, nchar(x$seq) - (opt$anchorReadRearrangements_readEndAlignmentTestLength - 1), nchar(x$seq))
 
            system(paste0('/home/ubuntu/software/faToTwoBit ',
                          file.path(opt$softwareDir, 'data', 'vectors', x$vectorFastaFile[1]), ' ',
@@ -207,40 +236,24 @@ reads <- bind_rows(lapply(split(reads, reads$vectorFastaFile), function(x){
 
 updateLog(paste0(sprintf("%.2f%%", (n_distinct(reads$readID) / nReadsPreFilter)*100), ' reads remain after removing reads whoes tails do not align to the vector.'))
 
-save.image('~/anchorReadRearrangements_save2.RData')
-
-# load('~/anchorReadRearrangements_save2.RData')
-# opt <- yaml::read_yaml('config.yml')
-# source(file.path(opt$softwareDir, 'lib.R'))
-# opt$defaultLogFile <- file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'log')
-# logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
-# write(logo, opt$defaultLogFile, append = FALSE)
-# write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
-# cluster <- makeCluster(opt$anchorReadRearrangements_CPUs)
-# clusterSetRNGStream(cluster, 1)
-# clusterExport(cluster, c('opt', 'buildRearrangementModel'))
-
 samplesProcessed <- 1
 
 r <- bind_rows(lapply(split(reads, paste(reads$vectorFastaFile, reads$sample)), function(x){
        updateLog(paste0('Processing sample ', samplesProcessed, ' / ', n_distinct(reads$sample), ' - sample name: ', x$sample[1]))
        samplesProcessed <<- samplesProcessed  + 1
-   
-       #browser()
-       #x.save <- x
-       #x <- x[1:12,]
-       #x$anchorReadSeq <- as.character(tt)
-       #x$readID <- names(tt)
        
-       d <- DNAStringSet(x$anchorReadSeq)
+       # Read in anchor reads for this sample.
+       d <- DNAStringSet(x$seq)
        names(d) <- x$readID
        
+       # Read in the expected vector sequence for this sample.
+       # The vector may have more than one expected sequence when reading inward.
        d2 <- DNAStringSet(opt[['anchorReadRearrangements_expectedSeqs']][[unique(x$vectorFastaFile)]])
-       d2 <- subseq(d2, 1, max(nchar(x$anchorReadSeq)) + 5)
+       d2 <- unique(subseq(d2, 1, max(nchar(x$seq)) + 5))
        names(d2) <- paste0('expectedSeq', 1:length(d2))
-       
        message('vector: ', unique(x$vectorFastaFile), ' nSeqs: ', length(d2))
        
+       # Write out inward read sequences and expected vector sequences to the same file.
        writeXStringSet(c(d, d2), 'tmpDNAseq.fasta')
        
        system(paste0("cd-hit-est -i tmpDNAseq.fasta -o tmpDNAseq -T ", 
@@ -262,16 +275,37 @@ r <- bind_rows(lapply(split(reads, paste(reads$vectorFastaFile, reads$sample)), 
               }
             }))
        
-       # Remove expected sequence(s).
+       readsToRemove <- dplyr::group_by(o, rep) %>% 
+                        dplyr::summarise(nReads = n_distinct(readID)) %>% 
+                        dplyr::ungroup() %>% 
+                        dplyr::filter(nReads < opt$anchorReadRearrangements_minReadsPerAltStruct) %>%
+                        dplyr::pull(rep)
+       
+       if(length(readsToRemove) > 0 ){
+         message('Removing ', length(readsToRemove), ' reads.')
+         message(nrow(o))
+         o <- o[! o$readID %in% readsToRemove,]
+         message(nrow(o))
+       }
+
+       invisible(lapply(split(o, o$rep), function(clust){
+         k <- subset(x, readID %in% clust$readID)
+         d <- DNAStringSet(k$seq)
+         names(d) <- k$readID
+         if(! dir.exists(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'clusterSequences', x$sample[1]))) dir.create(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'clusterSequences', x$sample[1]))
+         writeXStringSet(d, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'clusterSequences', x$sample[1], paste0('Clust_', clust$rep[1], '.fasta')))
+       }))
+       
+       # Remove dummy expected sequence(s).
        o <- o[! grepl('expectedSeq', o$readID),]
        
        expectedSeqReadsIDs <- unique(o[grepl('expectedSeq', o$rep),]$readID)
-       expectedSeqReadsNTs <- sum(nchar(subset(reads, readID %in% expectedSeqReadsIDs)$anchorReadSeq))
+       expectedSeqReadsNTs <- sum(nchar(subset(reads, readID %in% expectedSeqReadsIDs)$seq))
        
        unexpectedSeqReadsIDs <- unique(o[! grepl('expectedSeq', o$rep),]$readID)
-       unexpectedSeqReadsNTs <- sum(nchar(subset(reads, readID %in% unexpectedSeqReadsIDs)$anchorReadSeq))
+       unexpectedSeqReadsNTs <- sum(nchar(subset(reads, readID %in% unexpectedSeqReadsIDs)$seq))
        
-       allReadNTs <- sum(nchar(x$anchorReadSeq))
+       allReadNTs <- sum(nchar(x$seq))
        allReadIDs <- unique(o$readID)
        
        altStructBreaks <- NA 
@@ -284,22 +318,23 @@ r <- bind_rows(lapply(split(reads, paste(reads$vectorFastaFile, reads$sample)), 
          if(length(files) > 0) invisible(file.remove(files))
          system(paste0('makeblastdb -in ', file.path(opt$softwareDir, 'data', 'vectors', x$vector[1]), 
                        ' -dbtype nucl -out ', file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
-       
-         repReads <- DNAStringSet(x[x$readID %in% o$rep,]$anchorReadSeq)
+         
+         # Here we cluster representatives to control for wiggle between recombined forms.
+         repReads <- DNAStringSet(x[x$readID %in% o$rep,]$seq)
          names(repReads) <- x[x$readID %in% o$rep,]$readID
-       
+         
          writeXStringSet(repReads, 'repReads.fasta')
-       
+         
          # Align the chunk to the vector sequence.  repReads.fasta
          #
-         # (!) Here we increase the penaly from the default -3 to -4 to prevent runs of mismatches to come through if followed by a string of matches.
+         # (!) Here we increase the penalty from the default -3 to -4 to prevent runs of mismatches to come through if followed by a string of matches.
          #
-         system(paste0('blastn -penalty -4 -max_target_seqs 1000 -gapopen 10 -gapextend 5 -dust no -soft_masking false -word_size 5 -evalue 100 -outfmt 6 -query repReads.fasta -db ',
+         system(paste0('blastn -penalty -4 -max_target_seqs 10000 -gapopen 10 -gapextend 5 -dust no -soft_masking false -word_size 5 -evalue 100 -outfmt 6 -query repReads.fasta -db ',
                        file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'dbs', 'd'),
                        ' -num_threads ', opt$anchorReadRearrangements_CPUs  ,' -out repReads.blast'), ignore.stdout = TRUE, ignore.stderr = TRUE)
-       
+         
          invisible(file.remove('repReads.fasta'))
-       
+         
          if(file.info('repReads.blast')$size != 0){
            # Parse blastn result.
            b <- read.table('repReads.blast', sep = '\t', header = FALSE)
@@ -307,28 +342,27 @@ r <- bind_rows(lapply(split(reads, paste(reads$vectorFastaFile, reads$sample)), 
            names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
            b$alignmentLength <- b$qend - b$qstart + 1
            b$strand <- ifelse(b$sstart > b$send, '-', '+')
-         
-           w <- tibble(qname = names(d), qlen = width(d))
-           b <- left_join(b, w, by = 'qname')
-         
+           
+           b$qlen <- opt$anchorReadRearrangements_anchorReadCutPos
+           
            b <- dplyr::filter(b, pident >= opt$anchorReadRearrangements_minAlignmentPercentID, alignmentLength >= opt$anchorReadRearrangements_minAlignmentLength)
-         
+           
            # Create a grouping index for read IDs.
            b$i <- group_by(b, qname) %>% group_indices()
-         
+           
            # Create a CPU splitting vector that would not separate the read ID indices. 
            k <- tibble(i2 = 1:n_distinct(b$i))
            k$n <- ntile(1:nrow(k), opt$anchorReadRearrangements_CPUs)
-         
+           
            # Bind the CPU splitting vector.
            b <- left_join(b, k, by = c('i' = 'i2'))
-         
+           
            r <- rbindlist(parallel::parLapply(cluster, split(b, b$n), blast2rearangements, opt$anchorReadRearrangements_maxMissingTailNTs, opt$anchorReadRearrangements_minAlignmentLength))
-         
+           
            r <- left_join(r, data.frame(table(o$rep)), by = c('qname' = 'Var1'))
            names(r) <- c('clusterRepReadID', 'rearrangement', 'readsInCluster')
            r <- arrange(r, desc(readsInCluster))
-         
+           
            r <- mutate(r, sample = x$sample[1], .before = 'clusterRepReadID')
            readr::write_tsv(r, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'repLeaderSeqStructs.tsv'), append = TRUE)
            
@@ -346,14 +380,11 @@ r <- bind_rows(lapply(split(reads, paste(reads$vectorFastaFile, reads$sample)), 
               altStructNTs             = unexpectedSeqReadsNTs,
               altStructBreaks          = altStructBreaks,
               percentAltStructReads    = (n_distinct(unexpectedSeqReadsIDs)/n_distinct(allReadIDs))*100,
-              percentAltStructNTs      = (unexpectedSeqReadsNTs/allReadNTs)*100,
               altStructsPer1KB         = altStructs / (totalNTs/1000),
               altStructsPer10KB        = altStructs / (totalNTs/10000),
               altStructBreaksPer1KB    = altStructBreaks / (totalNTs/5000),    
               altStructBreaksPer10KB   = altStructBreaks / (totalNTs/10000))
 }))
-
-# r$n <- ifelse(grepl('NoTemp', r$sample), 0, ifelse(grepl('Positive', r$sample), 2, ifelse(grepl('Bogus', r$sample), 3, ifelse(grepl('TAK', r$sample), 4, 5))))
 
 saveRDS(r, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result.rds'))
 openxlsx::write.xlsx(r, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result.xlsx'))

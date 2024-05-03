@@ -14,6 +14,7 @@ suppressPackageStartupMessages(library(parallel))
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
@@ -34,9 +35,6 @@ clusterExport(cluster, c('opt', 'tmpFile'))
 
 sites$refGenome <- file.path(opt$softwareDir, 'data', 'referenceGenomes', 'blat', paste0(sites$refGenome, '.2bit'))
 sites$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', sites$vector)
-
-### sites.save <- sites
-### sites <- subset(sites, posid == 'chr21-127223203.1')
 
 sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
   
@@ -289,6 +287,11 @@ sites$vectorFastaFile <- sapply(sites$vectorFastaFile, lpe)
 
 sites$refGenome <- sapply(sites$refGenome, lpe)
 sites$refGenome <- sub('\\.2bit$', '', sites$refGenome)
+
+if(opt$databaseConfigGroup != 'none'){
+  suppressPackageStartupMessages(library(RMariaDB))
+  uploadSitesToDB(sites)
+}
 
 saveRDS(sites, file = file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'sites.rds'))
 openxlsx::write.xlsx(sites, file = file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'sites.xlsx'))

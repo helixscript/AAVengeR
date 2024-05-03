@@ -1,9 +1,0 @@
-2024-01-08 20:26:51.182394    Reading in fragment file(s).
-2024-01-08 20:26:51.260853    Categorizing leader sequences.
-2024-01-08 20:26:55.529318    Standardizing integration positions within subjects.
-2024-01-08 20:26:59.924669    Standardizing break positions within replicates.
-2024-01-08 20:27:02.196484    Updating positions and fragment ids.
-2024-01-08 20:27:02.216716    Idenitfying uniquely called postions.
-2024-01-08 20:27:02.240482    Resolving multi-hit reads.
-2024-01-08 20:27:02.250791    Reevaluating leader sequence classification after standardization.
-2024-01-08 20:27:02.340017    Processing UMIs.

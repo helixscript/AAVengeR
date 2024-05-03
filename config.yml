@@ -8,12 +8,7 @@ mode: integrase                                                                #
 databaseConfigFile: /home/ubuntu/.my.cnf                                       # [file path] Absolute path to .my.cnf file that will be copied to  ~/.my.cnf if file is missing.
 databaseConfigGroup: none                                                      # [character] Database credential block name in ~/.my.cnf file. Set to none to disable.
 
-
-Rscript: /usr/bin/Rscript                                                      # [file path] Path to Rscript interpreter.
-softwareDir: /home/ubuntu/AAVengeR                                             # [file path] Path to AAVengeR software directory.
-
 outputDir: output                                                              # [file path] Output directory path.
-
 core_CPUs: 15                                                                  # [integer] Number of CPUs the core module is allowed to use.
 
 demultiplex_anchorReadsFile: U5_syn_R2.fastq.gz                                # [file path] Path to anchor reads fastq file.
@@ -35,14 +30,15 @@ demultiplex_requirePostUmiLinker_maxMismatch: 2                                #
 # of smaller data sets.
 
 modules:
-  - demultiplex
-  - prepReads
-  - alignReads
-  - buildFragments
-  - buildStdFragments
-  - buildSites
-  - callNearestGenes
-  - annotateRepeats
+   - core
+#  - demultiplex
+#  - prepReads
+#  - alignReads
+#  - buildFragments
+#  - buildStdFragments
+#  - buildSites
+#  - callNearestGenes
+#  - annotateRepeats
 
 
 # Additional parameters.
@@ -69,7 +65,7 @@ demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1                              #
 demultiplex_anchorReadStartSeq.maxMisMatch: 1                                  # [integer]   (evaluated if anchorReadStartSeq column provided in sampleData file) Max. number of mismatches allowed in anchor read start sequences.
 demultiplex_exportFASTQ: FALSE                                                 # [bollean]   Export demultiplexed reads as FASTQ to the demultiplex output folder.
                                                                                # [string]    CD-HIT-EST parameters for clustering similiar read pairs.
-demultiplex_mergeSimilarReadPairsParams: -c 0.98 -d 0 -M 0 -G 1 -aS 0.98 -aL 0.98 -s 0.98 -n 10 -gap -1000
+demultiplex_mergeSimilarReadPairsParams: -c 0.98 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -10 -gap-ext -5 -aS 0.98 -aL 0.98
 demultiplex_quickAlignFilter_minPercentID: 97                                  # [float]     Min. percent id for a match when running a quick bwa2 alignment to filter reads prior to blat.
 demultiplex_quickAlignFilter_minMatches: 30                                    # [float]     Min. number of matched NTs required to accept a quick alignment.
 demultiplex_quickAlignFilter_minEstLeaderSeqLength: 15                         # [integer]   Reads are aligned without removing leader sequences (LTR/ITR). 
@@ -98,6 +94,7 @@ prepReads_HMMmaxStartPos: 5                                                    #
 prepReads_HMMminFullBitScore: 20                                               # [float]     (^) Min. HMM score for a leader sequence to be considered.
 prepReads_HMMmatchEnd: TRUE                                                    # [boolean]   (^) Require a match to the end of the HMM profile. 
 prepReads_HMMmatchTerminalSeq: CA                                              # [character] (^) Required NTs at the end of HMM hits. Enter 'none' to disable.
+prepReads_forceAnchorReadStartSeq: FALSE
 prepReads_limitLeaderSeqsWithQuickAlignFilter: TRUE                            # [boolean]   Always set to FALSE for non-AAV work. Reccomended for AAV work.
 prepReads_additionalAnchorReadOverReadingSeqs: none                            # [string]    Comma delimited string of additional anchor read over-read trimming sequences to be passed to cutAdapt.
 prepReads_cutAdaptErrorRate: 0.15                                              # [float]     CutAdapt error rate per the cutAdapt manual.
@@ -136,7 +133,7 @@ buildStdFragments_CPUs: 15                                                     #
 buildStdFragments_inputFile: buildFragments/fragments.rds                      # [file path] (@) Path to initial fragment RDS file (ouput of buildFragments module).
 buildStdFragments_outputDir: buildStdFragments                                 # [file path] (@) buildStdFragments output directory.
                                                                                # [string]    CD-HIT-EST parameters for clustering leader sequences.
-buildStdFragments_remnantClusterParams: -c 0.85 -d 0 -M 0 -G 1 -aS 0.90 -aL 0.90 -s 0.90 -n 4
+buildStdFragments_remnantClusterParams: -c 0.85 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -5 -gap-ext -1 -aS 0.85 -aL 0.85
 buildStdFragments_autoPullTrialSamples: FALSE                                  # [boolean]   Automatically pull additional trial samples from the database to co-standardize with data found in buildStdFragments_inputFile.
 buildStdFragments_trialSubjectList: none                                       # [string]    Rather than parsing [buildStdFragments_inputFile], pull data directly from the AAVengeR database. Format:  trial;subject|trial;subject, eg. 'Sabatino;pM50|Sabatino;pLinus'
 buildStdFragments_randomIDdupReadMult: 3                                       # [integer]   When evaluating UMI sequences, if the most common position id associated with anUMI is x times larger than the second most common position then all positions assoicated with an UMI are switched to the dominate position.
@@ -191,31 +188,48 @@ callNearestGenes_boundaries:
         TUs:   macFas5.humanXeno.TUs.rds
         exons: macFas5.humanXeno.exons.rds
 
-
-anchorReadRearrangements_CPUs: 10
+anchorReadRearrangements_CPUs: 30
 anchorReadRearrangements_outputDir: anchorReadRearrangements
 anchorReadRearrangements_inputFile: demultiplex/reads.rds
 anchorReadRearrangements_vectorLeaderSeqFilterLength: 12
 anchorReadRearrangements_vectorLeaderSeqFilterMaxMismatch: 1
+anchorReadRearrangements_qualtrim_events: 2
+anchorReadRearrangements_qualtrim_code: '5'
+anchorReadRearrangements_qualtrim_halfWidth: 5
+anchorReadRearrangements_minReadOverlapNTs: 20                                  
+anchorReadRearrangements_maxReadOverlapPval: 0.001
+anchorReadRearrangements_anchorReadCutPos: 200
+anchorReadRearrangements_requireReadPairOverlap: TRUE
+anchorReadRearrangements_minReadsPerAltStruct: 2
+anchorReadRearrangements_cutAdaptErrorRate: 0.15
 anchorReadRearrangements_minAlignmentLength: 10                                 # Shorter than anchorReadRearrangements_vectorLeaderSeqFilterLength
 anchorReadRearrangements_minAlignmentPercentID: 90
 anchorReadRearrangements_maxMissingTailNTs: 11                                  # 1 more than anchorReadRearrangements_minAlignmentLength
-anchorReadRearrangements_additionalAnchorReadOverReadingSeqs: none
-anchorReadRearrangements_anchorReadCutPos: 300
-anchorReadRearrangements_adriftReadCutPos: 100
-anchorReadRearrangements_cutAdaptErrorRate: 0.15
 anchorReadRearrangements_readEndAlignmentTestLength: 12
 anchorReadRearrangements_readEndAlignmentTestMinMatch: 11                       # Longer than min local alignment
+                                                                                # [string] CD-HIT-EST parameters for clustering leader sequences.
+                                                                                #          -aL parameter omitted so that larger strings collect all similiar shorter strings.
 anchorReadRearrangements_clusterParams: -c 0.90 -d 0 -aS 0.93 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -5 -gap-ext -1
 anchorReadRearrangements_expectedSeqs:
+  Sabatino_PMC7855056_splitChain_plasmids.fasta:
+    - CATGCTCTAGGAAGATCCAGGTTAATTTTTAAAAAGCAGTCAAAAGTCCAAGTGGCCCTTGGCAGCATTTACTCTCTCTGTTTGCTCTGGTTAATAATCTCAGGAGCACAAACATTCCAGATCCAGGTTAATTTTTAAAAAGCAGTCAAAAGTCCAAGTGGCCCTTGGCAGCATTTACTCTCTCTGTTTGCTCTGGTTAATAATCTCAGGAGCACAAACATTCCAGATCCGGCGCGCCAGGGCTGGAAGCTACCTTTGACATCATTTCCTCTGCGAATGCATGTATAATTTCTACAGAACCTATTAGAAAGGATCACCCAGCCTCTGCTTTTGTACAACTTTCCCTTAAAAAACTGCCAATTCCACTGCTGTTTGGCCCAATAGTGAGAACTTTTTCCTGCTGCCTCTTGGTGCTTTTGCCTATGGCCCCTATTCTGCCTGCTGAAGACACTCTTGCCAGCATGGACTTAAACCCCTCCAGCTCTGACAATCCTCTTTCT
+    - CATGCTCTAGGAAGATCCTTATCGATTTTACCACATTTGTAGAGGTTTTACTTGCTTTAAAAAACCTCCCACATCTCCCCCTGAACCTGAAACATAAAATGAATGCAATTGTTGTTGTTAACTTGTTTATTGCAGCTTATAATGGTTACAAATAAAGCAATAGCATCACAAATTTCACAAATAAAGCATTTTTTTCACTGCATTCTAGTTGTGGTTTGTCCAAACTCATCAATGTATCTTATCATGTCTGCTCGAAGCGGCCGCTCTAGATCAGGCGGGCTGCTGGGTGTCGCAGCCCAGGACCTCCAGCCTCAGGGCGATGTGGTGCGCCCAGCTCTGCGGGTGCAGGCGCACGTAGCGAGCCACCAGCGGGGGTTCGAGACGGTTCCGCACAGGCGTGGAGGAGTCCCGGTTTCCCTGGAAGACCTTGACTTTGCCATTCTGAAGAAACAGAGTCCAGTTATGGCCATCTTGACTACTGGAGATGAGGAACTCCTTCA     
+    - CATGCTCTAGGAAGATCCTTATCGATTTTACCACATTTGTAGAGGTTTTACTTGCTTTAAAAAACCTCCCACATCTCCCCCTGAACCTGAAACATAAAATGAATGCAATTGTTGTTGTTAACTTGTTTATTGCAGCTTATAATGGTTACAAATAAAGCAATAGCATCACAAATTTCACAAATAAAGCATTTTTTTCACTGCATTCTAGTTGTGGTTTGTCCAAACTCATCAATGTATCTTATCATGTCTGCTCGAAGCGGCCGCTCAGCCCTTGTTTCTTTCTATTGCTCCACGTGAATGGTCATCGGCTCTATCTGTGGCCTCTCGGAGATCAGATAAGAACAGTCCACGTGGAGTAGGATTCTGTCCCAACAGCATCAACAAATCACTAGAGGAGACACTTTGTGCTTTAATCAGCTGTGTTCTTTCTCCAGATTGAAGGTCAATCTTCTCTATGTCATTTTCTGGAGTTGTGGTGGCTTTCAATTGCTTTTCCTTAG
+  Sabatino_PMC7855056_lightChain_plasmid.fasta:
+    - CATGCTCTAGGAAGATCCAGGTTAATTTTTAAAAAGCAGTCAAAAGTCCAAGTGGCCCTTGGCAGCATTTACTCTCTCTGTTTGCTCTGGTTAATAATCTCAGGAGCACAAACATTCCAGATCCAGGTTAATTTTTAAAAAGCAGTCAAAAGTCCAAGTGGCCCTTGGCAGCATTTACTCTCTCTGTTTGCTCTGGTTAATAATCTCAGGAGCACAAACATTCCAGATCCGGCGCGCCAGGGCTGGAAGCTACCTTTGACATCATTTCCTCTGCGAATGCATGTATAATTTCTACAGAACCTATTAGAAAGGATCACCCAGCCTCTGCTTTTGTACAACTTTCCCTTAAAAAACTGCCAATTCCACTGCTGTTTGGCCCAATAGTGAGAACTTTTTCCTGCTGCCTCTTGGTGCTTTTGCCTATGGCCCCTATTCTGCCTGCTGAAGACACTCTTGCCAGCATGGACTTAAACCCCTCCAGCTCTGACAATCCTCTTTCT
+    - CATGCTCTAGGAAGATCCTTATCGATTTTACCACATTTGTAGAGGTTTTACTTGCTTTAAAAAACCTCCCACATCTCCCCCTGAACCTGAAACATAAAATGAATGCAATTGTTGTTGTTAACTTGTTTATTGCAGCTTATAATGGTTACAAATAAAGCAATAGCATCACAAATTTCACAAATAAAGCATTTTTTTCACTGCATTCTAGTTGTGGTTTGTCCAAACTCATCAATGTATCTTATCATGTCTGCTCGAAGCGGCCGCTCTAGATCAGGCGGGCTGCTGGGTGTCGCAGCCCAGGACCTCCAGCCTCAGGGCGATGTGGTGCGCCCAGCTCTGCGGGTGCAGGCGCACGTAGCGAGCCACCAGCGGGGGTTCGAGACGGTTCCGCACAGGCGTGGAGGAGTCCCGGTTTCCCTGGAAGACCTTGACTTTGCCATTCTGAAGAAACAGAGTCCAGTTATGGCCATCTTGACTACTGGAGATGAGGAACTCCTTCA     
+  Sabatino_PMC7855056_heavyChain_plasmid.fasta:
+    - CATGCTCTAGGAAGATCCAGGTTAATTTTTAAAAAGCAGTCAAAAGTCCAAGTGGCCCTTGGCAGCATTTACTCTCTCTGTTTGCTCTGGTTAATAATCTCAGGAGCACAAACATTCCAGATCCAGGTTAATTTTTAAAAAGCAGTCAAAAGTCCAAGTGGCCCTTGGCAGCATTTACTCTCTCTGTTTGCTCTGGTTAATAATCTCAGGAGCACAAACATTCCAGATCCGGCGCGCCAGGGCTGGAAGCTACCTTTGACATCATTTCCTCTGCGAATGCATGTATAATTTCTACAGAACCTATTAGAAAGGATCACCCAGCCTCTGCTTTTGTACAACTTTCCCTTAAAAAACTGCCAATTCCACTGCTGTTTGGCCCAATAGTGAGAACTTTTTCCTGCTGCCTCTTGGTGCTTTTGCCTATGGCCCCTATTCTGCCTGCTGAAGACACTCTTGCCAGCATGGACTTAAACCCCTCCAGCTCTGACAATCCTCTTTCT
+    - CATGCTCTAGGAAGATCCTTATCGATTTTACCACATTTGTAGAGGTTTTACTTGCTTTAAAAAACCTCCCACATCTCCCCCTGAACCTGAAACATAAAATGAATGCAATTGTTGTTGTTAACTTGTTTATTGCAGCTTATAATGGTTACAAATAAAGCAATAGCATCACAAATTTCACAAATAAAGCATTTTTTTCACTGCATTCTAGTTGTGGTTTGTCCAAACTCATCAATGTATCTTATCATGTCTGCTCGAAGCGGCCGCTCAGCCCTTGTTTCTTTCTATTGCTCCACGTGAATGGTCATCGGCTCTATCTGTGGCCTCTCGGAGATCAGATAAGAACAGTCCACGTGGAGTAGGATTCTGTCCCAACAGCATCAACAAATCACTAGAGGAGACACTTTGTGCTTTAATCAGCTGTGTTCTTTCTCCAGATTGAAGGTCAATCTTCTCTATGTCATTTTCTGGAGTTGTGGTGGCTTTCAATTGCTTTTCCTTAG
   BushmanAAVcontrolsLargestRemnant-plasmid.fasta:
     - TTCCTATCTAGATGCATTCGCGAGGTACCGAGCTCGAATTCACTGGCCGTCGTTTTACAACGTCGTGACTGGGAAAACCCTGGCGTTACCCAACTTAATCGCCTTGCAGCACATCCCCCTTTCGCCAGCTGGCGTAATAGCGAAGAGGCCCGCACCGATCGCCCTTCCCAACAGTTGCGCAGCCTGAATGGCGAATGGCGCCTGATGCGGTATTTTCTCCTTACGCATCTGTGCGGTATTTCACACCGCATATGGTGCACTCTCAGTACAATCTGCTCTGATGCCGCATAGTTAAGCCAGCCCCGACACCCGCCAACACCCGCTGACGCGCCCTGACGGGCTTGTCTGCTCCCGGCATCCGCTTACAGACAAGCTGTGACCGTCTCCGGGAGCTGCATGTGTCAGAGGTTTTCACCGTCATCACCGAAACGCGCGAGACGAAAGGGCCTCGTGATACGCCTATTTTTATAGGTTAATGTCATGATAATAATGGTTTCTTA
-  pAAV-GFP.fasta:
+  pAAV-GFP-plasmid.fasta:
     - TTCCTTGTAGTTAATGATTAACCCGCCATGCTACTTATCTACGTAGCCATGCTCTAGCGGCCTCGGCCTCTGCATAAATAAAAAAAATTAGTCAGCCATGAGCTTGGCCCATTGCATACGTTGTATCCATATCATAATATGTACATTTATATTGGCTCATGTCCAACATTACCGCCATGTTGACATTGATTATTGACTAGTTATTAATAGTAATCAATTACGGGGTCATTAGTTCATAGCCCATATATGGAGTTCCGCGTTACATAACTTACGGTAAATGGCCCGCCTGGCTGACCGCCCAACGACCCCCGCCCATTGACGTCAATAATGACGTATGTTCCCATAGTAACGCCAATAGGGACTTTCCATTGACGTCAATGGGTGGAGTATTTACGGTAAACTGCCCACTTGGCAGTACATCAAGTGTATCATATGCCAAGTACGCCCCCTATTGACGTCAATGACGGTAAATGGCCCGCCTGGCATTATGCCCAGTACAT
     - TTCCTTGTAGTTAATGATTAACCCGCCATGCTACTTATCTACGTAGCCATGCTCTAGATGTCGAGGGATTCCGGGTCACTGTGAGTGGGGGAGGCAGGGAAGAAGGGCTCACAGGACAGTCAAACCATGCCCCCTGTTTTTCCTTCTTCAAGTAGACCTCTATAAGACAACAGAGACAACTAAGGCTGAGTGGCCAGGCGAGGAGAAACCATCTCGCCGTAAAACATGGAAGGAACACTTCAGGGGAAAGGTGGTATCTCTAAGCAAGAGAACTGAGTGGAGTCAAGGCTGAGAGATGCAGGATAAGCAAATGGGTAGTGAAAAGACATTCATGAGGACAGCTAAAACAATAAGTAATGTAAAATACAGCATAGCAAAACTTTAACCTCCAAATCAAGCCTCTACTTGAATCCTTTTCTGAGGGATGAATAAGGCATAGGCATCAGGGGCTGTTGCCAATGTGCATTAGCTGTTTGCAGCCTCACCTTCTTTCATGGAGT
-  pCCVC-TTRm-8003-D3-SPDE.fasta:
+  Sabatino_pCCVC-TTRm-8003-D3-SPDE-plasmid.fasta:
     - TTCCTACGCGTGTCTGTCTGCACATTTCGTAGAGCGAGTGTTCCGATACTCTAATCTCCCTAGGCAAGGTTCATATTGACTTAGGTTACTTATTCTCCTTTTGTTGACTAAGTCAATAATCAGAATCAGCAGGTTTGGAGTCAGCTTGGCAGGGATCAGCAGCCTGGGTTGGAAGGAGGGGGTATAAAAGCCCCTTCACCAGGAGAAGCCGTCACACAGATCCACAAGCTCCTGCTAGCAGGTAAGTGCCGTGTGTGGTTCCCGCGGGCCTGGCCTCTTTACGGGTTATGGCCCTTGCGTGCCTTGAATTACTGACACTGACATCCACTTTTTCTTTTTCTCCACAGGTTTAAACGCCACCATGCAGATTGAGCTGTCTACTTGTTTTTTTCTGTGCCTGCTGAGGTTCTGCTTCTCTGCCACCAGGAGGTATTACCTGGGGGCTGTGGAGCTGAGCTGGGATTACATGCAGTCTGATCTGGGGGAGCTGCCTGTGGATG
     - TTCCTACACAAAAAACCAACACACAGATCTCTAGAGCTCTGATCTTTTATTGCGGCCGCTCAGTACAGATCCTGGGCCTCACAGCCCAGCACCTCCATCCTCAGGGCAATCTGGTGCACCCAGCTCTGGGGGTGGATCCTCAGGTACCTGGTCAGCAGGGGGGGGTCCAGGCTGTTCACCACTGGGGTGAAGCTATCCTGATTGCCCTGAAACACCTTCACCTTCCCATTCTGGAAGAACAGGGTCCACTGGTGGCCATCCTGGCTGCTGCTAATCAGGAACTCCTTCACATACATGCTGGTCAGCAGGCTTTTCACCCCCTGGGTGGTCACCCCAGTCACTTTCATAGTCTTCTGGAAGTCCACCTGCAGCCACTCCTTGGGGTTGTTCACCTGGGGCCTCCAGGCATTAGACCTGCCCTGCAGATGCAGCCTAGCCTTGCTAGGGCTCCAAGTGGCAAACATATTGGTGAAATAGCTGCTGGCAGTGATCTGGGCATC
+
 
 predictPCRartifacts_CPUs: 15
 predictPCRartifacts_inputFile: core/sites.rds
@@ -277,3 +291,7 @@ callNearestGenesFiltered_boundaries:
         TUs:   macFas5.humanXeno.TUs.rds
         exons: macFas5.humanXeno.exons.rds
         filter: hg38.Bushman.oncoGeneList.rds
+
+# Deprecated 
+Rscript: none
+softwareDir: none

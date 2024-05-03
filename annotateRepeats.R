@@ -95,6 +95,11 @@ sites <- dplyr::relocate(sites, repeat_name, repeat_class, .after = opt$annotate
 
 sites <- arrange(sites, desc(sonicLengths))
 
+if(opt$databaseConfigGroup != 'none'){
+  suppressPackageStartupMessages(library(RMariaDB))
+  uploadSitesToDB()
+}
+
 saveRDS(sites, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.rds'))
 openxlsx::write.xlsx(sites, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.xlsx'))
 readr::write_tsv(sites, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.tsv.gz'))

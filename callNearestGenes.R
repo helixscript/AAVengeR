@@ -105,6 +105,11 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
 
 sites <- arrange(sites, desc(sonicLengths))
 
+if(opt$databaseConfigGroup != 'none'){
+  suppressPackageStartupMessages(library(RMariaDB))
+  uploadSitesToDB(sites)
+}
+
 saveRDS(sites, file.path(opt$outputDir, opt$callNearestGenes_outputDir, 'sites.rds'))
 openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$callNearestGenes_outputDir, 'sites.xlsx'))
 readr::write_tsv(sites, file.path(opt$outputDir, opt$callNearestGenes_outputDir, 'sites.tsv.gz'))

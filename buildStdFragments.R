@@ -70,16 +70,7 @@ if(opt$buildStdFragments_trialSubjectList != 'none' & opt$databaseConfigGroup ==
 # Create a database connection if requested in the configuration file.
 if(opt$databaseConfigGroup != 'none'){
   suppressPackageStartupMessages(library(RMariaDB))
-  
-  if(! file.exists('~/.my.cnf')) file.copy(opt$databaseConfigFile, '~/.my.cnf')
-  if(! file.exists('~/.my.cnf')) quitOnErorr('Error - can not find ~/.my.cnf file.')
-  
-  dbConn <- tryCatch({
-    dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
-  },
-  error=function(cond) {
-    quitOnErorr('Error - could not connect to the database.')
-  })
+  conn <- createDBconnection()
 }
 
 
@@ -116,7 +107,7 @@ if(opt$buildStdFragments_trialSubjectList != 'none'){
   }
 }
 
-if(opt$databaseConfigGroup != 'none') RMariaDB::dbDisconnect(dbConn)
+if(opt$databaseConfigGroup != 'none') RMariaDB::dbDisconnect(conn)
 
 # Make sure fragments were retrieved.
 if(nrow(frags) == 0) quitOnErorr('Error -- no fragments were loaded or retrieved.')
@@ -127,10 +118,10 @@ incomingSamples <- unique(sub('~\\d+$', '', frags$uniqueSample))
 # Set aside meta data till the end to save memory and add data back at the end 
 # and unpack the uniqueSample ids.
 # --------------------------------------------------------------------------------------------------------------
-sampleMetaData <- distinct(dplyr::select(frags, uniqueSample, refGenome, vectorFastaFile, seqRunID, flags))
+sampleMetaData <- distinct(dplyr::select(frags, uniqueSample, refGenome, vectorFastaFile, pid, flags))
 
 frags <- tidyr::separate(frags, uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~', remove = FALSE) %>% 
-         dplyr::select(-refGenome, -vectorFastaFile, -seqRunID, -flags)
+         dplyr::select(-refGenome, -vectorFastaFile, -pid, -flags)
 
 frags$trialSubject <- paste0(frags$trial, '~', frags$subject)
 
@@ -747,13 +738,11 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   multiHitNet_replicates <- left_join(multiHitNet_replicates, d, by = 'n')
 
   multiHitClusters <- rbindlist(parLapply(cluster, split(multiHitNet_replicates, multiHitNet_replicates$n2), function(x){
-  #multiHitClusters <- rbindlist(lapply(split(multiHitNet_replicates, multiHitNet_replicates$n2), function(x){
     suppressPackageStartupMessages(library(igraph))
     suppressPackageStartupMessages(library(dplyr))
     suppressPackageStartupMessages(library(data.table))
     
-    # Work within trial/subject/sample groupings...
-    
+    # Work within trial/subject/sample groupings.
     rbindlist(lapply(split(x, x$n), function(x2){
       # Build a graph with the posid nodes and read edges.
       g <- igraph::simplify(graph_from_data_frame(dplyr::select(x2, from, to), directed=FALSE, vertices=data.table(name = unique(c(x2$from, x2$to)))))
@@ -785,12 +774,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   if(opt$databaseConfigGroup != 'none'){
     suppressPackageStartupMessages(library(RMariaDB))
     
-    dbConn <- tryCatch({
-      dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
-    },
-    error=function(cond) {
-      quitOnErorr('Error - could not connect to the database.')
-    })
+    dbConn <- createDBconnection()
     
     multiHitClusters$i <- paste0(multiHitClusters$trial, '~', multiHitClusters$subject, '~', multiHitClusters$sample)
 
@@ -803,7 +787,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       
       f <- tmpFile()
       readr::write_tsv(dplyr::select(x, -i), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp', f))
-      system(paste0('xz ', file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp', f)))
+      system(paste0('xz --best ', file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp', f)))
       
       fp <- file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp', paste0(f, '.xz'))
       

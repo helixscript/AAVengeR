@@ -27,12 +27,14 @@ setOptimalParameters <- function(){
     opt$prepReads_HMMmatchEnd <<- TRUE
     opt$prepReads_HMMmatchTerminalSeq <<- 'CA'
     opt$prepReads_limitLeaderSeqsWithQuickAlignFilter <<- FALSE
+    opt$prepReads_forceAnchorReadStartSeq <<- FALSE
   } else if(grepl('AAV', opt$mode, ignore.case = TRUE)){
     opt$demultiplex_quickAlignFilter <<- TRUE
     opt$prepReads_limitLeaderSeqsWithQuickAlignFilter <<- TRUE
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 300
     opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
     opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 10
+    opt$prepReads_forceAnchorReadStartSeq <<- TRUE
   } else if(grepl('transposase', opt$mode, ignore.case = TRUE)){
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
     opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
@@ -171,6 +173,7 @@ waitForFile <- function(f, seconds = 1){
 demultiplex <- function(x){
   suppressPackageStartupMessages(library(dplyr))
   suppressPackageStartupMessages(library(ShortRead))
+ 
   source(file.path(opt$softwareDir, 'lib.R'))
   
   chunk <- x$n[1]
@@ -209,6 +212,7 @@ demultiplex <- function(x){
   
   # Correct Golay encoded barcodes if requested.
   if(opt$demultiplex_correctGolayIndexReads){
+
     tmpDir <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', tmpFile())
     dir.create(tmpDir)
     
@@ -224,6 +228,7 @@ demultiplex <- function(x){
     reads <- syncReads(index1Reads, anchorReads, adriftReads)
     index1Reads <- reads[[1]];  anchorReads  <- reads[[2]]; adriftReads  <- reads[[3]]
   }
+  
   
   # Loop through samples in sample data file to demultiplex and apply read specific filters.
   invisible(lapply(1:nrow(samples), function(r){
@@ -322,27 +327,36 @@ alignReadEndsToVector <- function(y){
 }
 
 
-
-# Pull non-standardized fragments from a database based on trial and subject ids.
-
-pullDBsubjectFrags <- function(dbConn, trial, subject, tmpDirPath){
-  
-  o <- dbGetQuery(dbConn, paste0("select * from fragments where trial = '", trial, "' and subject = '", subject, "'"))
+reconstructDBtable <- function(o, tmpDirPath){
   r <- tibble()
   
   if(nrow(o) > 0){
     r <- bind_rows(lapply(split(o, 1:nrow(o)), function(y){
-      f <- tmpFile()
-      writeBin(unserialize(o$data[[1]]), file.path(tmpDirPath, paste0(f, '.xz')))
-      system(paste0('unxz ', file.path(tmpDirPath, paste0(f, '.xz'))))
-      d <- readr::read_tsv(file.path(tmpDirPath, f))
-      invisible(file.remove(file.path(tmpDirPath, f)))
-      d
-    }))
+           f <- tmpFile()
+           writeBin(unserialize(o$data[[1]]), file.path(tmpDirPath, paste0(f, '.xz')))
+           system(paste0('unxz ', file.path(tmpDirPath, paste0(f, '.xz'))))
+           d <- readr::read_tsv(file.path(tmpDirPath, f))
+           invisible(file.remove(file.path(tmpDirPath, f)))
+           d
+         }))
   }
   
   r
 }
+
+
+# Pull non-standardized fragments from a database based on trial and subject ids.
+pullDBsubjectFrags <- function(dbConn, trial, subject, tmpDirPath){
+  o <- dbGetQuery(dbConn, paste0("select * from fragments where trial = '", trial, "' and subject = '", subject, "'"))
+  reconstructDBtable(o, tmpDirPath)
+}
+
+
+pullDBsubjectSites <- function(dbConn, trial, subject, tmpDirPath){
+  o <- dbGetQuery(dbConn, paste0("select * from sites where trial = '", trial, "' and subject = '", subject, "'"))
+  reconstructDBtable(o, tmpDirPath)
+}
+
 
 
 # Given a set of Biostring objects, subject each object in the set such that 
@@ -393,6 +407,104 @@ conformMinorSeqDiffs <- function(x, editDist = 1, abundSeqMinCount = 10, nThread
     y
   }))
 }
+
+createDBconnection <- function(){
+  if(! file.exists('~/.my.cnf')) file.copy(opt$databaseConfigFile, '~/.my.cnf')
+  if(! file.exists('~/.my.cnf')) quitOnErorr('Error - can not find ~/.my.cnf file.')
+  
+  tryCatch({
+    dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
+  },
+  error=function(cond) {
+    quitOnErorr('Error - could not connect to the database.')
+  })
+}
+
+createPID <- function(){
+  updateLog('Calculating adrift read MD5 sum.')
+  pid <- system(paste0('md5sum ', opt$demultiplex_adriftReadsFile), intern = TRUE)
+  pid <- unlist(strsplit(pid, '\\s+'))[1]
+  
+  if(opt$databaseConfigGroup != 'none'){
+    suppressPackageStartupMessages(library(RMariaDB))
+    
+    updateLog('Writing PID to database.')
+    
+    conn <- createDBconnection()
+    
+    dbExecute(conn, paste0("delete from processes where pid='", pid, "'"))
+
+    # Create a tar ball including the configuration file and sample data file.
+    # This tarball will be uploaded to the database as a binary blob.
+    f <- paste0(paste0(stringi::stri_rand_strings(15, 1, '[A-Za-z0-9]'), collapse = ''))
+    invisible(file.copy(configFile, paste0(f, '.configFile.yml')))
+    invisible(file.copy(opt$demultiplex_sampleDataFile, paste0(f, '.sampleData.tsv')))
+    system(paste0('tar cvf ', f, '.tar ', paste0(f, '.configFile.yml'), ' ', paste0(f, '.sampleData.tsv')))
+    system(paste0('xz --best ', f, '.tar'))
+    fp <- file.path(paste0(f, '.tar.xz'))
+    tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
+    invisible(file.remove(c(fp, paste0(f, '.configFile.yml'), paste0(f, '.sampleData.tsv'))))
+    
+    r <- dbExecute(conn,
+                   "insert into processes values (?, ?)",
+                   params = list(pid, list(serialize(tab, NULL))))
+    
+    dbDisconnect(conn)
+    
+    if(r == 0){
+      quitOnErorr(paset0('Error -- could not upload process information for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
+    } else {
+      updateLog(paste0('Uploaded fragment data for configuration file: ', configFile))
+    }
+  }
+    
+  pid
+}
+
+
+
+
+uploadSitesToDB <- function(sites){
+  updateLog('Writing sites to the database.')
+
+  if(! dir.exists(file.path(opt$outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, 'tmp'))
+  
+  conn <- createDBconnection()
+  
+  invisible(lapply(split(sites, paste(sites$trial, sites$subject, sites$sample, sites$refGenome)), function(x){
+    
+    dbExecute(conn, paste0("delete from sites where trial='", x$trial[1], "' and subject='", x$subject[1],
+                           "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
+    
+    f <- tmpFile()
+    readr::write_tsv(x, file.path(opt$outputDir, 'tmp', f))
+    system(paste0('xz --best ', file.path(opt$outputDir, 'tmp', f)))
+    
+    fp <- file.path(opt$outputDir, 'tmp', paste0(f, '.xz'))
+    
+    tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
+    
+    invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+    
+    r <- dbExecute(conn,
+                   "insert into sites values (?, ?, ?, ?, ?, ?)",
+                   params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], as.character(lubridate::today()),
+                                 list(serialize(tab, NULL))))
+    if(r == 0){
+      quitOnErorr(paset0('Error -- could not upload site data for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
+    } else {
+      updateLog(paste0('Uploaded fragment data for ',  x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
+    }
+  }))
+  
+  dbDisconnect(conn)
+}
+
+
+
+
+
+
 
 
 
@@ -497,6 +609,8 @@ loadSamples <- function(){
     updateLog('Error -- There are one ore more duplications of trial~subject~sample~replicate ids in the sample data file.')
     q(save = 'no', status = 1, runLast = FALSE)
   }
+  
+  samples$pid <- createPID()
   
   samples
 }
@@ -914,4 +1028,14 @@ blast2rearangements_worker <-  function(b){
     o <- o[o$width == max(o$width),]
     o[1,]
   }))
+}
+
+
+intSiteCallerConversions <- function(){
+  r <- list()
+  r[['vector_CART19.fa']][['vector']]   = 'Bushman_CART19_vector.fasta'
+  r[['vector_CART19.fa']][['hmm']]      = 'Bushman_CART19.hmm'
+  r[['vector_CART19.fa']][['startSeq']] = 'GAAAATC'
+  
+  r
 }

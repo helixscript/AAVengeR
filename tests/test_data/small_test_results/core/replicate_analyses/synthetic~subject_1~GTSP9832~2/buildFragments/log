@@ -1,6 +1,0 @@
-2024-01-08 20:26:10.826519    Reading in anchor and adrift read alignments.
-2024-01-08 20:26:10.894888    Preparing alignment data for fragment generation.
-2024-01-08 20:26:10.913732    Building initial fragments.
-2024-01-08 20:26:10.922601    Building rational fragments from alignment data.
-2024-01-08 20:26:11.256292    1/1: 156 anchorRead alignments, 156 adriftRead_alignments.
-2024-01-08 20:26:11.285505    Fragment generation complete.

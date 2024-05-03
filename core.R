@@ -36,7 +36,7 @@ updateLog('demultiplex, prepReads, alignReads, buildFragments, buildStdFragments
 
 
 # Gather select sections from the configuration file.
-o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^database|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
+o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^softwareDir|^compressDataFiles|^outputDir|^database|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
 o$outputDir <- file.path(opt$outputDir, 'core')
 
 
@@ -47,7 +47,7 @@ yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml
 
 # Create a shell script to start demultiplex module.
 write(c('#!/usr/bin/sh', 
-        paste(opt$Rscript, file.path(opt$softwareDir, 'demultiplex.R'), file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml'))), 
+        paste('Rscript', file.path(opt$softwareDir, 'demultiplex.R'), file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml'))), 
       file = file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'))
 
 updateLog('Running the demultiplex module.')
@@ -163,7 +163,7 @@ while(! all(jobTable$done == TRUE)){
   }
 
   # Gather select sections from the configuration file and set CPU values.
-  o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^database|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
+  o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^softwareDir|^compressDataFiles|^outputDir|^database|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
   o$prepReads_CPUs <- as.integer(tab$CPUs)
   o$alignReads_CPUs <- as.integer(tab$CPUs)
   o$buildFragments_CPUs <- as.integer(tab$CPUs)
@@ -187,7 +187,7 @@ while(! all(jobTable$done == TRUE)){
 
   # Create AAVengeR launching script since system(x, wait = TRUE) does not wait for commands w/ arguments.
   write(c('#!/usr/bin/sh',
-          paste(opt$Rscript, file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))),
+          paste('Rscript', file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))),
         file = file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'run.sh'))
 
   updateLog(paste0('Starting ',  tab$id, '.'))
@@ -279,7 +279,7 @@ while(! all(jobTable$done == TRUE)){
   }
 
   # Gather select sections from the configuration file and set CPU values.
-  o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^compressDataFiles|^Rscript|^softwareDir|^outputDir|^database|^core|^buildStdFragments|^buildSites|^demultiplex', names(opt))]
+  o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^softwareDir|^compressDataFiles|^outputDir|^database|^core|^buildStdFragments|^buildSites|^demultiplex', names(opt))]
   o$buildStdFragments_CPUs <- as.integer(tab$CPUs)
   o$buildSites_CPUs <- as.integer(tab$CPUs)
   o$outputDir <- file.path(opt$outputDir, 'core', 'subject_analyses', tab$id)
@@ -303,7 +303,7 @@ while(! all(jobTable$done == TRUE)){
   
   # Create AAVengeR launching script since system(x, wait = TRUE) does not wait for commands w/ arguments.
   write(c('#!/usr/bin/sh', 
-          paste(opt$Rscript, file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core', 'subject_analyses',  tab$id, 'config.yml'))), 
+          paste('Rscript', file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core', 'subject_analyses',  tab$id, 'config.yml'))), 
         file = file.path(opt$outputDir, 'core', 'subject_analyses',  tab$id, 'run.sh'))
   
   updateLog(paste0('Starting ',  tab$id, '.'))

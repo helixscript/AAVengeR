@@ -14,6 +14,7 @@ suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
 options(stringsAsFactors = FALSE)
 
+
 # Read the configuration file and set additional parameters.
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
@@ -342,7 +343,7 @@ if(! 'leaderSeqHMM' %in% names(reads)){
 
 updateLog(paste0('Leader sequences determined for ', sprintf("%.2f%%", (n_distinct(m$id)/n_distinct(reads$readID))*100), ' of unqiue read pairs.'))
 
-if('anchorReadStartSeq' %in% names(reads)){
+if(opt$prepReads_forceAnchorReadStartSeq & 'anchorReadStartSeq' %in% names(reads)){
   a <- subset(reads, readID %in% m$id)
   b <- subset(reads, ! readID %in% m$id)
   

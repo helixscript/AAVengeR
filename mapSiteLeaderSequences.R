@@ -13,8 +13,8 @@ suppressPackageStartupMessages(library(data.table))
 
 configFile <- commandArgs(trailingOnly=TRUE)
 if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
-opt <- yaml::read_yaml(configFile)
 
+opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
 quitOnErorr <- function(msg){
@@ -151,6 +151,11 @@ sites <- bind_rows(lapply(split(sites, sites$vector), function(x){
 }))
 
 sites <- dplyr::relocate(sites, repLeaderSeqMap, .after = opt$mapSiteLeaderSequences_addAfter)
+
+if(opt$databaseConfigGroup != 'none'){
+  suppressPackageStartupMessages(library(RMariaDB))
+  uploadSitesToDB(sites)
+}
 
 saveRDS(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'sites.rds'))
 openxlsx::write.xlsx(sites, file = file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'sites.xlsx'))
