@@ -17,6 +17,8 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
+if(opt$mapSiteLeaderSequences_CPUs > parallel::detectCores()) opt$mapSiteLeaderSequences_CPUs <- parallel::detectCores()
+
 quitOnErorr <- function(msg){
   updateLog(msg)
   message(msg)

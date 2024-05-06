@@ -8,6 +8,8 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
+if(opt$callNearestGenesFiltered_CPUs > parallel::detectCores()) opt$callNearestGenesFiltered_CPUs <- parallel::detectCores()
+
 dir.create(file.path(opt$outputDir, opt$callNearestGenesFiltered_outputDir))
 
 sites <- readRDS(file.path(opt$outputDir, opt$callNearestGenesFiltered_inputFile))
@@ -71,7 +73,7 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
           exons <- subset(exons, name2 %in% geneList)
           
           message('Calling nearestGene(), refGenone: ', x$refGenome[1], ', genes: ', length(genes), ', exons: ', length(exons))
-          n <- nearestGene(posids, genes, exons, CPUs = opt$callNearestGenes_CPUs)
+          n <- nearestGene(posids, genes, exons, CPUs = opt$callNearestGenesFiltered_CPUs)
           message('nearestGene() done')
         
           n$posid2 <- paste0(n$chromosome, n$strand, n$position)

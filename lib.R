@@ -60,6 +60,45 @@ percentSysMemUsed <- function(){
   (m[2] / m[1]) * 100
 }
 
+
+lowMemoryException <- function(stepDesc = 'none', maxMem = 98){
+  if(percentSysMemUsed() > maxMem){
+    msg <- paste0('Error - the system has exceeded ', maxMem, '% memory usage -- stopping all processes. Step desc: ', stepDesc)
+    updateLog(msg, logFile = file.path(opt$outputDir, 'Error.log'))
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
+}
+
+
+waitForMemory <- function(stepDesc = 'none', minMem = 80, maxWaitSecs = 1200, sleepSecs = 10){
+  gc()
+  t = 0
+  
+  repeat{
+    lowMemoryException(stepDesc = stepDesc)
+    
+    if(t > maxWaitSecs){
+      msg <- paste0('Error - the software has waited for ', maxWaitSecs, 
+                    ' seconds for at least ', minMem, '% of the system memory to be free.',
+                    ' Stopping all processes. Step desc: ', stepDesc)
+      updateLog(msg, logFile = file.path(opt$outputDir, 'Error.log'))
+      q(save = 'no', status = 1, runLast = FALSE) 
+    }
+    
+    m <- percentSysMemUsed()
+    if(m <= minMem) break
+    
+    updateLog(paste0('Waiting for memory to be freed, total memory use currently ', sprintf("%.2f%%", m), 
+                     '%, waiting for no more than ', minMem, '% usage - waited for ', t, ' seconds.'))
+    
+    Sys.sleep(sleepSecs)
+    
+    t <- t + sleepSecs
+  }
+}
+
+
+
 tmpFile <- function(){ paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') }
 
 # AAVengeR is provided with default configuration files for different types of analyses
@@ -183,15 +222,21 @@ demultiplex <- function(x){
   index1Reads <- readFastq(f)
   invisible(file.remove(f))
   
+  waitForMemory(stepDesc = 'Demultiplex')
+  
   f <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', x$file[grepl('anchor', x$file)])
   if(! file.exists(f)) waitForFile(f)
   anchorReads <- readFastq(f)
   invisible(file.remove(f))
   
+  waitForMemory(stepDesc = 'Demultiplex')
+  
   f <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', x$file[grepl('adrift', x$file)])
   if(! file.exists(f)) waitForFile(f)
   adriftReads <- readFastq(f)
   invisible(file.remove(f))
+  
+  waitForMemory(stepDesc = 'Demultiplex')
   
   anchorReads <- trimTailw(anchorReads, opt$demultiplex_qualtrim_events, opt$demultiplex_qualtrim_code, opt$demultiplex_qualtrim_halfWidth)
   anchorReads <- anchorReads[width(anchorReads) >= opt$demultiplex_qualtrim_minLength]

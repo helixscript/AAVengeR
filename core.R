@@ -17,6 +17,8 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
+if(opt$core_CPUs > parallel::detectCores()) opt$core_CPUs <- parallel::detectCores()
+
 # Create directories and start logging.
 createOuputDir()
 dir.create(file.path(opt$outputDir, 'core'))
@@ -38,7 +40,6 @@ updateLog('demultiplex, prepReads, alignReads, buildFragments, buildStdFragments
 # Gather select sections from the configuration file.
 o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^softwareDir|^compressDataFiles|^outputDir|^database|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
 o$outputDir <- file.path(opt$outputDir, 'core')
-
 
 # Run demultiplex module.
 o$demultiplex_CPUs <- opt$core_CPUs
@@ -70,17 +71,8 @@ if(nrow(reads) > 0){
 }
 
 # Set the max number of CPUs allowed for each replicate level process.
-if(n_distinct(reads$uniqueSample) == 1){
-  opt$core_maxCPUsPerProcess <- opt$core_CPUs
-} else if (n_distinct(reads$uniqueSample) == 2){
-  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs/2)
-} else if (n_distinct(reads$uniqueSample) == 3){
-  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs/3)
-} else if (n_distinct(reads$uniqueSample) == 4){
-  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs/4)
-} else {
-  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs * 0.10)
-}
+opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs / n_distinct(reads$uniqueSample))
+if(opt$core_maxCPUsPerProcess == 0) opt$core_maxCPUsPerProcess <- 1
 
 updateLog(paste0('Setting max. process CPU limit to ',opt$core_maxCPUsPerProcess, ' CPUs for replicate level jobs.'))
 
@@ -116,8 +108,6 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
   
     # The job with the most reads will evaluate to 1 * core_maxPercentCPUs and recieve core_maxPercentCPUs cores.
     o$CPUs <- as.integer(ceiling((((o$reads / max(o$reads)) * core_maxPercentCPUs) / 100) * opt$core_CPUs))
-    
-    o$CPUs <- ifelse(o$CPUs == 1, 2, o$CPUs) # Each job must get at least 2 CPUs.
     
     jobTable[match(o$id, jobTable$id),]$CPUs <<- o$CPUs
   }
@@ -191,10 +181,12 @@ while(! all(jobTable$done == TRUE)){
         file = file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'run.sh'))
 
   updateLog(paste0('Starting ',  tab$id, '.'))
+
+  waitForMemory(stepDesc = 'Core module, replicate level jobs')
   
   system(paste('chmod 755', file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'run.sh')))
   system(file.path(opt$outputDir, 'core', 'replicate_analyses', tab$id, 'run.sh'), wait = FALSE)
-
+  
   CPUs_used <- CPUs_used + tab$CPUs
 
   jobTable[which(jobTable$id == tab$id),]$active <- TRUE
@@ -218,17 +210,8 @@ frags <- bind_rows(lapply(f, readRDS))
 # Identify unique trial / patient combinations from returned fragments.
 u <- tidyr::separate(tibble(u = unique(frags$uniqueSample)), u, c('trial', 'subject', 'sample', 'replicate'), sep = '~') %>% select(-sample, -replicate) %>% distinct()
 
-if(nrow(u) == 1){
-  opt$core_maxCPUsPerProcess <- opt$core_CPUs
-} else if (nrow(u) == 2){
-  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs/2)
-} else if (nrow(u) == 3){
-  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs/3)
-} else if (nrow(u) == 4){
-  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs/4)
-} else {
-  opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs * 0.08)
-}
+opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs / nrow(u))
+if(opt$core_maxCPUsPerProcess == 0) opt$core_maxCPUsPerProcess <- 1
 
 updateLog(paste0('Setting max. process CPU limit to ',opt$core_maxCPUsPerProcess, ' CPUs for subject level jobs.'))
 
@@ -237,7 +220,6 @@ opt$core_maxPercentCPUs <- floor((opt$core_maxCPUsPerProcess / opt$core_CPUs) * 
 # Create a subject level to-do table.
 jobTable <- tibble(u = unique(frags$uniqueSample))
 jobTable$id <- sapply(jobTable$u, function(x) paste0(unlist(strsplit(x, '~'))[1:2], collapse = '~'))
-
 
 # Create a subject-level splitting vector for fragments records.
 frags <- left_join(frags, jobTable, by = c('uniqueSample' = 'u'))
@@ -250,7 +232,6 @@ jobTable <- group_by(distinct(frags), id) %>%
             arrange(desc(reads))
 
 jobTable$CPUs         <- as.integer(ceiling((((jobTable$reads / max(jobTable$reads)) * opt$core_maxPercentCPUs) / 100) * opt$core_CPUs))
-jobTable$CPUs         <- ifelse(jobTable$CPUs == 1, 2, jobTable$CPUs)
 jobTable$active       <- FALSE
 jobTable$startTime    <- NA
 jobTable$endTime      <- NA
@@ -307,6 +288,8 @@ while(! all(jobTable$done == TRUE)){
         file = file.path(opt$outputDir, 'core', 'subject_analyses',  tab$id, 'run.sh'))
   
   updateLog(paste0('Starting ',  tab$id, '.'))
+  
+  waitForMemory(stepDesc = 'Core module, subject level jobs')
   
   system(paste('chmod 755', file.path(opt$outputDir, 'core', 'subject_analyses', tab$id, 'run.sh')))
   system(file.path(opt$outputDir, 'core', 'subject_analyses', tab$id, 'run.sh'), wait = FALSE)

@@ -19,6 +19,8 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
+if(opt$alignReads_CPUs > parallel::detectCores()) opt$alignReads_CPUs <- parallel::detectCores()
+
 setMissingOptions()
 setOptimalParameters()
 set.seed(1)
@@ -98,6 +100,9 @@ alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
 }
 
 # Align anchor reads.
+
+waitForMemory(stepDesc = 'Align reads / anchor reads, replicate level jobs')
+
 updateLog(paste0('Aligning ', ppNum(n_distinct(reads$readID)), ' anchor reads to reference genomes.'))
 
 anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
@@ -143,6 +148,8 @@ reads <- subset(reads, readID %in% anchorReadAlignments$readID)
 
 
 # Align adrift reads.
+
+waitForMemory(stepDesc = 'Align reads / adrift reads, replicate level jobs')
 
 updateLog(paste0('Aligning ', ppNum(n_distinct(reads$readID)), ' adrift reads to reference genomes.'))
 

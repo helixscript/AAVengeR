@@ -18,6 +18,8 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
+if(opt$buildFragments_CPUs > parallel::detectCores()) opt$buildFragments_CPUs <- parallel::detectCores()
+
 createOuputDir()
 if(! dir.exists(file.path(opt$outputDir, opt$buildFragments_outputDir)))  dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
 if(! dir.exists(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp')))  dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'))
@@ -190,11 +192,10 @@ o <- lapply(id_groups, function(id_group){
 invisible(rm(anchorReadAlignments, adriftReadAlignments))
 
 invisible(gc())
+waitForMemory(stepDesc = 'Build fragments, replicate level jobs')
 
 counter <- 1
 total <- length(o)
-
-# Running with parLapply() results in high memory usage.
 
 frags <- bind_rows(lapply(o, function(z){
   a <- z[[1]]

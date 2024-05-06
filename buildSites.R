@@ -14,6 +14,8 @@ if(! file.exists(configFile)) stop('Error - configuration file does not exists.'
 opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 
+if(opt$buildSites_CPUs > parallel::detectCores()) opt$buildSites_CPUs <- parallel::detectCores()
+
 createOuputDir()
 dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
 dir.create(file.path(opt$outputDir, opt$buildSites_outputDir, 'tmp'))

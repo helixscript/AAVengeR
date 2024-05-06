@@ -23,6 +23,8 @@ opt <- yaml::read_yaml(configFile)
 source(file.path(opt$softwareDir, 'lib.R'))
 source(file.path(opt$softwareDir, 'stdPos.lib.R'))
 
+if(opt$buildStdFragments_CPUs > parallel::detectCores()) opt$buildStdFragments_CPUs <- parallel::detectCores()
+
 createOuputDir()
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'))
@@ -478,8 +480,6 @@ if(length(z) > 0){
 }
 
 
-
-
 # Ensure that the read level fragments for each sample position id have similar remnant sequences.
 # Set leaderSeqGroups to 1 and enumerate if different remnants are found. This is a more rigorous
 # clean-up from the original sorting before we standardized. 
@@ -741,6 +741,12 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
     suppressPackageStartupMessages(library(igraph))
     suppressPackageStartupMessages(library(dplyr))
     suppressPackageStartupMessages(library(data.table))
+    
+    
+    # New
+    source(file.path(opt$softwareDir, 'lib.R'))
+    lowMemoryException()
+    
     
     # Work within trial/subject/sample groupings.
     rbindlist(lapply(split(x, x$n), function(x2){
