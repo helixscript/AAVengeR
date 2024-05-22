@@ -5,7 +5,8 @@
 
 mode: integrase                                                                # [controlled vocab] (integrase, AAV, transposase, or manual) Software mode will set certain parameters to optimized values unless set to manual.
 
-databaseConfigFile: /home/ubuntu/.my.cnf                                       # [file path] Absolute path to .my.cnf file that will be copied to  ~/.my.cnf if file is missing.
+softwareDir: ~/AAVengeR
+databaseConfigFile: ~/.my.cnf                                                  # [file path] Absolute path to .my.cnf file that will be copied to  ~/.my.cnf if file is missing.
 databaseConfigGroup: none                                                      # [character] Database credential block name in ~/.my.cnf file. Set to none to disable.
 
 outputDir: output                                                              # [file path] Output directory path.
@@ -294,4 +295,3 @@ callNearestGenesFiltered_boundaries:
 
 # Deprecated 
 Rscript: none
-softwareDir: none

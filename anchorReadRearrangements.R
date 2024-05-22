@@ -61,22 +61,11 @@ updateLog('Reading in demultiplexed reads.')
 reads <- readRDS(file.path(opt$outputDir, opt$anchorReadRearrangements_inputFile))
 if(nrow(reads) == 0) quitOnErorr('Error - the input table contained no rows.')
 
-# Update
-reads[grepl('_LC~', reads$uniqueSample),]$vectorFastaFile <- 'Sabatino_PMC7855056_lightChain_plasmid.fasta'
-reads[grepl('_HC~', reads$uniqueSample),]$vectorFastaFile <- 'Sabatino_PMC7855056_heavyChain_plasmid.fasta'
-
 rawAnchorReads <- readFastq(file.path(opt$demultiplex_anchorReadsFile))
 rawAdriftReads <- readFastq(file.path(opt$demultiplex_adriftReadsFile))
 
 rawAnchorReads@id <- BStringSet(sub('\\s+.+$', '', as.character(rawAnchorReads@id)))
 rawAdriftReads@id <- BStringSet(sub('\\s+.+$', '', as.character(rawAdriftReads@id)))
-
-
-z <- rawAnchorReads[rawAnchorReads@id %in% subset(reads, vectorFastaFile == 'pAAV-GFP-plasmid.fasta')$readID]
-i1 <- vcountPattern('TTCCTTGTAGTTAATGATTAACCCGCCATGCTACTTATCTACGTAGCCATGCTCTAGCGGCCTCGGCC', z@sread, max.mismatch = 1) == 1
-i2 <- vcountPattern('TTCCTTGTAGTTAATGATTAACCCGCCATGCTACTTATCTACGTAGCCATGCTCTAGATGTCGAGGGA', z@sread, max.mismatch = 1) == 1
-
-
 
 # r <- readFasta('readsToRemove')
 # reads <- reads[! reads$readID %in% as.character(r@id),]

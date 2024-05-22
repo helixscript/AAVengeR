@@ -117,3 +117,7 @@ Updated core resource balancing.
 Added prepReads_forceAnchorReadStartSeq option emmulate intSiteCaller primerBit matching.
 Added memory management monitor.
 Added pipeline auto-kill at 98% memory usage.
+2.0.2
+Fixed memory leak in demultiplex.R when identifying unique read pairs.
+Added more vectors and HMMs.
+

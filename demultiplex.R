@@ -238,27 +238,17 @@ if(opt$demultiplex_level == 'all'){
   
   updateLog('Identifying unique read pairs.')
   
-  cluster <- makeCluster(opt$demultiplex_CPUs)
-  clusterSetRNGStream(cluster, 1)
-  clusterExport(cluster, 'opt')
-  
-  reads <- data.table(reads)
-  o <- rbindlist(parLapply(cluster, split(reads, reads$uniqueSample), function(x){
-              suppressPackageStartupMessages(library(data.table))
-              rbindlist(lapply(split(x, paste(x$anchorReadSeq, x$adriftReadSeq)), function(x2){
-                          if(nrow(x2) > 1 ) x2 <- x2[order(x2$readID)]
-                          x2$duplicated <- TRUE
-                          x2$duplicatedRepID <- x2[1]$readID
-                          x2$nDuplicateReads <- nrow(x2) - 1
-                          x2[1]$duplicated <- FALSE
-                          x2
-                        }))
-              }))
-  
-  stopCluster(cluster)
+  o <- group_by(lazy_dt(reads), anchorReadSeq, adriftReadSeq) %>%
+           arrange(readID) %>%
+           mutate(nDuplicateReads = n() - 1,
+                  duplicated = c(FALSE, rep(TRUE, n() - 1)),
+                  duplicatedRepID = readID[1]) %>%
+           ungroup() %>%
+           as.data.table()
   
   reads <- dplyr::filter(o, duplicated == FALSE) %>% dplyr::select(-duplicated, -duplicatedRepID)
   dupReadsTable <- dplyr::filter(o, duplicated == TRUE) %>% dplyr::select(duplicatedRepID, readID)
+  
   saveRDS(dupReadsTable, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'dupReadsTable.rds'), compress = opt$compressDataFiles)
   rm(o)
   
