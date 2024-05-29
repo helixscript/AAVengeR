@@ -197,7 +197,7 @@ anchorReadRearrangements_vectorLeaderSeqFilterMaxMismatch: 1
 anchorReadRearrangements_qualtrim_events: 2
 anchorReadRearrangements_qualtrim_code: '5'
 anchorReadRearrangements_qualtrim_halfWidth: 5
-anchorReadRearrangements_minReadOverlapNTs: 20                                  
+anchorReadRearrangements_minReadOverlapNTs: 20
 anchorReadRearrangements_maxReadOverlapPval: 0.001
 anchorReadRearrangements_anchorReadCutPos: 200
 anchorReadRearrangements_requireReadPairOverlap: TRUE

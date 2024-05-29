@@ -59,7 +59,7 @@ if(! file.exists(opt$demultiplex_index1ReadsFile)) quitOnErorr('Error - the anch
 I1 <- ShortRead::readFastq(opt$demultiplex_index1ReadsFile)
 dataSetLength <- length(I1)
 
-updateLog(paste0(ppNum(dataSetLength), ' NTs in paired end data set.'))
+updateLog(paste0(ppNum(dataSetLength), ' reads in paired end data set.'))
 
 if(opt$demultiplex_RC_I1_barcodes_auto){
   updateLog('Determining if I1 barcodes should be switched to RC.')

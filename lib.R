@@ -507,8 +507,6 @@ createPID <- function(){
 }
 
 
-
-
 uploadSitesToDB <- function(sites){
   updateLog('Writing sites to the database.')
 
@@ -544,12 +542,6 @@ uploadSitesToDB <- function(sites){
   
   dbDisconnect(conn)
 }
-
-
-
-
-
-
 
 
 
