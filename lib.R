@@ -19,6 +19,31 @@ createOuputDir <- function(){
   }
 }
 
+
+runSam2Psl <- function(samFile, outputFile, cl){
+   o <- data.table(line = readLines(samFile))
+   o$n <- ntile(1:nrow(o), CPUs)
+   o <- split(o, o$n)
+   gc()
+
+   sam2psl <- function(x){
+     system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ',  x, ' -o ', paste0(x, '.out')))
+     invisible(file.remove(x))
+     x <- readLines(paste0(x, '.out'))
+     invisible(file.remove(paste0(x, '.out')))
+     x
+   }
+
+   f <- lapply(o, function(x){
+     tmpFile <- paste0('sam2psl.', paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''))
+     write(x$line, file.path(opt$outputDir, tmpFile))
+     file.path(opt$outputDir, tmpFile)
+   })
+
+   write(unlist(parLapply(cl, f, sam2psl)), outputFile)
+}
+
+
 setOptimalParameters <- function(){
   if(grepl('integrase', opt$mode, ignore.case = TRUE)){
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
@@ -79,7 +104,7 @@ waitForMemory <- function(stepDesc = 'none', minMem = 80, maxWaitSecs = 1200, sl
     
     if(t > maxWaitSecs){
       msg <- paste0('Error - the software has waited for ', maxWaitSecs, 
-                    ' seconds for at least ', minMem, '% of the system memory to be free.',
+                    ' seconds for at least ', 100 - minMem, '% of the system memory to be free.',
                     ' Stopping all processes. Step desc: ', stepDesc)
       updateLog(msg, logFile = file.path(opt$outputDir, 'Error.log'))
       q(save = 'no', status = 1, runLast = FALSE) 

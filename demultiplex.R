@@ -318,7 +318,10 @@ if(opt$demultiplex_quickAlignFilter){
   
   reads <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
     
+    updateLog(paste0('Aligning reads to ', x$refGenome[1], '...'))
+    
     # Substr will not fail if boundaries are unrealistic.
+    updateLog('Creating adrift read FASTA for alignment.')
     o <- DNAStringSet(substr(x$adriftReadSeq, x$adriftLinkerSeqEnd+1, nchar(x$adriftReadSeq)))
     names(o) <- x$readID
     
@@ -327,24 +330,35 @@ if(opt$demultiplex_quickAlignFilter){
     
     writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'))
     
+    updateLog('Starting BWA2.')
     system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 10000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'), ' > ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam')))
     
+    # Dev
+    # runSam2Psl(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'),
+    #            file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'),
+    #            cluster)
+    
+    updateLog('BWA2 complete. Starting sam2psl.')
     system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', 
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'), ' -o ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl')))
     
+    updateLog('Parsing psl table.')
     a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'), convertToBlatPSL = TRUE)
     a <- dplyr::filter(a, alignmentPercentID >= opt$demultiplex_quickAlignFilter_minPercentID, tNumInsert <= 1, 
                        qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= 5, matches >= opt$demultiplex_quickAlignFilter_minMatches)
     
+    updateLog('Cleaning up files.')
     invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'), 
                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'),
                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl')))
     
+    updateLog('Subsetting read data.')
     x <- subset(x, readID %in% a$qName)
     
+    updateLog('Creating anchor read FASTA for alignment.')
     o <- DNAStringSet(substr(x$anchorReadSeq, opt$demultiplex_quickAlignFilter_minEstLeaderSeqLength, nchar(x$anchorReadSeq)))
     names(o) <- x$readID
     
@@ -353,41 +367,56 @@ if(opt$demultiplex_quickAlignFilter){
     
     writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'))
     
+    updateLog('Starting BWA2.')
+    
     # -B -O flags makes bwa-mem2 more tolerant of mismatches near the ends of alignments.
-    system(paste0('bwa-mem2 mem -B 2 -O 4 -t ', opt$demultiplex_CPUs, ' -c 10000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
+    # system(paste0('bwa-mem2 mem -B 2 -O 4 -t ', opt$demultiplex_CPUs, ' -c 10000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
+    # (!) These options are making results too voluminous.
+    system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 10000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'), ' > ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam')))
+    
+    updateLog('BWA2 complete. Starting sam2psl.')
     
     system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', 
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam'), ' -o ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
     
+    updateLog('Reading psl table.')
     p <- readr::read_tsv(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'), col_names = FALSE)
     invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
     
+    updateLog('Rearranging psl table columns and rewriting.')
     p$X12 <- ifelse(p$X9 == '-', p$X11 - p$X13, p$X12)
     p$X13 <- ifelse(p$X9 == '-', p$X11 - p$X12, p$X13)
     readr::write_tsv(p, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'), col_names = FALSE)
     
+    updateLog('Parsing psl table.')
     a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'))
     
+    updateLog('Filtering psl table.')
     a <- dplyr::filter(a, alignmentPercentID >= opt$demultiplex_quickAlignFilter_minPercentID, tNumInsert <= 1, 
                        qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, matches >= opt$demultiplex_quickAlignFilter_minMatches)
     
+    updateLog('Cleaning up files.')
     invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam'), 
                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'),
                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
     
+    updateLog('Subsetting read data.')
     x <- subset(x, readID %in% a$qName)
     
-    minAlnStarts <- group_by(a, qName) %>% 
+    updateLog('Calculating and appending min. alignment start positions.')
+    minAlnStarts <- group_by(lazy_dt(a), qName) %>% 
                     slice_max(matches, with_ties = TRUE) %>% 
                     slice_min(qStart, with_ties = FALSE) %>%
                     select(qName, qStart) %>% 
                     ungroup() %>%
                     mutate(quickFilterStartPos = qStart + opt$demultiplex_quickAlignFilter_minEstLeaderSeqLength) %>%
-                    select(-qStart)
+                    select(-qStart) %>%
+                    as_tibble()
     
+    updateLog('Joining min. alignment starts to data and returing.')
     x$quickFilterStartPos <- NULL
     left_join(x, minAlnStarts, by = c('readID' = 'qName'))
   }))

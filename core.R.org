@@ -25,7 +25,7 @@ dir.create(file.path(opt$outputDir, 'core'))
 dir.create(file.path(opt$outputDir, 'core', 'demultiplex'))
 dir.create(file.path(opt$outputDir, 'core', 'replicate_analyses'))
 dir.create(file.path(opt$outputDir, 'core', 'subject_analyses'))           
-
+          
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, 'core', 'log')
 logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
@@ -70,6 +70,14 @@ if(nrow(reads) > 0){
   q(save = 'no', status = 1, runLast = FALSE)
 }
 
+# Set the max number of CPUs allowed for each replicate level process.
+opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs / n_distinct(reads$uniqueSample))
+if(opt$core_maxCPUsPerProcess == 0) opt$core_maxCPUsPerProcess <- 1
+
+updateLog(paste0('Setting max. process CPU limit to ',opt$core_maxCPUsPerProcess, ' CPUs for replicate level jobs.'))
+
+# Define max percent CPUs allowed for a process.
+opt$core_maxPercentCPUs <- floor((opt$core_maxCPUsPerProcess / opt$core_CPUs) * 100)
 
 jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.txt'){
   f <- list.files(file.path(opt$outputDir, 'core'), pattern = searchPattern, full = TRUE, recursive = TRUE)
@@ -94,18 +102,19 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
   # Redefine CPUs.
   o <- jobTable[jobTable$done == FALSE & jobTable$active == FALSE,]
   
-  if(nrow(o) > 0 & nrow(o) <= 5){
-    a <- floor((1 / nrow(o)) * opt$core_CPUs) - 1
+  if(nrow(o) > 0){
     
-    a[a < 1] <- 1
-    o$CPUs <- a
+    core_maxPercentCPUs <- opt$core_maxPercentCPUs
+  
+    # The job with the most reads will evaluate to 1 * core_maxPercentCPUs and recieve core_maxPercentCPUs cores.
+    o$CPUs <- as.integer(ceiling((((o$reads / max(o$reads)) * core_maxPercentCPUs) / 100) * opt$core_CPUs))
     
     jobTable[match(o$id, jobTable$id),]$CPUs <<- o$CPUs
   }
   
   dspJobTable <- jobTable
-  dspJobTable$startTime <- dspJobTable$startTimeDsp;  dspJobTable$startTimeDsp <- NULL
-  dspJobTable$endTime   <- dspJobTable$endTimeDsp;    dspJobTable$endTimeDsp   <- NULL
+  dspJobTable$startTime <- dspJobTable$startTimeDsp; dspJobTable$startTimeDsp <- NULL
+  dspJobTable$endTime   <- dspJobTable$endTimeDsp;   dspJobTable$endTimeDsp <- NULL
   
   tab <- pandoc.table.return(arrange(dspJobTable, desc(done), desc(active)), style = "simple", split.tables = Inf, plain.ascii = TRUE)
   
@@ -114,16 +123,11 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
 
 # Build a jobs table for prepReads, alignReads, and buildFragments.
 jobTable <- data.frame(table(reads$uniqueSample)) %>% 
-  dplyr::rename(id = Var1) %>%
-  dplyr::rename(reads = Freq)
+            dplyr::rename(id = Var1) %>%
+            dplyr::rename(reads = Freq)
 
-
-# Let the process with the greatest number of reads have 25% of all cores, scale other processes. 
-a <- ceiling((jobTable$reads / max(jobTable$reads)) * (opt$core_CPUs* 0.25))
-a[a < 1] <- 1
-
-
-jobTable$CPUs         <- a
+jobTable$CPUs         <- as.integer(ceiling((((jobTable$reads / max(jobTable$reads)) * opt$core_maxPercentCPUs) / 100) * opt$core_CPUs))
+jobTable$CPUs         <- ifelse(jobTable$CPUs == 1, 2, jobTable$CPUs)
 jobTable$active       <- FALSE
 jobTable$startTime    <- NA
 jobTable$endTime      <- NA
@@ -138,53 +142,53 @@ updateLog('Starting replicate level jobs.')
 
 # Run prepReads, alignReads, and buildFragments.
 while(! all(jobTable$done == TRUE)){
-  
+
   CPUs_available <- opt$core_CPUs - CPUs_used
   tab <- jobTable[jobTable$CPUs <= CPUs_available & jobTable$active == FALSE & jobTable$done == FALSE,] %>% dplyr::slice_max(CPUs, with_ties = FALSE)
-  
+
   if(nrow(tab) == 0){
     jobStatus(searchPattern = 'fragments.done', outputFileName = 'replicateJobTable')
     Sys.sleep(5)
     next
   }
-  
+
   # Gather select sections from the configuration file and set CPU values.
   o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^softwareDir|^compressDataFiles|^outputDir|^database|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
   o$prepReads_CPUs <- as.integer(tab$CPUs)
   o$alignReads_CPUs <- as.integer(tab$CPUs)
   o$buildFragments_CPUs <- as.integer(tab$CPUs)
   o$outputDir <- file.path(opt$outputDir, 'core', 'replicate_analyses', tab$id)
-  
+
   # Instruct the pipeline to create a buildFragments/fragments.done file for jobs that failed.
   o$core_createFauxFragDoneFiles <- TRUE
-  
+
   # Create the output directory for this replicate and save a copy of the replicate reads within it.
   dir.create(o$outputDir)
   saveRDS(subset(reads, uniqueSample == tab$id), file.path(o$outputDir, paste0(tab$id, '.CORE_TMP.rds')), compress = opt$compressDataFiles)
-  
+
   # Update configuration to point to the subset of replicate reads.
   o$prepReads_readsTable <- paste0(tab$id, '.CORE_TMP.rds')
-  
+
   # Define modules to run in replicate level configuration file and write out file.
   o$modules <- list()
   o[['modules']] <- c('prepReads', 'alignReads', 'buildFragments')
   
   yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))
-  
+
   # Create AAVengeR launching script since system(x, wait = TRUE) does not wait for commands w/ arguments.
   write(c('#!/usr/bin/sh',
           paste('Rscript', file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))),
         file = file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'run.sh'))
-  
+
   updateLog(paste0('Starting ',  tab$id, '.'))
-  
+
   waitForMemory(stepDesc = 'Core module, replicate level jobs')
   
   system(paste('chmod 755', file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'run.sh')))
   system(file.path(opt$outputDir, 'core', 'replicate_analyses', tab$id, 'run.sh'), wait = FALSE)
   
   CPUs_used <- CPUs_used + tab$CPUs
-  
+
   jobTable[which(jobTable$id == tab$id),]$active <- TRUE
   jobTable[which(jobTable$id == tab$id),]$startTimeDsp <- base::format(Sys.time(), "%m.%d.%Y %l:%M%P")
   jobTable[which(jobTable$id == tab$id),]$startTime <- as.character(lubridate::now())
@@ -223,15 +227,11 @@ frags <- left_join(frags, jobTable, by = c('uniqueSample' = 'u'))
 # n is trial ~ subject
 # Fragments are on the read level.
 jobTable <- group_by(distinct(frags), id) %>% 
-  summarise(reads = n_distinct(readID)) %>% 
-  ungroup() %>% 
-  arrange(desc(reads))
+            summarise(reads = n_distinct(readID)) %>% 
+            ungroup() %>% 
+            arrange(desc(reads))
 
-# Let the process with the greatest number of reads have 25% of all cores, scale other processes. 
-a <- ceiling((jobTable$reads / max(jobTable$reads)) * (opt$core_CPUs* 0.25))
-a[a < 1] <- 1
-
-jobTable$CPUs         <- a
+jobTable$CPUs         <- as.integer(ceiling((((jobTable$reads / max(jobTable$reads)) * opt$core_maxPercentCPUs) / 100) * opt$core_CPUs))
 jobTable$active       <- FALSE
 jobTable$startTime    <- NA
 jobTable$endTime      <- NA
@@ -258,7 +258,7 @@ while(! all(jobTable$done == TRUE)){
     Sys.sleep(5)
     next
   }
-  
+
   # Gather select sections from the configuration file and set CPU values.
   o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^softwareDir|^compressDataFiles|^outputDir|^database|^core|^buildStdFragments|^buildSites|^demultiplex', names(opt))]
   o$buildStdFragments_CPUs <- as.integer(tab$CPUs)

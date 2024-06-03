@@ -120,5 +120,5 @@ Added pipeline auto-kill at 98% memory usage.
 2.0.2
 Fixed memory leak in demultiplex.R when identifying unique read pairs.
 Added more vectors and HMMs.
-2.0.2
-Fixed issues with predictPCRartifacts
+2.0.3
+Fixed issues with predictPCRartifacts where it failed when blast failed to return any hits. Only affects AAV work.
