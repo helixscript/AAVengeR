@@ -11,20 +11,27 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(pander))
 
+# Parse the config file from the command line.
 configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
 
+# Read config file.
 opt <- yaml::read_yaml(configFile)
-source(file.path(opt$softwareDir, 'lib.R'))
 
-if(opt$core_CPUs > parallel::detectCores()) opt$core_CPUs <- parallel::detectCores()
+# Test for key items needed to run sanity tests.
+if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
+if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
+
+# Run config sanity tests.
+source(file.path(opt$softwareDir, 'lib.R'))
+optionsSanityCheck()
 
 # Create directories and start logging.
 createOuputDir()
 dir.create(file.path(opt$outputDir, 'core'))
 dir.create(file.path(opt$outputDir, 'core', 'demultiplex'))
 dir.create(file.path(opt$outputDir, 'core', 'replicate_analyses'))
-dir.create(file.path(opt$outputDir, 'core', 'subject_analyses'))           
+dir.create(file.path(opt$outputDir, 'core', 'subject_analyses')) 
 
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, 'core', 'log')
@@ -32,13 +39,27 @@ logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
 write(logo, opt$defaultLogFile, append = FALSE)
 write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
 
+quitOnErorr <- function(msg){
+  updateLog(msg)
+  message(msg)
+  message(paste0('See log for more details: ', opt$defaultLogFile))
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+runArchiveRunDetails()
+set.seed(1)
+
+# Inject an parameter to let downstream modules know that they are being called by the core module.
+# This will block runArchiveRunDetails() in child processes.
+opt$calledFromCore <- TRUE
+
 updateLog('Starting core module.')
 updateLog('This module will call the following modules:')
 updateLog('demultiplex, prepReads, alignReads, buildFragments, buildStdFragments, and buildSites.')
 
 
 # Gather select sections from the configuration file.
-o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^softwareDir|^compressDataFiles|^outputDir|^database|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
+o <- opt
 o$outputDir <- file.path(opt$outputDir, 'core')
 
 # Run demultiplex module.
@@ -48,7 +69,7 @@ yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml
 
 # Create a shell script to start demultiplex module.
 write(c('#!/usr/bin/sh', 
-        paste('Rscript', file.path(opt$softwareDir, 'demultiplex.R'), file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml'))), 
+        paste(opt$Rscript, file.path(opt$softwareDir, 'demultiplex.R'), file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml'))), 
       file = file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'))
 
 updateLog('Running the demultiplex module.')
@@ -90,7 +111,6 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
     }))
   }
   
-  
   # Redefine CPUs.
   o <- jobTable[jobTable$done == FALSE & jobTable$active == FALSE,]
   
@@ -98,6 +118,8 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
     a <- floor((1 / nrow(o)) * opt$core_CPUs) - 1
     
     a[a < 1] <- 1
+    a[a > opt$core_processMaxCPUs] <- opt$core_processMaxCPUs
+    
     o$CPUs <- a
     
     jobTable[match(o$id, jobTable$id),]$CPUs <<- o$CPUs
@@ -118,8 +140,8 @@ jobTable <- data.frame(table(reads$uniqueSample)) %>%
   dplyr::rename(reads = Freq)
 
 
-# Let the process with the greatest number of reads have 25% of all cores, scale other processes. 
-a <- ceiling((jobTable$reads / max(jobTable$reads)) * (opt$core_CPUs* 0.25))
+# Let the process with the greatest number of reads have 25% (setting dependent) of all cores, scale other processes. 
+a <- ceiling((jobTable$reads / max(jobTable$reads)) * (opt$core_CPUs * (opt$core_processMaxPercentCPU / 100)))
 a[a < 1] <- 1
 
 
@@ -149,7 +171,7 @@ while(! all(jobTable$done == TRUE)){
   }
   
   # Gather select sections from the configuration file and set CPU values.
-  o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^softwareDir|^compressDataFiles|^outputDir|^database|^core|^demultiplex|^prepReads|^demultiplex|^alignReads|^buildFragments', names(opt))]
+  o <- opt
   o$prepReads_CPUs <- as.integer(tab$CPUs)
   o$alignReads_CPUs <- as.integer(tab$CPUs)
   o$buildFragments_CPUs <- as.integer(tab$CPUs)
@@ -173,7 +195,7 @@ while(! all(jobTable$done == TRUE)){
   
   # Create AAVengeR launching script since system(x, wait = TRUE) does not wait for commands w/ arguments.
   write(c('#!/usr/bin/sh',
-          paste('Rscript', file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))),
+          paste(opt$Rscript, file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))),
         file = file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'run.sh'))
   
   updateLog(paste0('Starting ',  tab$id, '.'))
@@ -228,7 +250,7 @@ jobTable <- group_by(distinct(frags), id) %>%
   arrange(desc(reads))
 
 # Let the process with the greatest number of reads have 25% of all cores, scale other processes. 
-a <- ceiling((jobTable$reads / max(jobTable$reads)) * (opt$core_CPUs* 0.25))
+a <- ceiling((jobTable$reads / max(jobTable$reads)) * (opt$core_CPUs * (opt$core_processMaxPercentCPU / 100)))
 a[a < 1] <- 1
 
 jobTable$CPUs         <- a
@@ -260,7 +282,7 @@ while(! all(jobTable$done == TRUE)){
   }
   
   # Gather select sections from the configuration file and set CPU values.
-  o <- opt[grepl('processAdriftReadLinkerUMIs|^mode|^softwareDir|^compressDataFiles|^outputDir|^database|^core|^buildStdFragments|^buildSites|^demultiplex', names(opt))]
+  o <- opt
   o$buildStdFragments_CPUs <- as.integer(tab$CPUs)
   o$buildSites_CPUs <- as.integer(tab$CPUs)
   o$outputDir <- file.path(opt$outputDir, 'core', 'subject_analyses', tab$id)
@@ -284,7 +306,7 @@ while(! all(jobTable$done == TRUE)){
   
   # Create AAVengeR launching script since system(x, wait = TRUE) does not wait for commands w/ arguments.
   write(c('#!/usr/bin/sh', 
-          paste('Rscript', file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core', 'subject_analyses',  tab$id, 'config.yml'))), 
+          paste(opt$Rscript, file.path(opt$softwareDir, 'aavenger.R'), file.path(opt$outputDir, 'core', 'subject_analyses',  tab$id, 'config.yml'))), 
         file = file.path(opt$outputDir, 'core', 'subject_analyses',  tab$id, 'run.sh'))
   
   updateLog(paste0('Starting ',  tab$id, '.'))

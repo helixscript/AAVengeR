@@ -14,20 +14,22 @@ suppressPackageStartupMessages(library(GenomicRanges))
 suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(igraph))
 suppressPackageStartupMessages(library(dtplyr))
+suppressPackageStartupMessages(library(RMariaDB))
 
+# Parse the config file from the command line.
 configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
 
+# Read config file.
 opt <- yaml::read_yaml(configFile)
+
+# Test for key items needed to run sanity tests.
+if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
+if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
+
+# Run config sanity tests.
 source(file.path(opt$softwareDir, 'lib.R'))
-source(file.path(opt$softwareDir, 'stdPos.lib.R'))
-
-# Setup.
-#-------------------------------------------------------------------------------
-
-opt$buildStdFragments_minRemnantLengthToGroup <- 12
-
-if(opt$buildStdFragments_CPUs > parallel::detectCores()) opt$buildStdFragments_CPUs <- parallel::detectCores()
+optionsSanityCheck()
 
 createOuputDir()
 dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
@@ -39,7 +41,6 @@ logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
 write(logo, opt$defaultLogFile, append = FALSE)
 write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
 
-
 quitOnErorr <- function(msg){
   if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
   updateLog(msg)
@@ -48,23 +49,25 @@ quitOnErorr <- function(msg){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-setMissingOptions()
-setOptimalParameters()
+runArchiveRunDetails()
 set.seed(1)
+
+
+# Setup.
+#-------------------------------------------------------------------------------
 
 # Check for configuration errors.
 if(opt$buildStdFragments_autoPullTrialSamples & opt$databaseConfigGroup == 'none') quitOnErorr('Error -- the databaseConfigGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')
 if(opt$buildStdFragments_trialSubjectList != 'none' & opt$databaseConfigGroup == 'none') quitOnErorr('Error -- the databaseConfigGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')
 
+
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, 'opt')
 
-# Create a database connection if requested in the configuration file.
-if(opt$databaseConfigGroup != 'none'){
-  suppressPackageStartupMessages(library(RMariaDB))
-  conn <- createDBconnection()
-}
+runArchiveRunDetails()
+
+if(tolower(opt$sequencingRunID) != 'none') conn <- createDBconnection()
 
 
 # Load fragment data from database or local file depending on configuration file.

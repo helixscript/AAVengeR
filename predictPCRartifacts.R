@@ -12,16 +12,40 @@ suppressPackageStartupMessages(library(rtracklayer))
 suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(parallel))
 
+# Parse the config file from the command line.
 configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
 
+# Read config file.
 opt <- yaml::read_yaml(configFile)
+
+# Test for key items needed to run sanity tests.
+if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
+if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
+
+# Run config sanity tests.
 source(file.path(opt$softwareDir, 'lib.R'))
+optionsSanityCheck()
 
-if(opt$predictPCRartifacts_CPUs > parallel::detectCores()) opt$predictPCRartifacts_CPUs <- parallel::detectCores()
-
+createOuputDir()
 dir.create(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir))
 dir.create(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs'))
+
+# Start log.
+opt$defaultLogFile <- file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'log')
+logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
+write(logo, opt$defaultLogFile, append = FALSE)
+write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
+
+quitOnErorr <- function(msg){
+  updateLog(msg)
+  message(msg)
+  message(paste0('See log for more details: ', opt$defaultLogFile))
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+runArchiveRunDetails()
+set.seed(1)
 
 sites <- readRDS(file.path(opt$outputDir, opt$predictPCRartifacts_inputFile))
 
@@ -42,7 +66,7 @@ sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
   
        x$n <- ntile(1:nrow(x), opt$predictPCRartifacts_CPUs)
        
-      r <- bind_rows(parLapply(cluster, split(x, x$n), function(a){
+       r <- bind_rows(parLapply(cluster, split(x, x$n), function(a){
               library(dplyr)
               library(Biostrings)
               library(rtracklayer)
@@ -300,7 +324,7 @@ sites$vectorFastaFile <- sapply(sites$vectorFastaFile, lpe)
 sites$refGenome <- sapply(sites$refGenome, lpe)
 sites$refGenome <- sub('\\.2bit$', '', sites$refGenome)
 
-if(opt$databaseConfigGroup != 'none'){
+if(tolower(opt$databaseConfigGroup) != 'none'){
   suppressPackageStartupMessages(library(RMariaDB))
   uploadSitesToDB(sites)
 }

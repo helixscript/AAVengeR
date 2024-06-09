@@ -19,6 +19,114 @@ createOuputDir <- function(){
   }
 }
 
+optionsSanityCheck <- function(){
+  
+  userRequired <- c('mode', 'softwareDir', 'outputDir', 'databaseConfigFile', 'databaseConfigGroup',
+                    'sequencingRunID', 'demultiplex_anchorReadsFile', 'demultiplex_adriftReadsFile', 
+                    'demultiplex_index1ReadsFile', 'demultiplex_sampleDataFile', 'modules')
+  
+  if(! all(userRequired %in% names(opt))){
+    msg <- paste0('Error, these user required parameters are missing from the configuration file: ', paste0(userRequired[! userRequired %in% names(opt)], collapse = ', '))
+    message(msg)
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
+  
+  if(! opt$mode %in% c('integrase', 'AAV', 'transposase', 'manual')){
+    message('Error, the mode parameter must be set to integrase, AAV, transposase, or manual.')
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
+  
+  if(tolower(opt$sequencingRunID) == 'none'){
+    message("Error - the sequencingRunID parameter was not defined in your configuration file or it was set to 'none'.")
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
+  
+  defaultConfig <- yaml::read_yaml(file.path(opt$softwareDir, 'config.yml'))
+  
+  allowedToBeAdded <- names(defaultConfig)[! names(defaultConfig) %in% userRequired]
+  
+  toAdd <- allowedToBeAdded[! allowedToBeAdded %in% names(opt)]
+  
+  if(length(toAdd) > 0){
+    for(x in toAdd){
+      opt[[x]] <<- defaultConfig[[x]]
+    }
+  }
+  
+  # These are items either injected by other modules or options not in the default configuration file.
+  if(! 'core_createFauxFragDoneFiles' %in% names(opt)) opt$core_createFauxFragDoneFiles <<- FALSE
+  if(! 'core_createFauxSiteDoneFiles' %in% names(opt)) opt$core_createFauxSiteDoneFiles <<- FALSE
+  if(! 'buildStdFragments_minRemnantLengthToGroup' %in% names(opt)) opt$buildStdFragments_minRemnantLengthToGroup <<- 12
+  if(! 'core_processMaxPercentCPU' %in% names(opt)) opt$core_processMaxPercentCPU <<- 12
+  if(! 'core_processMaxCPUs' %in% names(opt)) opt$core_processMaxCPUs <<- 10
+  if(! 'calledFromCore' %in% names(opt)) opt$calledFromCore <<- FALSE
+  
+  # The core_CPU value can not exceed the number of system cores.
+  cores <- parallel::detectCores()
+  if(opt$core_CPUs > cores) opt$core_CPUs <<- cores
+  
+  # Create list of all options containing 'CPUs' except core_CPUs.
+  a <- names(opt)[grepl('CPUs', names(opt))]
+  a <- a[a != 'core_CPUs']
+  
+  # Not not allow any non-core module exceed the number of system cores.
+  # Set their values to core_CPUs value if requested except for cases when the congfig
+  # file is written by the core module since it balances the CPUs based on read counts.
+  
+  if(length(a) > 0){
+    for(x in a){
+      if(opt[[x]] > cores) opt[[x]] <<- cores
+      if(opt$core_applyCoreCPUsToAllModules & ! opt$calledFromCore) opt[[x]] <<- opt$core_CPUs
+    }
+  }
+  
+  # Set mode specific values.
+  if(grepl('integrase', opt$mode, ignore.case = TRUE)){
+    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
+    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
+    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
+    opt$prepReads_HMMmatchEnd <<- TRUE
+    opt$prepReads_HMMmatchTerminalSeq <<- 'CA'
+    opt$prepReads_limitLeaderSeqsWithQuickAlignFilter <<- FALSE
+    opt$prepReads_forceAnchorReadStartSeq <<- FALSE
+  } else if(grepl('AAV', opt$mode, ignore.case = TRUE)){
+    opt$demultiplex_quickAlignFilter <<- TRUE
+    opt$prepReads_limitLeaderSeqsWithQuickAlignFilter <<- TRUE
+    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 300
+    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
+    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 10
+    opt$prepReads_forceAnchorReadStartSeq <<- TRUE
+  } else if(grepl('transposase', opt$mode, ignore.case = TRUE)){
+    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
+    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
+    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
+    opt$prepReads_HMMmatchEnd <<- TRUE
+    opt$prepReads_HMMmatchTerminalSeq <<- 'TA'
+  } else {
+    stop('Error -- mode set to an unknown value.')
+  }
+  
+  if(grepl('quick', opt$mode, ignore.case = TRUE)){
+    opt$alignReads_genomeAlignment_blatRepMatch <<- 1000
+    opt$buildStdFragments_createMultiHitClusters <<- FALSE
+  }
+}
+
+
+runArchiveRunDetails <- function(){
+  if(tolower(opt$databaseConfigGroup) != 'none'){
+    updateLog('Archive configurations and source code in the AAVengeR database.')
+  
+    if('calledFromCore' %in% names(opt)){
+      if(! opt$calledFromCore){
+        archiveRunDetails(opt$sequencingRunID)
+      }
+    } else {
+      archiveRunDetails(opt$sequencingRunID)
+    }
+  }
+}
+
 
 runSam2Psl <- function(samFile, outputFile, cl){
    o <- data.table(line = readLines(samFile))
@@ -41,42 +149,6 @@ runSam2Psl <- function(samFile, outputFile, cl){
    })
 
    write(unlist(parLapply(cl, f, sam2psl)), outputFile)
-}
-
-
-setOptimalParameters <- function(){
-  if(grepl('integrase', opt$mode, ignore.case = TRUE)){
-    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
-    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
-    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
-    opt$prepReads_HMMmatchEnd <<- TRUE
-    opt$prepReads_HMMmatchTerminalSeq <<- 'CA'
-    opt$prepReads_limitLeaderSeqsWithQuickAlignFilter <<- FALSE
-    opt$prepReads_forceAnchorReadStartSeq <<- FALSE
-  } else if(grepl('AAV', opt$mode, ignore.case = TRUE)){
-    opt$demultiplex_quickAlignFilter <<- TRUE
-    opt$prepReads_limitLeaderSeqsWithQuickAlignFilter <<- TRUE
-    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 300
-    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
-    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 10
-    opt$prepReads_forceAnchorReadStartSeq <<- TRUE
-  } else if(grepl('transposase', opt$mode, ignore.case = TRUE)){
-    opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
-    opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
-    opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
-    opt$prepReads_HMMmatchEnd <<- TRUE
-    opt$prepReads_HMMmatchTerminalSeq <<- 'TA'
-  }
-  else if(grepl('manual', opt$mode, ignore.case = TRUE)){
-    # No action
-  } else {
-    stop('Error -- mode set to an unknown value.')
-  }
-  
-  if(grepl('quick', opt$mode, ignore.case = TRUE)){
-    opt$alignReads_genomeAlignment_blatRepMatch <<- 1000
-    opt$buildStdFragments_createMultiHitClusters <<- FALSE
-  }
 }
 
 
@@ -132,14 +204,9 @@ tmpFile <- function(){ paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0
 # non-public options and this function ensures that they are always set even when not needed
 # so modules will not throw errors. 
 
-setMissingOptions <- function(){
-  if(! 'core_createFauxFragDoneFiles' %in% names(opt)) opt$core_createFauxFragDoneFiles <<- FALSE
-  if(! 'core_createFauxSiteDoneFiles' %in% names(opt)) opt$core_createFauxSiteDoneFiles <<- FALSE
-}
-
 
 # Helper function that creates the expected done files expected by the core module when modules fail.
-# The core module would become stuck in perpetual loops if the done files did not appear after a failure.
+# The core module would become stuck in a perpetual loop if the done files did not appear after a failure.
 
 core_createFauxFragDoneFiles <- function(){
   if(! dir.exists(file.path(opt$outputDir, 'buildFragments'))) dir.create(file.path(opt$outputDir,'buildFragments'))
@@ -204,7 +271,6 @@ CD_HIT_clusters <- function(x, dir, params){
   o <- unlist(strsplit(r, '>Cluster'))
   o[2:length(o)]
 }
-
 
 
 # Last Path Element -- return the last element of a file path delimited by slashes.
@@ -415,7 +481,6 @@ reconstructDBtable <- function(o, tmpDirPath){
 }
 
 
-# Pull non-standardized fragments from a database based on trial and subject ids.
 pullDBsubjectFrags <- function(dbConn, trial, subject, tmpDirPath){
   o <- dbGetQuery(dbConn, paste0("select * from fragments where trial = '", trial, "' and subject = '", subject, "'"))
   reconstructDBtable(o, tmpDirPath)
@@ -428,10 +493,6 @@ pullDBsubjectSites <- function(dbConn, trial, subject, tmpDirPath){
 }
 
 
-
-# Given a set of Biostring objects, subject each object in the set such that 
-# they share a common set of read ids.
-
 syncReads <- function(...){
   arguments <- list(...)
   n <- Reduce(base::intersect, lapply(arguments, names))
@@ -439,46 +500,9 @@ syncReads <- function(...){
 }
 
 
-# Helper function to deconstruct uniqueSampleIDs into separate data frame columns.
-
-unpackUniqueSampleID <- function(d){
-  d$trial     <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 1))
-  d$subject   <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 2))
-  d$sample    <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 3))
-  d$replicate <- unlist(lapply(strsplit(d$uniqueSample, '~'), '[[', 4))
-  d
-}
-
-
-# Function to remove minor sequence variation from short sequences by identifying
-# a abundant sequences and conforming those with minor differences to those sequences.
-
-conformMinorSeqDiffs <- function(x, editDist = 1, abundSeqMinCount = 10, nThreads = 10){
-  tab <- table(unname(x))
-  if(length(tab[tab >= abundSeqMinCount]) == 0) return(x)
-  
-  abundant_codes <- names(tab[tab >= abundSeqMinCount])
-  nonAbundant_codes <- names(tab[tab < abundSeqMinCount])
-  
-  # All codes are the abundant code.
-  if(length(nonAbundant_codes) == 0) return(x)
-  
-  conversion_table <- tibble(a = nonAbundant_codes,
-                             b = unlist(lapply(nonAbundant_codes, function(x){
-                               z <- stringdist::stringdist(x, abundant_codes, nthread = nThreads)
-                               i <- which(z <= editDist)
-                               if(length(i) == 1) x <- abundant_codes[i]
-                               if(length(i) > 1) x <- paste0(rep('N', nchar(x)), collapse = '')
-                               x  
-                             }))) %>% filter(a != b)
-  
-  unlist(lapply(x, function(y){
-    if(y %in% conversion_table$a) y <- conversion_table[match(y, conversion_table$a),]$b
-    y
-  }))
-}
-
 createDBconnection <- function(){
+  suppressPackageStartupMessages(library(RMariaDB))
+  
   if(! file.exists('~/.my.cnf')) file.copy(opt$databaseConfigFile, '~/.my.cnf')
   if(! file.exists('~/.my.cnf')) quitOnErorr('Error - can not find ~/.my.cnf file.')
   
@@ -490,49 +514,10 @@ createDBconnection <- function(){
   })
 }
 
-createPID <- function(){
-  updateLog('Calculating adrift read MD5 sum.')
-  pid <- system(paste0('md5sum ', opt$demultiplex_adriftReadsFile), intern = TRUE)
-  pid <- unlist(strsplit(pid, '\\s+'))[1]
-  
-  if(opt$databaseConfigGroup != 'none'){
-    suppressPackageStartupMessages(library(RMariaDB))
-    
-    updateLog('Writing PID to database.')
-    
-    conn <- createDBconnection()
-    
-    dbExecute(conn, paste0("delete from processes where pid='", pid, "'"))
-
-    # Create a tar ball including the configuration file and sample data file.
-    # This tarball will be uploaded to the database as a binary blob.
-    f <- paste0(paste0(stringi::stri_rand_strings(15, 1, '[A-Za-z0-9]'), collapse = ''))
-    invisible(file.copy(configFile, paste0(f, '.configFile.yml')))
-    invisible(file.copy(opt$demultiplex_sampleDataFile, paste0(f, '.sampleData.tsv')))
-    system(paste0('tar cvf ', f, '.tar ', paste0(f, '.configFile.yml'), ' ', paste0(f, '.sampleData.tsv')))
-    system(paste0('xz --best ', f, '.tar'))
-    fp <- file.path(paste0(f, '.tar.xz'))
-    tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
-    invisible(file.remove(c(fp, paste0(f, '.configFile.yml'), paste0(f, '.sampleData.tsv'))))
-    
-    r <- dbExecute(conn,
-                   "insert into processes values (?, ?)",
-                   params = list(pid, list(serialize(tab, NULL))))
-    
-    dbDisconnect(conn)
-    
-    if(r == 0){
-      quitOnErorr(paset0('Error -- could not upload process information for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
-    } else {
-      updateLog(paste0('Uploaded fragment data for configuration file: ', configFile))
-    }
-  }
-    
-  pid
-}
-
 
 uploadSitesToDB <- function(sites){
+  suppressPackageStartupMessages(library(RMariaDB))
+  
   updateLog('Writing sites to the database.')
 
   if(! dir.exists(file.path(opt$outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, 'tmp'))
@@ -540,6 +525,7 @@ uploadSitesToDB <- function(sites){
   conn <- createDBconnection()
   
   invisible(lapply(split(sites, paste(sites$trial, sites$subject, sites$sample, sites$refGenome)), function(x){
+    updateLog(paste0('Uploading sites for: ', sites$trial[1], '/', sites$subject[1], '/', sites$sample[1], '/',sites$refGenome[1]))
     
     dbExecute(conn, paste0("delete from sites where trial='", x$trial[1], "' and subject='", x$subject[1],
                            "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
@@ -550,9 +536,13 @@ uploadSitesToDB <- function(sites){
     
     fp <- file.path(opt$outputDir, 'tmp', paste0(f, '.xz'))
     
+    updateLog(paste0('Reading tar ball as a byte stream (', file.size(fp), ' bytes).'))
+    
     tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
     
     invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+    
+    updateLog('Pushing byte object to database.')
     
     r <- dbExecute(conn,
                    "insert into sites values (?, ?, ?, ?, ?, ?)",
@@ -569,8 +559,67 @@ uploadSitesToDB <- function(sites){
 }
 
 
+archiveRunDetails <- function(pid){
+  suppressPackageStartupMessages(library(RMariaDB))
+  
+  conn <- createDBconnection()
+  
+  invisible(dbExecute(conn, paste0("delete from processes where pid='", pid, "'")))
+  
+  # Create a tar ball including the configuration file and sample data file.
+  # This tarball will be uploaded to the database as a binary blob.
+  
+  f <- paste0(paste0(stringi::stri_rand_strings(15, 1, '[A-Za-z0-9]'), collapse = ''))
+  dir.create(file.path(opt$outputDir, f))
+  
+  # Copy config file.
+  updateLog('Copying files for archive to a tmp location.')
+  invisible(file.copy(configFile, file.path(opt$outputDir, f)))
+  
+  # Copy sample data file.
+  invisible(file.copy(opt$demultiplex_sampleDataFile, file.path(opt$outputDir, f)))
+  
+  # Copy all R files.
+  invisible(sapply(list.files(opt$softwareDir, full.names = TRUE, recursive = FALSE, pattern = "*.R"), function(file){
+    file.copy(file, file.path(opt$outputDir, f))
+  }))
+  
+  # Copy version folder.
+  invisible(file.copy(file.path(opt$softwareDir, 'version'), file.path(opt$outputDir, f), recursive = TRUE))
+  
+  # Create tar ball.
+  updateLog('Creating a tar ball of files to archive.')
+  system(paste0('tar cvf ', file.path(opt$outputDir, paste0(f, '.tar')), ' ', file.path(opt$outputDir, f)))
+  
+  updateLog('Compressing tar ball.')
+  system(paste0('xz --best ', file.path(opt$outputDir, paste0(f, '.tar'))))
+  
+  fp <- file.path(opt$outputDir, paste0(f, '.tar.xz'))
+  
+  updateLog(paste0('Reading tar ball as a byte stream (', file.size(fp), ' bytes).'))
+  
+  tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
+  invisible(file.remove(fp))
+  
+  invisible(unlink(file.path(opt$outputDir, f), recursive = TRUE))
+  
+  updateLog('Uploading compressed file to the database.')
+  r <- dbExecute(conn,
+                 "insert into processes values (?, ?)",
+                 params = list(pid, list(serialize(tab, NULL))))
+  
+  dbDisconnect(conn)
+  
+  if(r == 0){
+    quitOnErorr(paset0('Error -- could not upload process information for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
+  } else {
+    updateLog('Uploaded code base and configurations to the database.')
+  }
+}
+
 
 loadSamples <- function(){
+  
   samples <- readr::read_tsv(opt$demultiplex_sampleDataFile, col_types = readr::cols())
   
   if(nrow(samples) == 0){
@@ -672,41 +721,9 @@ loadSamples <- function(){
     q(save = 'no', status = 1, runLast = FALSE)
   }
   
-  samples$pid <- createPID()
+  samples$pid <- opt$sequencingRunID
   
   samples
-}
-
-
-
-parseCutadaptLog <- function(f){
-  l <- readLines(f)
-  invisible(file.remove(f))
-
-  if(length(l) > 0){
-    tbl <- read.table(text = l, sep = '\t', fill = TRUE)
-
-    if(length(tbl) >= 7){
-      tbl <- tbl[,1:7]
-      names(tbl) <- c('read.id', 'numErr', 'adapterStart', 'adapterEnd', 'seqBeforeAdapter',
-                      'adapterSeq', 'seqAfterAdapter')
-    }
-    write.table(tbl, sep = '\t', file = f, col.names = TRUE, row.names = FALSE, quote = FALSE)
-  }
-}
-
-
-standardizationSplitVector <- function(d, v){
-  if(v == 'replicate'){
-    return(paste(d$trial, d$subject, d$sample, d$replicate))
-  } else if (v == 'sample'){
-    return(paste(d$trial, d$subject, d$sample))
-  } else if( v == 'subject'){
-    return(paste(d$trial, d$subject))
-  } else {
-    updateLog('Error - standardization vector can not be created.')
-    q(save = 'no', status = 1, runLast = FALSE) 
-  }
 }
 
 
@@ -763,6 +780,7 @@ buildRearrangementModel <- function(b, seqsMinAlignmentLength){
   sub('^;', '', r)
 }
 
+
 blast2rearangements <- function(b, maxMissingTailNTs, minLocalAlignmentLength){
   suppressPackageStartupMessages(library(dplyr))
   suppressPackageStartupMessages(library(IRanges))
@@ -804,42 +822,6 @@ blast2rearangements <- function(b, maxMissingTailNTs, minLocalAlignmentLength){
 }
 
 
-parseHMMERsummaryResult <- function(x){
-  suppressPackageStartupMessages(library(data.table))
-
-  r <- readLines(x)
-  r <- r[! grepl('^\\s*#', r)]
-  i <- grepl('^>>', r)
-  if(sum(i) == 0) return(data.table())
-  r <- r[min(which(i)):length(r)]
-  i <- which(grepl('^>>', r))
-  i <- c(i, length(r))
-  d <- tibble(start = i[1:(length(i)-1)], stop = i[2:length(i)]-1)
-  
-  rbindlist(lapply(1:nrow(d), function(i){
-    s <- r[d[i,]$start:d[i,]$stop]
-    if(length(s) < 10) return(data.table())
-    if(! grepl('^>>', s[1])) return(data.table())
-    if(! any(grepl('==', s))) return(data.table())
-    o <- unlist(strsplit(paste0(s, collapse = '|'), '=='))
-    o <- o[2:length(o)]
-    scores <- as.numeric(gsub('score: ', '', stringr::str_extract(o, 'score\\:\\s[\\-\\d+\\.]+')))
-    o <- o[which.max(scores)]
-    k <- unlist(strsplit(o, '\\|'))
- 
-    top <- unlist(strsplit(k[2], '\\s+'))
-    bottom <- unlist(strsplit(k[4], '\\s+'))
-    data.table(readID = bottom[2], 
-               readStart = as.integer(bottom[3]),
-               readSeq = bottom[4], 
-               readEnd =  nchar(gsub('[^A^T^C^G]', '', toupper(bottom[4]))) + as.integer(bottom[3]) - 1,
-               hmmStart = as.integer(top[3]), 
-               hmmEnd = nchar(gsub('[^A^T^C^G]', '', toupper(top[4]))) + as.integer(top[3]) - 1, 
-               hmmScore = max(scores))
-  }))
-}
-
-
 captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
   outputFile <- file.path(tmpDirPath, tmpFile())
   
@@ -864,12 +846,8 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
   
   comm <- paste0('hmmsearch --max --tblout ', outputFile, '.tbl --domtblout ', outputFile, '.domTbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
   system(comm)
-  
-  r <- readLines(paste0(outputFile, '.domTbl'))
-  r <- r[!grepl('^\\s*#', r)]
-  r <- strsplit(r, '\\s+')
-  
-  o <- bind_rows(lapply(r, function(x) data.frame(t(x))))
+    
+  o <- readr::read_table(paste0(outputFile, '.domTbl'), col_names = FALSE, col_types = NULL, comment = "#")
   
   if(nrow(o) == 0) return(tibble())
   
@@ -877,12 +855,7 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
                 'fullScore', 'fullBias', 'domNum', 'totalDoms', 'dom_c-Eval', 'dom_i-Eval', 'domScore', 
                 'domBias', 'hmmStart', 'hmmEnd', 'targetStart', 'targetEnd', 'envStart', 'envEnd', 
                 'meanPostProb',  'desc') 
-  write.table(o, sep = '\t', file = paste0(outputFile, '.domTbl2'), col.names = TRUE, row.names = FALSE, quote = FALSE)
-  
-  o <- readr::read_delim(paste0(outputFile, '.domTbl2'), '\t', col_types = readr::cols())
-  o$fullScore <- as.numeric(o$fullScore)
-  o$fullEval  <- as.numeric(o$fullEval)
-  
+    
   h <- readLines(hmm)
   hmmLength <- as.integer(unlist(strsplit(h[grepl('^LENG', h)], '\\s+'))[2])
   hmmName <- unlist(strsplit(h[grepl('^NAME', h)], '\\s+'))[2]
@@ -968,7 +941,6 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
   clusterExport(cluster, c('genes', 'exons'), envir = environment())
   
   r <- bind_rows(parLapply(cluster, split(d, d$n), function(x){
-  #r <- bind_rows(lapply(split(d, d$n), function(x){
     suppressPackageStartupMessages(library(dplyr))
     suppressPackageStartupMessages(library(GenomicRanges))
     
@@ -1064,6 +1036,7 @@ parseBLAToutput <- function(f, convertToBlatPSL = FALSE){
   
   dplyr::select(b, qName, matches, strand, qSize, qStart, qEnd, tName, tNumInsert, qNumInsert, tBaseInsert, qBaseInsert, tStart, tEnd, alignmentPercentID)
 }
+
 
 blast2rearangements_worker <-  function(b){
   library(IRanges)

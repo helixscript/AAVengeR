@@ -12,17 +12,23 @@ suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
+suppressPackageStartupMessages(library(RMariaDB))
 options(stringsAsFactors = FALSE)
 
-
-# Read the configuration file and set additional parameters.
+# Parse the config file from the command line.
 configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
 
+# Read config file.
 opt <- yaml::read_yaml(configFile)
-source(file.path(opt$softwareDir, 'lib.R'))
 
-if(opt$prepReads_CPUs > parallel::detectCores()) opt$prepReads_CPUs <- parallel::detectCores()
+# Test for key items needed to run sanity tests.
+if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
+if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
+
+# Run config sanity tests.
+source(file.path(opt$softwareDir, 'lib.R'))
+optionsSanityCheck()
 
 createOuputDir()
 if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir))) dir.create(file.path(opt$outputDir, opt$prepReads_outputDir))
@@ -30,17 +36,11 @@ if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))) dir.c
 if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'))
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'), full.names = TRUE)))
 
-setMissingOptions()
-setOptimalParameters()
-set.seed(1)
-
-
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$prepReads_outputDir, 'log')
 logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
 write(logo, opt$defaultLogFile, append = FALSE)
 write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
-
 
 quitOnErorr <- function(msg){
   if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
@@ -50,8 +50,13 @@ quitOnErorr <- function(msg){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
+runArchiveRunDetails()
+set.seed(1)
+
 updateLog('Reading sample data.')
 samples <- loadSamples()
+
+runArchiveRunDetails()
 
 if(tolower(opt$prepReads_additionalAnchorReadOverReadingSeqs) != 'none'){
   opt$prepReads_additionalAnchorReadOverReadingSeqs <- paste0(' -a ', paste0(unlist(strsplit(opt$prepReads_additionalAnchorReadOverReadingSeqs, ',')), collapse = ' -a '))

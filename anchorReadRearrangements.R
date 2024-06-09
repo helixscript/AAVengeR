@@ -28,10 +28,7 @@ if(! dir.exists(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir,
 if(! dir.exists(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'clusterSequences'))) dir.create(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'clusterSequences'))
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'), full.names = TRUE)))
 
-setMissingOptions()
-setOptimalParameters()
 set.seed(1)
-
 
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'log')

@@ -11,13 +11,20 @@ suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(readr))
 suppressPackageStartupMessages(library(GenomicRanges))
 
+# Parse the config file from the command line.
 configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
 
+# Read config file.
 opt <- yaml::read_yaml(configFile)
-source(file.path(opt$softwareDir, 'lib.R'))
 
-if(opt$annotateRepeats_CPUs > parallel::detectCores()) opt$annotateRepeats_CPUs <- parallel::detectCores()
+# Test for key items needed to run sanity tests.
+if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
+if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
+
+# Run config sanity tests.
+source(file.path(opt$softwareDir, 'lib.R'))
+optionsSanityCheck()
 
 createOuputDir()
 dir.create(file.path(opt$outputDir, opt$annotateRepeats_outputDir))
@@ -27,6 +34,16 @@ opt$defaultLogFile <- file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'l
 logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
 write(logo, opt$defaultLogFile, append = FALSE)
 write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
+
+quitOnErorr <- function(msg){
+  updateLog(msg)
+  message(msg)
+  message(paste0('See log for more details: ', opt$defaultLogFile))
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+runArchiveRunDetails()
+set.seed(1)
 
 updateLog('Starting annotateRepeats.')
 
@@ -99,7 +116,7 @@ sites <- arrange(sites, desc(sonicLengths))
 
 if(opt$databaseConfigGroup != 'none'){
   suppressPackageStartupMessages(library(RMariaDB))
-  uploadSitesToDB()
+  uploadSitesToDB(sites)
 }
 
 saveRDS(sites, file = file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'sites.rds'))

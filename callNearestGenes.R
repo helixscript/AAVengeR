@@ -8,13 +8,20 @@
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 
+# Parse the config file from the command line.
 configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
 
+# Read config file.
 opt <- yaml::read_yaml(configFile)
-source(file.path(opt$softwareDir, 'lib.R'))
 
-if(opt$callNearestGenes_CPUs > parallel::detectCores()) opt$callNearestGenes_CPUs <- parallel::detectCores()
+# Test for key items needed to run sanity tests.
+if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
+if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
+
+# Run config sanity tests.
+source(file.path(opt$softwareDir, 'lib.R'))
+optionsSanityCheck()
 
 createOuputDir()
 dir.create(file.path(opt$outputDir, opt$callNearestGenes_outputDir))
@@ -25,7 +32,17 @@ logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
 write(logo, opt$defaultLogFile, append = FALSE)
 write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
 
-updateLog('Starting callNearestGenes.')
+quitOnErorr <- function(msg){
+  updateLog(msg)
+  message(msg)
+  message(paste0('See log for more details: ', opt$defaultLogFile))
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
+
+runArchiveRunDetails()
+set.seed(1)
+
+updateLog(paste0('Starting callNearestGenes using ', opt$callNearestGenes_CPUs, ' CPUs.'))
 
 if(! file.exists(file.path(opt$outputDir, opt$callNearestGenes_inputFile))){
   updateLog('Error - input file does not exist.')
@@ -107,7 +124,7 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
 
 sites <- arrange(sites, desc(sonicLengths))
 
-if(opt$databaseConfigGroup != 'none'){
+if(tolower(opt$databaseConfigGroup) != 'none'){
   suppressPackageStartupMessages(library(RMariaDB))
   uploadSitesToDB(sites)
 }

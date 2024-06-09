@@ -11,14 +11,22 @@ suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
+suppressPackageStartupMessages(library(RMariaDB))
 
+# Parse the config file from the command line.
 configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
 
+# Read config file.
 opt <- yaml::read_yaml(configFile)
-source(file.path(opt$softwareDir, 'lib.R'))
 
-if(opt$demultiplex_CPUs > parallel::detectCores()) opt$demultiplex_CPUs <- parallel::detectCores()
+# Test for key items needed to run sanity tests.
+if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
+if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
+
+# Run config sanity tests.
+source(file.path(opt$softwareDir, 'lib.R'))
+optionsSanityCheck()
 
 createOuputDir()
 if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
@@ -31,16 +39,15 @@ logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
 write(logo, opt$defaultLogFile, append = FALSE)
 write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
 
-
-setOptimalParameters()
-set.seed(1)
-
 quitOnErorr <- function(msg){
   updateLog(msg)
   message(msg)
   message(paste0('See log for more details: ', opt$defaultLogFile))
   q(save = 'no', status = 1, runLast = FALSE) 
 }
+
+runArchiveRunDetails()
+set.seed(1)
 
 if(! file.exists(opt$demultiplex_sampleDataFile)) quitOnErorr('Error - the sample configuration file could not be found.')
 

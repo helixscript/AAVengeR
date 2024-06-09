@@ -10,20 +10,23 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(Biostrings))
+suppressPackageStartupMessages(library(RMariaDB))
 options(stringsAsFactors = FALSE)
 
-# Read in configuration file and set parameters.
+# Parse the config file from the command line.
 configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
 
+# Read config file.
 opt <- yaml::read_yaml(configFile)
+
+# Test for key items needed to run sanity tests.
+if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
+if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
+
+# Run config sanity tests.
 source(file.path(opt$softwareDir, 'lib.R'))
-
-if(opt$alignReads_CPUs > parallel::detectCores()) opt$alignReads_CPUs <- parallel::detectCores()
-
-setMissingOptions()
-setOptimalParameters()
-set.seed(1)
+optionsSanityCheck()
 
 createOuputDir()
 if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir))
@@ -37,7 +40,6 @@ logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
 write(logo, opt$defaultLogFile, append = FALSE)
 write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
 
-
 quitOnErorr <- function(msg){
   if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
   updateLog(msg)
@@ -45,6 +47,9 @@ quitOnErorr <- function(msg){
   message(paste0('See log for more details: ', opt$defaultLogFile))
   q(save = 'no', status = 1, runLast = FALSE) 
 }
+
+runArchiveRunDetails()
+set.seed(1)
 
 # Read in sequencing data.
 updateLog('Reading in prepped reads.')

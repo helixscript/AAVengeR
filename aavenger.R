@@ -1,4 +1,3 @@
-#!/usr/bin/Rscript
 # AAVengeR/aavenger.R
 # John K. Everett, Ph.D.
 # 
@@ -50,7 +49,7 @@ updateLog("The log files for each module are stored within their output folders.
 invisible(lapply(opt$modules, function(m){
   updateLog(paste0('Starting ', m, '.'))
   
-  r <- system(paste('Rscript', file.path(opt$softwareDir, paste0(m, '.R')), configFile))
+  r <- system(paste(opt$Rscript, file.path(opt$softwareDir, paste0(m, '.R')), configFile))
   if(r != 0){
     updateLog(paste0('Module ', m, ' failed. Please see logs for details.'))
     q(save = 'no', status = 1, runLast = FALSE)

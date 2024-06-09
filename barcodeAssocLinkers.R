@@ -8,10 +8,20 @@
 suppressPackageStartupMessages(library(ShortRead))
 suppressPackageStartupMessages(library(dplyr))
 
-# Read in configuration file.
+# Parse the config file from the command line.
 configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
+
+# Read config file.
 opt <- yaml::read_yaml(configFile)
+
+# Test for key items needed to run sanity tests.
+if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
+if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
+
+# Run config sanity tests.
+source(file.path(opt$softwareDir, 'lib.R'))
+optionsSanityCheck()
 
 if(! dir.exists(file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir))) dir.create(file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir))
 
@@ -23,7 +33,7 @@ I1 <- readFastq(opt$barcodeAssocLinkers_index1ReadsFile)@sread
 R1 <- readFastq(opt$barcodeAssocLinkers_adriftReadsFile)@sread
 
 #  Add as an option.
-I1 <- reverseComplement(I1)
+### I1 <- reverseComplement(I1)
 
 I1 <- as.character(I1)
 

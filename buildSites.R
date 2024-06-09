@@ -7,14 +7,22 @@
 
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(RMariaDB))
 
+# Parse the config file from the command line.
 configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
 
+# Read config file.
 opt <- yaml::read_yaml(configFile)
-source(file.path(opt$softwareDir, 'lib.R'))
 
-if(opt$buildSites_CPUs > parallel::detectCores()) opt$buildSites_CPUs <- parallel::detectCores()
+# Test for key items needed to run sanity tests.
+if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
+if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
+
+# Run config sanity tests.
+source(file.path(opt$softwareDir, 'lib.R'))
+optionsSanityCheck()
 
 createOuputDir()
 dir.create(file.path(opt$outputDir, opt$buildSites_outputDir))
@@ -34,8 +42,8 @@ quitOnErorr <- function(msg){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-setMissingOptions()
-setOptimalParameters()
+runArchiveRunDetails()
+set.seed(1)
 
 # Read in Standardized fragments.
 updateLog('Reading standardized fragment data.')
@@ -119,10 +127,10 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
             pos <- names(sort(table(sub('[\\+\\-]', '', stringr::str_extract(frags[i,]$posid, '[\\+\\-]\\d+'))), decreasing = TRUE))[1]
           
             if(strand == '-'){
-              frags[i,]$strand <<- '+'                    # Set the u3 frag strands to positive to reflect correct orientation. U5 posid already '+'.
+              frags[i,]$strand <<- '+'                          # Set the u3 frag strands to positive to reflect correct orientation. U5 posid already '+'.
               frags[i,]$posid  <<- paste0(chr, '+', pos, '.0')  # Set the u3 frag posids to the u5 posid which is positive causing its fragments to merge with U3 fragments.
             } else {
-              frags[i,]$strand <<- '-'                    # Set the u3 frag strands to negative to reflect reverse orientation. U5 posid already '-'.
+              frags[i,]$strand <<- '-'                          # Set the u3 frag strands to negative to reflect reverse orientation. U5 posid already '-'.
               frags[i,]$posid  <<- paste0(chr, '-', pos, '.0')  # Set the u3 frag posids to the u5 posid which is negative causing its fragments to merge with U3 fragments.
             }
           }
@@ -242,10 +250,7 @@ openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$buildSites_outputDir, '
 readr::write_tsv(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.tsv.gz'))
 write(date(), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.done'))
 
-if(opt$databaseConfigGroup != 'none'){
-  suppressPackageStartupMessages(library(RMariaDB))
-  uploadSitesToDB(sites)
-}
+if(tolower(opt$databaseConfigGroup) != 'none') uploadSitesToDB(sites)
 
 updateLog('buildSites completed.')
 

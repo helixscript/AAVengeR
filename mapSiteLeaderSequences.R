@@ -11,13 +11,32 @@ suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(data.table))
 
+# Parse the config file from the command line.
 configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
+if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
 
+# Read config file.
 opt <- yaml::read_yaml(configFile)
-source(file.path(opt$softwareDir, 'lib.R'))
 
-if(opt$mapSiteLeaderSequences_CPUs > parallel::detectCores()) opt$mapSiteLeaderSequences_CPUs <- parallel::detectCores()
+# Test for key items needed to run sanity tests.
+if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
+if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
+
+# Run config sanity tests.
+source(file.path(opt$softwareDir, 'lib.R'))
+optionsSanityCheck()
+
+createOuputDir()
+if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir))) dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir))
+if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))) dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'))
+if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp'))
+invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp'), full.names = TRUE)))
+
+# Start log.
+opt$defaultLogFile <- file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'log')
+logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
+write(logo, opt$defaultLogFile, append = FALSE)
+write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
 
 quitOnErorr <- function(msg){
   updateLog(msg)
@@ -26,22 +45,8 @@ quitOnErorr <- function(msg){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-createOuputDir()
-if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir))) dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir))
-if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))) dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'))
-if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp'))
-invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp'), full.names = TRUE)))
-
-setMissingOptions()
-setOptimalParameters()
+runArchiveRunDetails()
 set.seed(1)
-
-
-# Start log.
-opt$defaultLogFile <- file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'log')
-logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
-write(logo, opt$defaultLogFile, append = FALSE)
-write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
 
 updateLog('Starting mapSiteLeaderSequences.')
 
@@ -154,7 +159,7 @@ sites <- bind_rows(lapply(split(sites, sites$vector), function(x){
 
 sites <- dplyr::relocate(sites, repLeaderSeqMap, .after = opt$mapSiteLeaderSequences_addAfter)
 
-if(opt$databaseConfigGroup != 'none'){
+if(tolower(opt$databaseConfigGroup) != 'none'){
   suppressPackageStartupMessages(library(RMariaDB))
   uploadSitesToDB(sites)
 }
