@@ -102,10 +102,12 @@ optionsSanityCheck <- function(){
     opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
     opt$prepReads_HMMmatchEnd <<- TRUE
     opt$prepReads_HMMmatchTerminalSeq <<- 'TA'
+  } else if(grepl('manual', opt$mode, ignore.case = TRUE)){
+    # Do nothing.
   } else {
     stop('Error -- mode set to an unknown value.')
   }
-  
+
   if(grepl('quick', opt$mode, ignore.case = TRUE)){
     opt$alignReads_genomeAlignment_blatRepMatch <<- 1000
     opt$buildStdFragments_createMultiHitClusters <<- FALSE

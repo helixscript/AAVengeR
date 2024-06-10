@@ -2,7 +2,7 @@
 
 # Required inputs that should be updated for each run.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-mode: integrase   # (integrase, AAV, transposase, or manual)
+mode: integrase                                                                # (integrase, AAV, transposase, or manual)
 
 core_CPUs: 15
 
@@ -34,12 +34,13 @@ processAdriftReadLinkerUMIs: FALSE
 core_keepIntermediateFiles: FALSE
 core_applyCoreCPUsToAllModules: TRUE
 
+
 # Demultiplex module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 demultiplex_CPUs: 15
 demultiplex_outputDir: demultiplex
 demultiplex_replicateMergingInstructions: none
-demultiplex_level: unique
+demultiplex_level: unique                                                     # (all, unique, or clustered)
 demultiplex_quickAlignFilter: FALSE
 demultiplex_useAdriftReadUniqueLinkers: TRUE
 demultiplex_requirePostUmiLinker: TRUE
@@ -50,7 +51,7 @@ demultiplex_qualtrim_code: '5'
 demultiplex_qualtrim_halfWidth: 5
 demultiplex_qualtrim_events: 2
 demultiplex_qualtrim_minLength: 50
-demultiplex_correctGolayIndexReads: FALSE
+demultiplex_correctGolayIndexReads: TRUE
 demultiplex_sequenceChunkSize: 300000
 demultiplex_index1ReadMaxMismatch: 1
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1
