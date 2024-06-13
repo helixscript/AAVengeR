@@ -471,7 +471,7 @@ reconstructDBtable <- function(o, tmpDirPath){
   if(nrow(o) > 0){
     r <- bind_rows(lapply(split(o, 1:nrow(o)), function(y){
            f <- tmpFile()
-           writeBin(unserialize(o$data[[1]]), file.path(tmpDirPath, paste0(f, '.xz')))
+           writeBin(unserialize(y$data[[1]]), file.path(tmpDirPath, paste0(f, '.xz')))
            system(paste0('unxz ', file.path(tmpDirPath, paste0(f, '.xz'))))
            d <- readr::read_tsv(file.path(tmpDirPath, f))
            invisible(file.remove(file.path(tmpDirPath, f)))
