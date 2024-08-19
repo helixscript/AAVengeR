@@ -193,9 +193,9 @@ minRepNum <- min(frags$replicate)
 
 buildConsensusSeq <- function(x){
   tab <- group_by(x, repLeaderSeq) %>% 
-    summarise(nWidths = n_distinct(fragWidths), nReads = sum(reads)) %>% 
-    ungroup() %>%
-    arrange(desc(nWidths), desc(nReads))
+         summarise(nWidths = n_distinct(fragWidths), nReads = sum(reads)) %>% 
+         ungroup() %>%
+         arrange(desc(nWidths), desc(nReads))
   
   as.character(tab[1, 'repLeaderSeq'])
 }
@@ -243,6 +243,14 @@ if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_create
 # moving dual detections to rep-0.
 
 sites[sites$flags == 'dual detect',]$nRepsObs <- NA
+
+sites <- group_by(sites, trial, subject, sample) %>%
+         mutate(sampleAbund = sum(sonicLengths)) %>%
+         ungroup() %>%
+         group_by(posid) %>%
+         mutate(percentSampleRelAbund = round((sonicLengths/sampleAbund[1]) * 100, 2), .after = 'nRepsObs') %>%
+         ungroup() %>%
+         select(-sampleAbund)
 
 # Save outputs.
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'), compress = opt$compressDataFiles)

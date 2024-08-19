@@ -118,6 +118,9 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
     a <- floor((1 / nrow(o)) * opt$core_CPUs) - 1
     
     a[a < 1] <- 1
+    
+    # Increasing CPUs to very high values, eg. 25 on a 30 core system, will delay
+    # processing until most other jobs complete to free up enough CPUs to start late jobs.
     a[a > opt$core_processMaxCPUs] <- opt$core_processMaxCPUs
     
     o$CPUs <- a
@@ -136,14 +139,14 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
 
 # Build a jobs table for prepReads, alignReads, and buildFragments.
 jobTable <- data.frame(table(reads$uniqueSample)) %>% 
-  dplyr::rename(id = Var1) %>%
-  dplyr::rename(reads = Freq)
-
+            dplyr::rename(id = Var1) %>%
+            dplyr::rename(reads = Freq)
 
 # Let the process with the greatest number of reads have 25% (setting dependent) of all cores, scale other processes. 
 a <- ceiling((jobTable$reads / max(jobTable$reads)) * (opt$core_CPUs * (opt$core_processMaxPercentCPU / 100)))
-a[a < 1] <- 1
 
+a[a < 1] <- 1
+a[a > opt$core_processMaxCPUs] <- opt$core_processMaxCPUs
 
 jobTable$CPUs         <- a
 jobTable$active       <- FALSE
@@ -225,15 +228,15 @@ updateLog('Bundling together replicate level fragment records.')
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'fragments.rds', recursive = TRUE, full.names = TRUE)
 frags <- bind_rows(lapply(f, readRDS))
 
-# Identify unique trial / patient combinations from returned fragments.
-u <- tidyr::separate(tibble(u = unique(frags$uniqueSample)), u, c('trial', 'subject', 'sample', 'replicate'), sep = '~') %>% select(-sample, -replicate) %>% distinct()
-
-opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs / nrow(u))
-if(opt$core_maxCPUsPerProcess == 0) opt$core_maxCPUsPerProcess <- 1
-
-updateLog(paste0('Setting max. process CPU limit to ',opt$core_maxCPUsPerProcess, ' CPUs for subject level jobs.'))
-
-opt$core_maxPercentCPUs <- floor((opt$core_maxCPUsPerProcess / opt$core_CPUs) * 100)
+# # Identify unique trial / patient combinations from returned fragments.
+# u <- tidyr::separate(tibble(u = unique(frags$uniqueSample)), u, c('trial', 'subject', 'sample', 'replicate'), sep = '~') %>% select(-sample, -replicate) %>% distinct()
+# 
+# opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs / nrow(u))
+# if(opt$core_maxCPUsPerProcess == 0) opt$core_maxCPUsPerProcess <- 1
+# 
+# updateLog(paste0('Setting max. process CPU limit to ',opt$core_maxCPUsPerProcess, ' CPUs for subject level jobs.'))
+# 
+# opt$core_maxPercentCPUs <- floor((opt$core_maxCPUsPerProcess / opt$core_CPUs) * 100)
 
 # Create a subject level to-do table.
 jobTable <- tibble(u = unique(frags$uniqueSample))
@@ -251,7 +254,9 @@ jobTable <- group_by(distinct(frags), id) %>%
 
 # Let the process with the greatest number of reads have 25% of all cores, scale other processes. 
 a <- ceiling((jobTable$reads / max(jobTable$reads)) * (opt$core_CPUs * (opt$core_processMaxPercentCPU / 100)))
+
 a[a < 1] <- 1
+a[a > opt$core_processMaxCPUs] <- opt$core_processMaxCPUs
 
 jobTable$CPUs         <- a
 jobTable$active       <- FALSE

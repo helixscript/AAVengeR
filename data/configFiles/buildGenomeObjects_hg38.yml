@@ -1,0 +1,9 @@
+CPUs: 12
+outputDir: hg38_output
+refGenomeName: hg38
+repeatMaskerSpecies: Homo sapiens
+repeatMaskerPath: /home/ubuntu/software/RepeatMasker/RepeatMasker
+bwa2Path: /home/ubuntu/software/bwa-mem2/bwa-mem2
+faToTwoBitPath: /home/ubuntu/software/faToTwoBit
+refGenomeSeq_URL: https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz
+refSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/ncbiRefSeqCurated.txt.gz

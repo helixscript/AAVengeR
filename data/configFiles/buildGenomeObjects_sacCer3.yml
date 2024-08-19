@@ -1,0 +1,9 @@
+CPUs: 30
+outputDir: sacCer3_output
+refGenomeName: sacCer3
+repeatMaskerSpecies: Saccharomyces cerevisiae
+repeatMaskerPath: /home/ubuntu/software/RepeatMasker/RepeatMasker
+bwa2Path: /home/ubuntu/software/bwa-mem2/bwa-mem2
+faToTwoBitPath: /home/ubuntu/software/faToTwoBit
+refGenomeSeq_URL: https://hgdownload.soe.ucsc.edu/goldenPath/sacCer3/bigZips/sacCer3.fa.gz
+refSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/goldenPath/sacCer3/database/ncbiRefSeqCurated.txt.gz

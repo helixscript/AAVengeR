@@ -4,17 +4,18 @@ library(parallel)
 
 outputDir <- 'data/testFiles'   
 
-# Allowed modes: AAV, IN_u5, or IN_u3 
-
-mode <- 'IN_u5'  
+mode <- 'AAV'  # Allowed modes: AAV, IN_u5, or IN_u3  
 seed <- 1
 dbPath <- 'data/referenceGenomes/blat/hg38.2bit'
 nSites <- 500
-nSitesPool <- 10000  
+nSitesPool <- 5000  
 nFragsperSite <- 5
 nReadsPerFrag <- 30
 fragStartSize <- 50
 fragStepSize  <- 20
+addIntegraseCorrection <- TRUE # Only set to TRUE for integrase modes.
+
+if(mode == 'AAV') addIntegraseCorrection <- FALSE
 
 set.seed(seed)
 
@@ -76,7 +77,7 @@ f <- bind_rows(lapply(sample(names(g), nSitesPool, replace = TRUE), function(x){
        o <- bind_rows(posFrags, negFrags)
        
        # Update positions for the actions of buildSites when integrase mode is used.
-       if(grepl('IN', mode)){
+       if(addIntegraseCorrection){
          o$position <- ifelse(o$strand == '+', o$position+2, o$position-2)
          o <- bind_rows(lapply(split(o, 1:nrow(o)), function(x){ x$id <- sub('\\d+:', paste0(x$position, ':'), x$id); x}))
        }
@@ -100,7 +101,6 @@ f2 <- bind_rows(lapply(split(f, f$posid), function(x){
         x$r <- remnant0
       }
       
-  round(rnorm(nFragsperSite * nReadsPerFrag, mean = 497, sd = 0.5))
       x$endPositions <- unlist(lapply((1:nFragsperSite * fragStepSize) + fragStartSize, function(x) round(rnorm(nReadsPerFrag, mean = x, sd = 0.5))))
       x$seq <- substr(x$seq, 1, x$endPositions)
       x
@@ -132,18 +132,18 @@ f3 <- bind_rows(lapply(split(f3, paste(f3$sitePair, f3$fragNum)), function(x){
         x
       }))
 
-barcodes   <- c('GGCTAAACTATG', 'TCAACCCGTGAA', 'ATCAGAGCCCAT', 'GTGTGCTAACGT', 'CTTGCGGCAATC', 'TACCTAGTGAGA')
-samples    <- c('sample1', 'sample1', 'sample2', 'sample2', 'sample3', 'sample3')
-replicates <- c(1, 2, 1, 2, 1, 2)
+o <- list()
+o[['sample1']] <- c('GGCTAAACTATG', 'TCAACCCGTGAA')
+o[['sample2']] <- c('ATCAGAGCCCAT', 'GTGTGCTAACGT')
+o[['sample3']] <- c('CTTGCGGCAATC', 'TACCTAGTGAGA')
 
+# Assign sample id and replicate numbers.
 f3 <- bind_rows(lapply(split(f3, f3$posid), function(x){
-        x$i <- sample(1:6, 1)
+        x$replicate <- sample(1:2, nrow(x), replace = TRUE)
+        x$sample <- sample(names(o), 1)
+        x$barcode <- o[[x$sample[1]]][x$replicate]
         x
       }))
-
-f3$sample    <- samples[f3$i]
-f3$replicate <- replicates[f3$i]
-f3$barcode   <- barcodes[f3$i]
 
 f3$flags <- mode
 f3$trial <- 'validation'
@@ -178,9 +178,10 @@ sampleData <- distinct(select(f3, trial, subject, sample, replicate, adriftReadL
 if(mode == 'AAV'){
   sampleData <- select(sampleData, -leaderSeqHMM)
   sampleData$anchorReadStartSeq <- substr(remnant, 1, 10)
+  names(sampleData) <- c('trial',	'subject', 'sample',	'replicate', 'adriftReadLinkerSeq', 'index1Seq', 'refGenome', 'vectorFastaFile', 'flags', 'anchorReadStartSeq')
+} else {
+  names(sampleData) <- c('trial',	'subject', 'sample',	'replicate', 'adriftReadLinkerSeq', 'index1Seq', 'refGenome', 'vectorFastaFile', 'leaderSeqHMM', 'flags')
 }
-
-names(sampleData) <- c('trial',	'subject', 'sample',	'replicate', 'adriftReadLinkerSeq', 'index1Seq', 'refGenome', 'vectorFastaFile', 'leaderSeqHMM', 'flags')
 readr::write_tsv(sampleData, file.path(outputDir,'sampleData.tsv'), append = FALSE)
 
 group_by(f3, trial, subject, sample, posid) %>% 

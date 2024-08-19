@@ -67,7 +67,7 @@ clusterExport(cluster, 'opt')
 
 runArchiveRunDetails()
 
-if(tolower(opt$sequencingRunID) != 'none') conn <- createDBconnection()
+if(tolower(opt$databaseConfigGroup) != 'none') dbConn <- createDBconnection()
 
 
 # Load fragment data from database or local file depending on configuration file.
@@ -105,8 +105,6 @@ if(opt$buildStdFragments_trialSubjectList != 'none'){
     }
   }
 }
-
-if(opt$databaseConfigGroup != 'none') RMariaDB::dbDisconnect(conn)
 
 # Make sure fragments were retrieved.
 if(nrow(frags) == 0) quitOnErorr('Error -- no fragments were loaded or retrieved.')
@@ -708,10 +706,6 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'), compress = opt$compressDataFiles)
   
   if(opt$databaseConfigGroup != 'none'){
-    suppressPackageStartupMessages(library(RMariaDB))
-    
-    dbConn <- createDBconnection()
-    
     multiHitClusters$i <- paste0(multiHitClusters$trial, '~', multiHitClusters$subject, '~', multiHitClusters$sample)
 
     o <- select(sampleMetaData, uniqueSample, refGenome) %>% mutate(i = sub('~\\d+$', '', uniqueSample)) %>% select(-uniqueSample) %>% distinct()
@@ -737,12 +731,8 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       
       if(r == 0) {
         quitOnErorr(paste0('Error -- could not upload multihit data for ', x$sample[1], ' to the database.'))
-      } else {
-        updateLog(paste0('Uploaded multihit data for ', x$trial, '~', x$subject[1], '~', x$sample[1], ' to the database.'))
-      }
+      } 
     }))
-    
-    dbDisconnect(dbConn)
   }
 }
 
@@ -789,6 +779,8 @@ if(nrow(b) > 0){
   o <- split(b, b$fragID)
 
   updateLog('Bundling fragment reads into fragment records.')
+  
+  # (!) Add progress notes to log...
  
   b2 <- bind_rows(lapply(o, function(x){
          totalReads <- n_distinct(x$readID) + sum(x$nDuplicateReads)
@@ -854,5 +846,7 @@ saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -lea
 readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup, -leaderSeqGroupNum, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
 
 updateLog('buildStdFragments completed.')
+
+if(opt$databaseConfigGroup != 'none') RMariaDB::dbDisconnect(dbConn)
 
 q(save = 'no', status = 0, runLast = FALSE) 

@@ -60,13 +60,15 @@ optionsSanityCheck <- function(){
   if(! 'core_processMaxPercentCPU' %in% names(opt)) opt$core_processMaxPercentCPU <<- 12
   if(! 'core_processMaxCPUs' %in% names(opt)) opt$core_processMaxCPUs <<- 10
   if(! 'calledFromCore' %in% names(opt)) opt$calledFromCore <<- FALSE
-  
+  if(! 'buildStdFragments_categorizeLeaderSeqs_minPercentID' %in% names(opt)) opt$buildStdFragments_categorizeLeaderSeqs_minPercentID <<- 0.75
+  if(! 'buildStdFragments_categorizeLeaderSeqs_minPercentCoverage' %in% names(opt)) opt$buildStdFragments_categorizeLeaderSeqs_minPercentCoverage <<- 0.75
+
   # The core_CPU value can not exceed the number of system cores.
   cores <- parallel::detectCores()
   if(opt$core_CPUs > cores) opt$core_CPUs <<- cores
   
   # Create list of all options containing 'CPUs' except core_CPUs.
-  a <- names(opt)[grepl('CPUs', names(opt))]
+  a <- names(opt)[grepl('_CPUs', names(opt))]
   a <- a[a != 'core_CPUs']
   
   # Not not allow any non-core module exceed the number of system cores.
@@ -107,7 +109,7 @@ optionsSanityCheck <- function(){
   } else {
     stop('Error -- mode set to an unknown value.')
   }
-
+  
   if(grepl('quick', opt$mode, ignore.case = TRUE)){
     opt$alignReads_genomeAlignment_blatRepMatch <<- 1000
     opt$buildStdFragments_createMultiHitClusters <<- FALSE
@@ -358,7 +360,7 @@ demultiplex <- function(x){
     index1Reads <- golayCorrection(index1Reads, tmpDirPath = tmpDir)
     percentChanged <- (sum(! as.character(index1Reads.org) == as.character(index1Reads)) / length(index1Reads))*100
     
-    updateLog(paste0('Golay correction complete.', sprintf("%.2f", percentChanged), '% of reads updated via Golay correction.'))
+    updateLog(paste0('Golay correction complete. ', sprintf("%.2f", percentChanged), '% of reads updated via Golay correction.'))
     
     rm(index1Reads.org)
     invisible(unlink(tmpDir, recursive = TRUE))
@@ -553,7 +555,7 @@ uploadSitesToDB <- function(sites){
     if(r == 0){
       quitOnErorr(paset0('Error -- could not upload site data for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
     } else {
-      updateLog(paste0('Uploaded fragment data for ',  x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
+      updateLog(paste0('Uploaded sites data for ',  x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
     }
   }))
   

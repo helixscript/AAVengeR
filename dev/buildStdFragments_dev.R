@@ -67,7 +67,7 @@ clusterExport(cluster, 'opt')
 
 runArchiveRunDetails()
 
-if(tolower(opt$sequencingRunID) != 'none') conn <- createDBconnection()
+if(tolower(opt$sequencingRunID) != 'none') dbConn <- createDBconnection()
 
 
 # Load fragment data from database or local file depending on configuration file.
@@ -106,7 +106,6 @@ if(opt$buildStdFragments_trialSubjectList != 'none'){
   }
 }
 
-if(opt$databaseConfigGroup != 'none') RMariaDB::dbDisconnect(conn)
 
 # Make sure fragments were retrieved.
 if(nrow(frags) == 0) quitOnErorr('Error -- no fragments were loaded or retrieved.')
@@ -132,40 +131,82 @@ frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+'
 # -------------------------------------------------------------------------------
 updateLog('Categorizing leader sequences.')
 
-frags <- rbindlist(lapply(split(frags, paste(frags$trial, frags$subject)), function(k){
-            d <- DNAStringSet(unique(k$leaderSeq))
-            names(d) <- paste0('s', 1:length(d))
-            
-            clstrs <- CD_HIT_clusters(d, opt$outputDir, opt$buildStdFragments_remnantClusterParams)
+categorizeLeaderSeqs <- function(x, minPercentID = 0.75, minPercentCoverage = 0.75){
+  names(x) <- c('seq', 'weight1', 'weight2')
+  x <- arrange(x, desc(weight1), desc(weight2))
+  
+  n <- 1
+  x$n <- NA
 
-            n <- 0
-            m <- rbindlist(lapply(clstrs, function(x){
-              e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
-              
-              if(length(e) > 0){
-                n <<- n + 1
-                return(data.table(readID = sub('^>', '', e), leaderSeqGroupNum = n))
-              } else {
-                return(data.table())
-              }
-            })) %>% left_join(data.frame(seq = as.character(d), readID = names(d)), by = 'readID') %>%
-              select(-readID) 
-            
-            m <- m[! duplicated(m$seq),]
-            
-            left_join(k, m, by = c('leaderSeq' = 'seq'))
-           }))
+  invisible(lapply(split(x, 1:nrow(x)), function(x2){
+    if(! is.na(x[x$seq == x2$seq,]$n)) return()
+    if(! any(is.na(x$n))) return()
+    
+    k <- tibble(seq = x[is.na(x$n),]$seq, 
+                dist = stringdist::stringdist(x2$seq, x[is.na(x$n),]$seq, method = 'osa', nthread = opt$buildStdFragments_CPUs),
+                pID =  (nchar(x2$seq) - dist) / nchar(x[is.na(x$n),]$seq),
+                pCov = ifelse(nchar(x2$seq) > nchar(x[is.na(x$n),]$seq),  nchar(x[is.na(x$n),]$seq)/nchar(x2$seq), nchar(x2$seq)/nchar(x[is.na(x$n),]$seq)))
+    
+    # pCov is the % coverage of the longer sequence.
+    seqs <- k[k$pID >= minPercentID & k$pCov >= minPercentCoverage,]$seq
+    
+    if(length(seqs) > 0){
+      x[x$seq %in% seqs,]$n <<- n
+      n <<- n + 1
+    }
+  }))
+  
+  dplyr::select(x, seq, n) %>% dplyr::rename(leaderSeqGroupNum = n)
+}
 
 
-# Build fragment ids.
-# IDs are read level containing both random IDs and remnant IDs.
-# eg. mpPHH_AAV_deJong:pExp4_9883:GTSP5468:1:chr3:-:50217300:50217439:37:AAAAAAAAAAAA
+# chr22-20025370.1	55	58621	GAAAATCTCTAGCA
+# chr22-20025375.1	21	25	GAAAATCTCTAGCACAG
+# z <- subset(frags, chromosome == 'chr22' & fragStart >= 20025368 - 50 & fragStart <= 20025368 + 50)
 
-i <- is.na(frags$leaderSeqGroupNum)
-if(any(i)) frags[i, ]$leaderSeqGroupNum <- 1
+frags <- left_join(frags, categorizeLeaderSeqs(group_by(frags, leaderSeq) %>% 
+                                               summarise(nWidths = n_distinct(abs(fragEnd - fragStart)), 
+                                                         nReads = n_distinct(readID)) %>% 
+                                                         ungroup(),
+                                               minPercentID = opt$buildStdFragments_categorizeLeaderSeqs_minPercentID,
+                                               minPercentCoverage = opt$buildStdFragments_categorizeLeaderSeqs_minPercentCoverage), 
+                   by = c('leaderSeq' = 'seq'))
 
-i <- nchar(frags$leaderSeq) < opt$buildStdFragments_minRemnantLengthToGroup
-if(any(i)) frags[i, ]$leaderSeqGroupNum <- 1
+
+# frags <- rbindlist(lapply(split(frags, paste(frags$trial, frags$subject)), function(k){
+#             d <- DNAStringSet(unique(k$leaderSeq))
+#             names(d) <- paste0('s', 1:length(d))
+#             
+#             clstrs <- CD_HIT_clusters(d, opt$outputDir, opt$buildStdFragments_remnantClusterParams)
+# 
+#             n <- 0
+#             m <- rbindlist(lapply(clstrs, function(x){
+#               e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
+#               
+#               if(length(e) > 0){
+#                 n <<- n + 1
+#                 return(data.table(readID = sub('^>', '', e), leaderSeqGroupNum = n))
+#               } else {
+#                 return(data.table())
+#               }
+#             })) %>% left_join(data.frame(seq = as.character(d), readID = names(d)), by = 'readID') %>%
+#               select(-readID) 
+#             
+#             m <- m[! duplicated(m$seq),]
+#             
+#             left_join(k, m, by = c('leaderSeq' = 'seq'))
+#            }))
+# 
+# 
+# # Build fragment ids.
+# # IDs are read level containing both random IDs and remnant IDs.
+# # eg. mpPHH_AAV_deJong:pExp4_9883:GTSP5468:1:chr3:-:50217300:50217439:37:AAAAAAAAAAAA
+# 
+# i <- is.na(frags$leaderSeqGroupNum)
+# if(any(i)) frags[i, ]$leaderSeqGroupNum <- 1
+# 
+# i <- nchar(frags$leaderSeq) < opt$buildStdFragments_minRemnantLengthToGroup
+# if(any(i)) frags[i, ]$leaderSeqGroupNum <- 1
 
 frags$leaderSeqGroup <- paste0(frags$trial, '~', frags$subject, '~', frags$leaderSeqGroupNum)
 
@@ -447,47 +488,15 @@ frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPos
     x$posid <- paste0(x$posid2, '.1')
     x$leaderSeqGroupNum <- 1
   } else {
+    x$leaderSeqGroupNum <- NULL
+    x <- left_join(x, categorizeLeaderSeqs(group_by(x, leaderSeq) %>% 
+                                           summarise(nWidths = n_distinct(abs(fragEnd - fragStart)), 
+                                                     nReads = n_distinct(readID)) %>% 
+                                           ungroup(),
+                                           minPercentID = opt$buildStdFragments_categorizeLeaderSeqs_minPercentID,
+                                           minPercentCoverage = opt$buildStdFragments_categorizeLeaderSeqs_minPercentCoverage), 
+                   by = c('leaderSeq' = 'seq'))
     
-    browser()
-    
-    d <- group_by(x, leaderSeq) %>%
-         summarise(nFrags = n_distinct(fragEnd - fragStart),
-                   nReads = n()) %>%
-         ungroup %>% arrange(desc(nFrags), desc(nReads))
-    
-    m <- stringdist::stringdist(d$leaderSeq, d$leaderSeq)
-    
-    d <- DNAStringSet(x$leaderSeq)
-    names(d) <- x$readID
-    clstrs <- CD_HIT_clusters(d, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), opt$buildStdFragments_remnantClusterParams)
-    
-    if(length(clstrs) == 1 | any(is.na(clstrs))){
-      x$posid <- paste0(x$posid2, '.1')
-      x$leaderSeqGroupNum <- 1
-    } else {
-      # here are more than one remnant group associated with this posid.
-      n <- 0
-      
-      m <- rbindlist(lapply(clstrs, function(x){
-             e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
-             
-             if(length(e) > 0){
-               n <<- n + 1
-               return(data.table(readID = sub('^>', '', e), leaderSeqGroupNum = n))
-             } else {
-               return(data.table())
-             }
-           })) %>% left_join(data.frame(seq = as.character(d), readID = names(d)), by = 'readID') %>% select(-readID) 
-      
-      m <- m[! duplicated(m$seq),]
-      
-      x$leaderSeqGroupNum <- NULL
-      
-      x <- left_join(x, m, by = c('leaderSeq' = 'seq'))
-      
-      i <- is.na(x$leaderSeqGroupNum)
-      if(any(i)) x[i, ]$leaderSeqGroupNum <- 1
-      
       x$w <- x$fragEnd - x$fragStart
       o <- group_by(x, leaderSeqGroupNum) %>% 
            summarise(nWidths = n_distinct(w), nReads = n()) %>% 
@@ -498,24 +507,12 @@ frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPos
       x <- left_join(x, select(o, -nWidths, -nReads), by = 'leaderSeqGroupNum')
       x$leaderSeqGroupNum <- x$leaderSeqGroupNum2
       x <- select(x, -leaderSeqGroupNum2, -w)
-      
-      x$posid <- paste0(x$posid2, '.', x$leaderSeqGroupNum)
-    }
   }
   
   x
 })) 
 
-
-# Exceptions.
-i <- is.na(frags_uniqPosIDs$leaderSeqGroupNum)
-if(any(i)) frags_uniqPosIDs[i, ]$leaderSeqGroupNum <- 1
-
-i <- nchar(frags_uniqPosIDs$leaderSeq) < opt$buildStdFragments_minRemnantLengthToGroup
-if(any(i)) frags_uniqPosIDs[i, ]$leaderSeqGroupNum <- 1
-
-frags_uniqPosIDs$posid <- paste0(frags_uniqPosIDs$posid2, '.', frags_uniqPosIDs$leaderSeqGroupNum)
-
+frags_uniqPosIDs$posid  <- paste0(frags_uniqPosIDs$posid2, '.', frags_uniqPosIDs$leaderSeqGroupNum)
 frags_uniqPosIDs$posid2 <- NULL
 
 # Assign updated remnant seq group numbers and update position ids.
@@ -720,8 +717,6 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   if(opt$databaseConfigGroup != 'none'){
     suppressPackageStartupMessages(library(RMariaDB))
     
-    dbConn <- createDBconnection()
-    
     multiHitClusters$i <- paste0(multiHitClusters$trial, '~', multiHitClusters$subject, '~', multiHitClusters$sample)
 
     o <- select(sampleMetaData, uniqueSample, refGenome) %>% mutate(i = sub('~\\d+$', '', uniqueSample)) %>% select(-uniqueSample) %>% distinct()
@@ -752,7 +747,6 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       }
     }))
     
-    dbDisconnect(dbConn)
   }
 }
 
@@ -864,5 +858,7 @@ saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -lea
 readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup, -leaderSeqGroupNum, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
 
 updateLog('buildStdFragments completed.')
+
+if(opt$databaseConfigGroup != 'none') RMariaDB::dbDisconnect(dbConn)
 
 q(save = 'no', status = 0, runLast = FALSE) 

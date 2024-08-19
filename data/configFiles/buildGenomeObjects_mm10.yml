@@ -1,0 +1,10 @@
+CPUs: 20
+outputDir: mm10_output
+refGenomeName: mm10
+repeatMaskerSpecies: Mus musculus
+repeatMaskerPath: /home/ubuntu/software/RepeatMasker/RepeatMasker
+bwa2Path: /home/ubuntu/software/bwa-mem2/bwa-mem2
+faToTwoBitPath: /home/ubuntu/software/faToTwoBit
+refGenomeSeq_URL: https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.fa.gz
+refSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/goldenPath/mm10/database/refGene.txt.gz
+xenoRefSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/goldenPath/mm10/database/xenoRefGene.txt.gz
