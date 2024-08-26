@@ -21,8 +21,6 @@ install.packages("gridExtra", repos='https://cloud.r-project.org/', quiet=FALSE)
 
 install.packages("png", repos='https://cloud.r-project.org/', quiet=FALSE)
 
-install.packages("igraph", repos='https://cloud.r-project.org/', quiet=FALSE)
-
 install.packages("RMySQL", repos='https://cloud.r-project.org/', quiet=FALSE)
 
 install.packages("readr", repos='https://cloud.r-project.org/', quiet=FALSE)
@@ -44,3 +42,9 @@ install.packages('argparse', repos='https://cloud.r-project.org/', quiet=FALSE)
 install.packages('RMariaDB', repos='https://cloud.r-project.org/', quiet=FALSE)
 
 BiocManager::install(c("GenomicRanges", "ShortRead",'GenomicRanges','Biostrings' , 'rtracklayer'), update = FALSE)
+
+install.packages("igraph", repos='https://cloud.r-project.org/', quiet=FALSE)
+
+install.packages("this.path", repos='https://cloud.r-project.org/', quiet=FALSE)
+
+install.packages("optparse", repos='https://cloud.r-project.org/', quiet=FALSE)

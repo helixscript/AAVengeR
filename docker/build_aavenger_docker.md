@@ -40,7 +40,7 @@ sudo docker run -it --mount type=bind,source=/home/ubuntu/,dst=/home/ubuntu aave
 Code to test docker image/container. Runs through the AAvengeR unit test. Necessary to update bashrc with paths to bioinformatic dependencies and to provide an alias for python2. 
 
 ```sh
-sudo docker run -it --mount type=bind,source=/home/ubuntu/,dst=/home/ubuntu aavenger_docker bash
+sudo docker run -it --mount type=bind,source=/home/ubuntu/,dst=/home/ubuntu aavenger_docker_v2_1 bash
 
 echo "export PATH=$PATH:/opt/conda/envs/bioinformatic_dependencies/bin:/opt/conda/envs/python2_env/bin" >> /root/.bashrc
 
@@ -74,7 +74,18 @@ apt-get -y install libssl-dev
 apt-get -y install libxml2-dev
 apt-get -y install libgmp3-dev
 apt-get -y install libmariadb-dev
-#apt-get -y install mariadb-server mariadb-client # untested
+
+apt-get -y install mariadb-server
+
+apt-get -y install procps
+
+apt-get -y install nano
+
+apt-get -y install htop
+
+apt-get -y install ssh
+
+apt-get -y install rsync
 ```
 
 # Python and bioinformatic dependencies
@@ -172,6 +183,8 @@ mamba install -c conda-forge zlib=1.3 -y
 
 mamba install -c bioconda ucsc-blat=445 -y
 
+mamba install -c bioconda pear=0.9.6 -y # NEW
+
 conda env export > blat_dependency.yml
 
 ```
@@ -262,7 +275,12 @@ Rscript R_dependencies.R # test that all packages were installed successfully
 ```
 
 
+# Upload to microb120
 
+
+```sh
+/home/agmcfarland
+```
 
 
 

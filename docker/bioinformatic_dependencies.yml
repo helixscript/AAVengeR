@@ -11,9 +11,9 @@ dependencies:
   - bwa-mem2=2.2.1=hd03093a_5
   - bzip2=1.0.8=h7f98852_4
   - c-ares=1.18.1=h7f98852_0
-  - ca-certificates=2023.12.12=h06a4308_0
+  - ca-certificates=2024.7.2=h06a4308_0
   - cd-hit=4.8.1=h43eeafb_9
-  - certifi=2024.2.2=py38h06a4308_0
+  - certifi=2024.7.4=py38h06a4308_0
   - cffi=1.15.1=py38h4a40e3a_3
   - charset-normalizer=2.1.1=pyhd8ed1ab_0
   - colorama=0.4.6=pyhd8ed1ab_0
@@ -62,6 +62,7 @@ dependencies:
   - ncurses=6.3=h27087fc_1
   - openssl=3.2.1=hd590300_0
   - pcre=8.45=h9c3ff4c_0
+  - pear=0.9.6=h9d449c0_10
   - perl=5.26.2=h36c2ea0_1008
   - perl-archive-tar=2.32=pl526_0
   - perl-carp=1.38=pl526_3

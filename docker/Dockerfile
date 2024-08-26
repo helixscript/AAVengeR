@@ -1,7 +1,7 @@
 
 #Docker version 20.10.17, build 100c701
 # build on the r-base docker image 
-FROM r-base
+FROM r-base:4.3.2
 
 USER root
 # create and set the main directory structure 
@@ -26,7 +26,9 @@ RUN conda env create -f bioinformatic_dependencies.yml
 
 RUN conda env create -f blat_dependency.yml
 
-RUN apt-get update
+RUN apt-get -y update
+
+RUN apt-get -y install build-essential
 
 RUN apt-get -y install libcurl4-openssl-dev
 
@@ -38,7 +40,18 @@ RUN apt-get -y install libgmp3-dev
 
 RUN apt-get -y install libmariadb-dev
 
-RUN apt-get -y install libmysqlclient-dev
+RUN apt-get -y install mariadb-server
+
+RUN apt-get -y install procps
+
+RUN apt-get -y install nano
+
+RUN apt-get -y install htop
+
+RUN apt-get -y install ssh
+
+RUN apt-get -y install rsync
+
 
 RUN Rscript ./R_dependencies.R
 
