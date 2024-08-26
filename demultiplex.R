@@ -13,25 +13,18 @@ suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(RMariaDB))
 
-# Parse the config file from the command line.
-configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
+set.seed(1)
 
-# Read config file.
-opt <- yaml::read_yaml(configFile)
-
-# Test for key items needed to run sanity tests.
-if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
-if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
-
-# Run config sanity tests.
-source(file.path(opt$softwareDir, 'lib.R'))
+source(file.path(yaml::read_yaml(commandArgs(trailingOnly=TRUE)[1])$softwareDir, 'lib.R'))
+opt <- loadConfig()
 optionsSanityCheck()
 
 createOuputDir()
 if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
 if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp')))  dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'))
 if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))
+
+if(previousSampleDatabaseCheck(readr::read_tsv(opt$demultiplex_sampleDataFile, col_types = readr::cols()) %>% distinct())) q(save = 'no', status = 1, runLast = FALSE) 
 
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'log')
@@ -45,9 +38,6 @@ quitOnErorr <- function(msg){
   message(paste0('See log for more details: ', opt$defaultLogFile))
   q(save = 'no', status = 1, runLast = FALSE) 
 }
-
-runArchiveRunDetails()
-set.seed(1)
 
 if(! file.exists(opt$demultiplex_sampleDataFile)) quitOnErorr('Error - the sample configuration file could not be found.')
 
@@ -348,14 +338,18 @@ if(opt$demultiplex_quickAlignFilter){
     #            cluster)
     
     updateLog('BWA2 complete. Starting sam2psl.')
+    # Will work on empty file.
     system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', 
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'), ' -o ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl')))
     
     updateLog('Parsing psl table.')
     a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'), convertToBlatPSL = TRUE)
-    a <- dplyr::filter(a, alignmentPercentID >= opt$demultiplex_quickAlignFilter_minPercentID, tNumInsert <= 1, 
-                       qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= 5, matches >= opt$demultiplex_quickAlignFilter_minMatches)
+    
+    if(nrow(a) > 0){
+      a <- dplyr::filter(a, alignmentPercentID >= opt$demultiplex_quickAlignFilter_minPercentID, tNumInsert <= 1, 
+                         qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= 5, matches >= opt$demultiplex_quickAlignFilter_minMatches)
+    }
     
     updateLog('Cleaning up files.')
     invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'), 
@@ -394,6 +388,7 @@ if(opt$demultiplex_quickAlignFilter){
     invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
     
     updateLog('Rearranging psl table columns and rewriting.')
+    # Will work on empty files with warnings.
     p$X12 <- ifelse(p$X9 == '-', p$X11 - p$X13, p$X12)
     p$X13 <- ifelse(p$X9 == '-', p$X11 - p$X12, p$X13)
     readr::write_tsv(p, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'), col_names = FALSE)
@@ -402,30 +397,43 @@ if(opt$demultiplex_quickAlignFilter){
     a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'))
     
     updateLog('Filtering psl table.')
-    a <- dplyr::filter(a, alignmentPercentID >= opt$demultiplex_quickAlignFilter_minPercentID, tNumInsert <= 1, 
-                       qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, matches >= opt$demultiplex_quickAlignFilter_minMatches)
+    if(nrow(a) > 0){
+      a <- dplyr::filter(a, alignmentPercentID >= opt$demultiplex_quickAlignFilter_minPercentID, tNumInsert <= 1, 
+                         qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, matches >= opt$demultiplex_quickAlignFilter_minMatches)
+    }
+    
+    if(nrow(a) > 0){
+      updateLog('Subsetting read data.')
+      x <- subset(x, readID %in% a$qName)
+    
+      updateLog('Calculating and appending min. alignment start positions.')
+      
+      minAlnStarts <- group_by(lazy_dt(a), qName) %>% 
+                      dplyr::slice_max(matches, with_ties = TRUE) %>% 
+                      slice_min(qStart, with_ties = FALSE) %>%
+                      select(qName, qStart) %>% 
+                      ungroup() %>%
+                      mutate(quickFilterStartPos = qStart + opt$demultiplex_quickAlignFilter_minEstLeaderSeqLength) %>%
+                      select(-qStart) %>%
+                      as_tibble()
+      
+      #  qName                                     quickFilterStartPos
+      #  <chr>                                                   <int>
+      #  1 chr1-217358038:sitePair386:frag1:read1                   15
+      #  2 chr1-217358038:sitePair386:frag1:read10                  15
+      #  3 chr1-217358038:sitePair386:frag1:read11                  15
+      
+      x$quickFilterStartPos <- NULL
+      x <- left_join(x, minAlnStarts, by = c('readID' = 'qName'))
+      updateLog('Joining min. alignment starts to data and returing.')
+    }
     
     updateLog('Cleaning up files.')
     invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam'), 
                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'),
                           file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
     
-    updateLog('Subsetting read data.')
-    x <- subset(x, readID %in% a$qName)
-    
-    updateLog('Calculating and appending min. alignment start positions.')
-    minAlnStarts <- group_by(lazy_dt(a), qName) %>% 
-                    slice_max(matches, with_ties = TRUE) %>% 
-                    slice_min(qStart, with_ties = FALSE) %>%
-                    select(qName, qStart) %>% 
-                    ungroup() %>%
-                    mutate(quickFilterStartPos = qStart + opt$demultiplex_quickAlignFilter_minEstLeaderSeqLength) %>%
-                    select(-qStart) %>%
-                    as_tibble()
-    
-    updateLog('Joining min. alignment starts to data and returing.')
-    x$quickFilterStartPos <- NULL
-    left_join(x, minAlnStarts, by = c('readID' = 'qName'))
+    x
   }))
   
   d <- sprintf("%.2f%%", (1 - (n_distinct(reads$readID)/readsLengthPreFilter))*100)
@@ -502,7 +510,6 @@ if(file.exists(opt$demultiplex_replicateMergingInstructions)){
 updateLog('Writing output files.')
 
 # Save demultiplexed reads and clean up.
-reads$pid <- samples$pid[1]
 saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'reads.rds'), compress = opt$compressDataFiles)
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
 

@@ -7,9 +7,9 @@
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
 
-configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - configuration file does not exists.')
-opt <- yaml::read_yaml(configFile)
+source(file.path(yaml::read_yaml(commandArgs(trailingOnly=TRUE)[1])$softwareDir, 'lib.R'))
+opt <- loadConfig()
+optionsSanityCheck()
 
 dir.create(file.path(opt$outputDir, opt$buildAAVremnantPlots_outputDir))
 

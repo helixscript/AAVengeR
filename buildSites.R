@@ -9,19 +9,10 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(RMariaDB))
 
-# Parse the config file from the command line.
-configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
+set.seed(1)
 
-# Read config file.
-opt <- yaml::read_yaml(configFile)
-
-# Test for key items needed to run sanity tests.
-if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
-if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
-
-# Run config sanity tests.
-source(file.path(opt$softwareDir, 'lib.R'))
+source(file.path(yaml::read_yaml(commandArgs(trailingOnly=TRUE)[1])$softwareDir, 'lib.R'))
+opt <- loadConfig()
 optionsSanityCheck()
 
 createOuputDir()
@@ -41,9 +32,6 @@ quitOnErorr <- function(msg){
   message(paste0('See log for more details: ', opt$defaultLogFile))
   q(save = 'no', status = 1, runLast = FALSE) 
 }
-
-runArchiveRunDetails()
-set.seed(1)
 
 # Read in Standardized fragments.
 updateLog('Reading standardized fragment data.')
@@ -68,7 +56,7 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
     
     processed_fragments <- frags[1,]
     processed_fragments[1,] <- NA
-  
+    
     # Dual detection - look for samples with both u3 and u5 entries.
     invisible(lapply(split(samples, paste(samples$trial, samples$subject, samples$sample)), function(x){
     
@@ -85,6 +73,10 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
         counter <- 1
         invisible(lapply(unique(u3.frags$posid), function(u3_posid){
         
+          # "chr15+61328555.1" "chr15-61328555.1"
+          # message(u3_posid)
+          # if(grepl('6132855', u3_posid)) browser()
+          
           # Create alternative sites +/- a couple NT this u3 site.
           a <- sub('\\.\\d+$', '', u3_posid)
           o <- unlist(strsplit(a, '[\\+\\-]'))

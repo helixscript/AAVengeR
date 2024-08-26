@@ -1,33 +1,26 @@
+#!/usr/bin/Rscript
 library(dplyr)
 library(Biostrings)
 library(parallel)
+library(yaml)
 
-outputDir <- 'data/testFiles'   
+args <- commandArgs(trailingOnly=TRUE)
 
-mode <- 'AAV'  # Allowed modes: AAV, IN_u5, or IN_u3  
-seed <- 1
-dbPath <- 'data/referenceGenomes/blat/hg38.2bit'
-nSites <- 500
-nSitesPool <- 5000  
-nFragsperSite <- 5
-nReadsPerFrag <- 30
-fragStartSize <- 50
-fragStepSize  <- 20
-addIntegraseCorrection <- TRUE # Only set to TRUE for integrase modes.
+if(length(args) == 0) stop('Error - configuration file not provided as first argument.')
+if(! file.exists(args)) stop('Error - the cofiguration file could not be found.')
 
-if(mode == 'AAV') addIntegraseCorrection <- FALSE
+opt <- read_yaml(args)
 
-set.seed(seed)
+if(opt$mode == 'AAV') opt$addIntegraseCorrection <- FALSE
+
+set.seed(opt$seed)
 
 remnant0   <- 'TCTGCGCGCTCGCTCGCTCA' # To be used for integrase mode.
 remnant    <- 'TCTGCGCGCTCGCTCGCTCACTGAGGCCGGGCGACCAAAGGTCGCCCGACGCCCGGGCTTTGCCCGGGCGGCCTCAGTG' 
 linker     <- 'GAACGAGCACTAGTAAGCCCNNNNNNNNNNNNCTCCGCTTAAGGGACT' 
 
 # Create output directories.
-d <- paste0('syntheticSites_refGenome:hg38,mode:', mode, ',nSites:', nSites, ',nFragsPerSite:', nFragsperSite, ',nReadsPerFrag:', nReadsPerFrag, ',poolSize:', nSitesPool, ',seed:', seed)
-if(! dir.exists(outputDir)) dir.create(outputDir)
-outputDir <- file.path(outputDir, d)
-if(! dir.exists(outputDir)) dir.create(outputDir)
+if(! dir.exists(opt$outputDir)) dir.create(opt$outputDir)
 
 # Create a collection of remnant pieces to draw from to simulate rearrangements.
 remnantChunks <- unique(unlist(sapply(1:1000, function(x){
@@ -37,14 +30,14 @@ remnantChunks <- unique(unlist(sapply(1:1000, function(x){
   o[nchar(o) >= 15 & nchar(o) <= 30]
 })))
 
-# Read in genome.
-g <- rtracklayer::import.2bit(dbPath)
+# Read in genome, already filtered for main chromosomes.
+g <- rtracklayer::import.2bit(opt$dbPath)
 g <- g[! names(g) %in% c('chrM', 'chrY')]
 
 # Create fragments as dual detection pairs with some wiggle added to their start positions.
 n <- 1
-f <- bind_rows(lapply(sample(names(g), nSitesPool, replace = TRUE), function(x){
-       message(paste0(n, ' / ', nSitesPool, ': ', sprintf("%.2f%%", (n/nSitesPool)*100)))
+f <- bind_rows(lapply(sample(names(g), opt$nSitesPool, replace = TRUE), function(x){
+       message(paste0(n, ' / ', opt$nSitesPool, ': ', sprintf("%.2f%%", (n/opt$nSitesPool)*100)))
   
        # Retrieve 10 1000 NT wide fragments.
        pos <- sample(10000:(width(g[names(g) == x])-10000), 10)
@@ -58,26 +51,34 @@ f <- bind_rows(lapply(sample(names(g), nSitesPool, replace = TRUE), function(x){
        
        pos1 <- as.integer(stringr::str_extract(names(frag), '\\d+')) + 500 - 1
 
-       posFragStartPositions <- round(rnorm(nFragsperSite * nReadsPerFrag, mean = 500, sd = 0.5))
+       posFragStartPositions <- round(rnorm(opt$nFragsperSite * opt$nReadsPerFrag, mean = 500, sd = 0.5))
    
        posFrags <- tibble(chr = x,
-                          id = paste0(x, '+', pos1, ':sitePair', n, ':', unlist(lapply(1:nFragsperSite, function(x) rep(paste0('frag', x), nReadsPerFrag))), paste0(':read', 1:nReadsPerFrag)),
+                          id = paste0(x, '+', pos1, ':sitePair', n, ':', unlist(lapply(1:opt$nFragsperSite, function(x) rep(paste0('frag', x), opt$nReadsPerFrag))), paste0(':read', 1:opt$nReadsPerFrag)),
                           position = pos1, 
                           strand = '+', 
                           seq = sapply(posFragStartPositions, function(s) substr(as.character(frag), s, 1000)))
        pos2 <- pos1 - 3
        
-       negFragEndPositions <- round(rnorm(nFragsperSite * nReadsPerFrag, mean = 497, sd = 0.5))
+       negFragEndPositions <- round(rnorm(opt$nFragsperSite * opt$nReadsPerFrag, mean = 497, sd = 0.5))
        negFrags <- tibble(chr = x,
-                          id = paste0(x, '-', pos2, ':sitePair', n, ':',  unlist(lapply(1:nFragsperSite, function(x) rep(paste0('frag', x), nReadsPerFrag))), paste0(':read', 1:nReadsPerFrag)),
+                          id = paste0(x, '-', pos2, ':sitePair', n, ':',  unlist(lapply(1:opt$nFragsperSite, function(x) rep(paste0('frag', x), opt$nReadsPerFrag))), paste0(':read', 1:opt$nReadsPerFrag)),
                           position = pos2, 
                           strand = '-', 
                           seq = sapply(negFragEndPositions, function(s) as.character(reverseComplement(DNAStringSet(substr(as.character(frag), 1, s))))))
 
-       o <- bind_rows(posFrags, negFrags)
+       if(opt$buildSitePairs){
+         o <- bind_rows(posFrags, negFrags)
+       } else {
+         if(sample(c(TRUE, FALSE), 1)){
+           o <- posFrags
+         } else {
+           o <- negFrags
+         }
+       }
        
        # Update positions for the actions of buildSites when integrase mode is used.
-       if(addIntegraseCorrection){
+       if(opt$addIntegraseCorrection){
          o$position <- ifelse(o$strand == '+', o$position+2, o$position-2)
          o <- bind_rows(lapply(split(o, 1:nrow(o)), function(x){ x$id <- sub('\\d+:', paste0(x$position, ':'), x$id); x}))
        }
@@ -88,12 +89,21 @@ f <- bind_rows(lapply(sample(names(g), nSitesPool, replace = TRUE), function(x){
        o
      }))
 
-# Subset pool of sites.
-f <- subset(f, posid %in% sample(unique(f$posid), nSites))
+
+if(opt$buildSitePairs){
+  f$pair <- stringr::str_extract(f$id, 'sitePair\\d+')
+  pairs <- sample(unique(f$pair), opt$nSites)
+  f <- subset(f, pair %in% pairs)
+} else {
+  f <- subset(f, posid %in% sample(unique(f$posid), opt$nSites))
+}
+
+
+# Break points are refined within replicates -- posid fragments can not be split across replicates.
 
 # Create fragment breaks and remnant sequences.
 f2 <- bind_rows(lapply(split(f, f$posid), function(x){
-        if(mode == 'AAV'){
+        if(opt$mode == 'AAV'){
           x$r <- substr(remnant, 1, sample(15:25, 1))
           n <- sample(0:3, 1)
           if(n != 0) x$r <- paste0(x$r[1], sample(remnantChunks, n), collapse = '')
@@ -101,7 +111,7 @@ f2 <- bind_rows(lapply(split(f, f$posid), function(x){
         x$r <- remnant0
       }
       
-      x$endPositions <- unlist(lapply((1:nFragsperSite * fragStepSize) + fragStartSize, function(x) round(rnorm(nReadsPerFrag, mean = x, sd = 0.5))))
+      x$endPositions <- unlist(lapply((1:opt$nFragsperSite * opt$fragStepSize) + opt$fragStartSize, function(x) round(rnorm(opt$nReadsPerFrag, mean = x, sd = 0.5))))
       x$seq <- substr(x$seq, 1, x$endPositions)
       x
      }))
@@ -137,15 +147,19 @@ o[['sample1']] <- c('GGCTAAACTATG', 'TCAACCCGTGAA')
 o[['sample2']] <- c('ATCAGAGCCCAT', 'GTGTGCTAACGT')
 o[['sample3']] <- c('CTTGCGGCAATC', 'TACCTAGTGAGA')
 
-# Assign sample id and replicate numbers.
 f3 <- bind_rows(lapply(split(f3, f3$posid), function(x){
-        x$replicate <- sample(1:2, nrow(x), replace = TRUE)
+        # Assign random sample to this site.
         x$sample <- sample(names(o), 1)
+        
+        # Assign each fragment to one of two isolates.
+        x$replicate <- (as.integer(stringr::str_extract(x$fragNum, '\\d+')) %% 2) + 1
+        
+        # Assign sample / replicate specific bar code.
         x$barcode <- o[[x$sample[1]]][x$replicate]
+        
         x
       }))
 
-f3$flags <- mode
 f3$trial <- 'validation'
 f3$subject <- 'validationSubject'
 f3$refGenome <- 'hg38'
@@ -165,24 +179,27 @@ I1 <- ShortRead::ShortReadQ(sread = DNAStringSet(f3$barcode),
                             id = BStringSet(f3$id), 
                             quality = BStringSet(sapply(nchar(f3$barcode), function(x) paste0(rep('?', x), collapse = ''))))
 
-if(file.exists(file.path(outputDir, 'syn_I1.fastq.gz'))) invisible(file.remove(file.path(outputDir, 'syn_I1.fastq.gz')))
-if(file.exists(file.path(outputDir, 'syn_R1.fastq.gz'))) invisible(file.remove(file.path(outputDir, 'syn_R1.fastq.gz')))
-if(file.exists(file.path(outputDir, 'syn_R2.fastq.gz'))) invisible(file.remove(file.path(outputDir, 'syn_R2.fastq.gz')))
+if(file.exists(file.path(opt$outputDir, 'syn_I1.fastq.gz'))) invisible(file.remove(file.path(opt$outputDir, 'syn_I1.fastq.gz')))
+if(file.exists(file.path(opt$outputDir, 'syn_R1.fastq.gz'))) invisible(file.remove(file.path(opt$outputDir, 'syn_R1.fastq.gz')))
+if(file.exists(file.path(opt$outputDir, 'syn_R2.fastq.gz'))) invisible(file.remove(file.path(opt$outputDir, 'syn_R2.fastq.gz')))
 
-ShortRead::writeFastq(R1, file.path(outputDir, 'syn_R1.fastq.gz'), compress = TRUE, mode = 'w')
-ShortRead::writeFastq(R2, file.path(outputDir, 'syn_R2.fastq.gz'), compress = TRUE, mode = 'w')
-ShortRead::writeFastq(I1, file.path(outputDir, 'syn_I1.fastq.gz'), compress = TRUE, mode = 'w')
+ShortRead::writeFastq(R1, file.path(opt$outputDir, 'syn_R1.fastq.gz'), compress = TRUE, mode = 'w')
+ShortRead::writeFastq(R2, file.path(opt$outputDir, 'syn_R2.fastq.gz'), compress = TRUE, mode = 'w')
+ShortRead::writeFastq(I1, file.path(opt$outputDir, 'syn_I1.fastq.gz'), compress = TRUE, mode = 'w')
 
-sampleData <- distinct(select(f3, trial, subject, sample, replicate, adriftReadLinkerSeq, barcode, refGenome, vectorFastaFile, leaderSeqHMM, flags))
+sampleData <- distinct(select(f3, trial, subject, sample, replicate, adriftReadLinkerSeq, barcode, refGenome, vectorFastaFile, leaderSeqHMM))
 
-if(mode == 'AAV'){
+if(opt$mode == 'AAV'){
   sampleData <- select(sampleData, -leaderSeqHMM)
   sampleData$anchorReadStartSeq <- substr(remnant, 1, 10)
-  names(sampleData) <- c('trial',	'subject', 'sample',	'replicate', 'adriftReadLinkerSeq', 'index1Seq', 'refGenome', 'vectorFastaFile', 'flags', 'anchorReadStartSeq')
+  names(sampleData) <- c('trial',	'subject', 'sample',	'replicate', 'adriftReadLinkerSeq', 'index1Seq', 'refGenome', 'vectorFastaFile', 'anchorReadStartSeq')
+  sampleData$flags <- 'AAV'
 } else {
-  names(sampleData) <- c('trial',	'subject', 'sample',	'replicate', 'adriftReadLinkerSeq', 'index1Seq', 'refGenome', 'vectorFastaFile', 'leaderSeqHMM', 'flags')
+  names(sampleData) <- c('trial',	'subject', 'sample',	'replicate', 'adriftReadLinkerSeq', 'index1Seq', 'refGenome', 'vectorFastaFile', 'leaderSeqHMM')
+  sampleData$flags <- 'IN_u5'
 }
-readr::write_tsv(sampleData, file.path(outputDir,'sampleData.tsv'), append = FALSE)
+
+readr::write_tsv(sampleData, file.path(opt$outputDir,'sampleData.tsv'), append = FALSE)
 
 group_by(f3, trial, subject, sample, posid) %>% 
 summarise(nReads = n_distinct(id), 
@@ -190,4 +207,6 @@ summarise(nReads = n_distinct(id),
           nUMIs = n_distinct(substr(R1, 21, 32)),
           leaderSeq = r[1]) %>% 
 ungroup() %>%
-readr::write_tsv(file.path(outputDir,'truth.tsv'), append = FALSE)
+readr::write_tsv(file.path(opt$outputDir,'truth.tsv'), append = FALSE)
+
+q()
