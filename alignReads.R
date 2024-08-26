@@ -13,19 +13,10 @@ suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(RMariaDB))
 options(stringsAsFactors = FALSE)
 
-# Parse the config file from the command line.
-configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
+set.seed(1)
 
-# Read config file.
-opt <- yaml::read_yaml(configFile)
-
-# Test for key items needed to run sanity tests.
-if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
-if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
-
-# Run config sanity tests.
-source(file.path(opt$softwareDir, 'lib.R'))
+source(file.path(yaml::read_yaml(commandArgs(trailingOnly=TRUE)[1])$softwareDir, 'lib.R'))
+opt <- loadConfig()
 optionsSanityCheck()
 
 createOuputDir()
@@ -48,9 +39,6 @@ quitOnErorr <- function(msg){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-runArchiveRunDetails()
-set.seed(1)
-
 # Read in sequencing data.
 updateLog('Reading in prepped reads.')
 
@@ -59,6 +47,8 @@ if(! file.exists(file.path(opt$outputDir, opt$alignReads_inputFile))) quitOnEror
 reads <- readRDS(file.path(opt$outputDir, opt$alignReads_inputFile))
 
 if(nrow(reads) == 0) quitOnErorr('Error - the input table does not contain any rows.')
+
+if(previousSampleDatabaseCheck(tibble(uniqueSample = reads$uniqueSample, refGenome = reads$refGenome) %>% tidyr::separate(uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~')  %>% distinct())) q(save = 'no', status = 1, runLast = FALSE) 
 
 incomingSamples <- unique(reads$uniqueSample)
 
@@ -106,7 +96,7 @@ alignReads <- function(r, refGenome, minPercentSeqID, maxQstart, dir){
 
 # Align anchor reads.
 
-waitForMemory(stepDesc = 'Align reads / anchor reads, replicate level jobs')
+waitForMemory(stepDesc = 'Align reads / anchor reads, replicate level jobs', minMem = opt$system_minMemThreshold, maxWaitSecs = opt$system_minMemWaitTime, sleepSecs = opt$system_minMemSleepTime)
 
 updateLog(paste0('Aligning ', ppNum(n_distinct(reads$readID)), ' anchor reads to reference genomes.'))
 
@@ -154,7 +144,7 @@ reads <- subset(reads, readID %in% anchorReadAlignments$readID)
 
 # Align adrift reads.
 
-waitForMemory(stepDesc = 'Align reads / adrift reads, replicate level jobs')
+waitForMemory(stepDesc = 'Align reads / adrift reads, replicate level jobs', minMem = opt$system_minMemThreshold, maxWaitSecs = opt$system_minMemWaitTime, sleepSecs = opt$system_minMemSleepTime)
 
 updateLog(paste0('Aligning ', ppNum(n_distinct(reads$readID)), ' adrift reads to reference genomes.'))
 
@@ -221,7 +211,7 @@ adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$readID %in% i,
 
 
 # Add refGenome, vector, and flags.
-anchorReadAlignments <- left_join(anchorReadAlignments, distinct(select(reads, readID, vectorFastaFile, pid, flags)), by = 'readID')
+anchorReadAlignments <- left_join(anchorReadAlignments, distinct(select(reads, readID, vectorFastaFile, flags)), by = 'readID')
 
 
 # Expand predicted leaderSeq sequences by extending with delayed alignment sequences. 

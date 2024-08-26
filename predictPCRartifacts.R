@@ -12,19 +12,10 @@ suppressPackageStartupMessages(library(rtracklayer))
 suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(parallel))
 
-# Parse the config file from the command line.
-configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
+set.seed(1)
 
-# Read config file.
-opt <- yaml::read_yaml(configFile)
-
-# Test for key items needed to run sanity tests.
-if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
-if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
-
-# Run config sanity tests.
-source(file.path(opt$softwareDir, 'lib.R'))
+source(file.path(yaml::read_yaml(commandArgs(trailingOnly=TRUE)[1])$softwareDir, 'lib.R'))
+opt <- loadConfig()
 optionsSanityCheck()
 
 createOuputDir()
@@ -44,9 +35,6 @@ quitOnErorr <- function(msg){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-runArchiveRunDetails()
-set.seed(1)
-
 sites <- readRDS(file.path(opt$outputDir, opt$predictPCRartifacts_inputFile))
 
 if(! opt$predictPCRartifacts_addAfter %in% names(sites)){
@@ -61,6 +49,7 @@ clusterExport(cluster, c('opt', 'tmpFile'))
 
 sites$refGenome <- file.path(opt$softwareDir, 'data', 'referenceGenomes', 'blat', paste0(sites$refGenome, '.2bit'))
 sites$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', sites$vector)
+sites$vectorFastaFile <- gsub('^\\s*|\\s*$', '', sites$vectorFastaFile)
 
 sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
   
@@ -203,13 +192,16 @@ o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
 o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
   vectorFastaFile <- a$vectorFastaFile[1]
     
+  #browser()
+  
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs'), full.names = TRUE)))
   system(paste0('makeblastdb -in ', vectorFastaFile, ' -dbtype nucl -out ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', 'd')), ignore.stderr = TRUE)
   
   cluster <- makeCluster(opt$predictPCRartifacts_CPUs)
   clusterExport(cluster, c('opt'))
   
-   r <- bind_rows(parLapply(cluster, split(a, 1:nrow(a)), function(x){
+  r <- bind_rows(parLapply(cluster, split(a, 1:nrow(a)), function(x){
+  #r <- bind_rows(lapply(split(a, 1:nrow(a)), function(x){
     library(dplyr)
     library(Biostrings)
     library(stringr)
@@ -240,8 +232,16 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
         
         f2 <- tmpFile()
         v <- readDNAStringSet(x$vectorFastaFile)
+        
+        b$sseqid <- gsub('^\\s*|\\s*$', '', b$sseqid)
+        names(v) <- gsub('^\\s*|\\s*$', '', names(v))
+        
         v <- v[names(v) == b$sseqid]
+        
+        ### if(grepl('mm9', a$refGenome[1])) browser()
+        
         writeXStringSet(v, file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f2, '.fasta')))
+        
         system(paste0('makeblastdb -in ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f2, '.fasta')), ' -dbtype nucl -out ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', f2)), ignore.stderr = TRUE)
                 
         system(paste0('blastn -dust no -soft_masking false -evalue 50 -outfmt 1 -word_size ', opt$predictPCRartifacts_wordSize, 

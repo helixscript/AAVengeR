@@ -2,17 +2,17 @@
 
 # Required inputs that should be updated for each run.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-mode: integrase                                                                # (integrase, AAV, transposase, or manual)
+mode: integrase                       # (integrase, AAV, transposase, or manual)
 
-core_CPUs: 15
+core_CPUs: 7
 
 outputDir: output
 softwareDir: /home/ubuntu/AAVengeR
 
 databaseConfigFile: /home/ubuntu/.my.cnf
-databaseConfigGroup: AAVengeR
+databaseConfigGroup: none
 
-sequencingRunID: 231025_M03249_0003_000000000-LBKHD
+sequencingRunID: 200101_M03500_0001_000000000-ABCXY
 
 demultiplex_anchorReadsFile: Undetermined_S0_R2_001.fastq.gz
 demultiplex_adriftReadsFile: Undetermined_S0_R1_001.fastq.gz
@@ -22,8 +22,8 @@ demultiplex_sampleDataFile:  sampleData.tsv
 modules:
    - core
    - callNearestGenes
+   - callNearestGenes   callNearestGenes_outputDir:nearestOncoGenes,callNearestGenes_columnPrefix:onco_,callNearestGenes_geneListFilter:data/geneLists/COSMIC_v10_genes
    - annotateRepeats
-
 
 
 # Additional parameters.
@@ -40,7 +40,7 @@ core_applyCoreCPUsToAllModules: TRUE
 demultiplex_CPUs: 15
 demultiplex_outputDir: demultiplex
 demultiplex_replicateMergingInstructions: none
-demultiplex_level: unique                                                     # (all, unique, or clustered)
+demultiplex_level: unique                          # (all, unique, or clustered)
 demultiplex_quickAlignFilter: FALSE
 demultiplex_useAdriftReadUniqueLinkers: TRUE
 demultiplex_requirePostUmiLinker: TRUE
@@ -110,12 +110,10 @@ alignReads_genomeAlignment_anchorReadEnd_maxUnaligned: 5
 alignReads_genomeAlignment_adriftReadEnd_maxUnaligned: 5
 
 
-
 # buildFragments module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 buildFragments_CPUs: 15
 buildFragments_outputDir: buildFragments
-buildFragments_duplicateReadFile: prepReads/duplicateReads.rds
 buildFragments_anchorReadsAlignmentFile: alignReads/anchorReadAlignments.rds
 buildFragments_adriftReadsAlignmentFile: alignReads/adriftReadAlignments.rds
 buildFragments_idGroup_size: 500
@@ -171,6 +169,8 @@ callNearestGenes_CPUs: 15
 callNearestGenes_inputFile: core/sites.rds
 callNearestGenes_outputDir: callNearestGenes
 callNearestGenes_addAfter: nRepsObs
+callNearestGenes_columnPrefix: none
+callNearestGenes_geneList: none
 callNearestGenes_TU_position: either
 callNearestGenes_boundaries:
   hg38:
@@ -235,40 +235,6 @@ buildAAVremnantPlots_ITRseqStart: 57
 buildAAVremnantPlots_ITRdumbellTip1: 125
 buildAAVremnantPlots_ITRdumbellTip2: 147
 buildAAVremnantPlots_plotOutputWidthInches: 10
-
-
-# barcodeAssocLinkers module.
-# ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-addSampleDetails_inputFile:   core/sites.rds
-addSampleDetails_detailsFile: data/sampleDetails.tsv
-addSampleDetails_addAfter: sample
-
-
-# callNearestGenesFiltered module.
-# ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-callNearestGenesFiltered_CPUs: 15
-callNearestGenesFiltered_columnPrefix: oncoGenes
-callNearestGenesFiltered_inputFile: annotateRepeats/sites.rds
-callNearestGenesFiltered_outputDir: callNearestGenesFiltered
-callNearestGenesFiltered_addAfter: nRepsObs
-callNearestGenesFiltered_TU_position: either
-callNearestGenesFiltered_boundaries:
-  hg38:
-    TUs:   hg38.TUs.rds
-    exons: hg38.exons.rds
-    filter: hg38.Bushman.oncoGeneList.rds
-  sacCer3:
-        TUs:   sacCer3.TUs.rds
-        exons: sacCer3.exons.rds
-        filter: hg38.Bushman.oncoGeneList.rds
-  canFam3:
-        TUs: canFam3.humanXeno.TUs.rds
-        exons: canFam3.humanXeno.exons.rds
-        filter: hg38.Bushman.oncoGeneList.rds
-  macFas5:
-        TUs:   macFas5.humanXeno.TUs.rds
-        exons: macFas5.humanXeno.exons.rds
-        filter: hg38.Bushman.oncoGeneList.rds
 
 
 # anchorReadRearrangements module.

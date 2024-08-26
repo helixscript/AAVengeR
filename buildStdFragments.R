@@ -16,19 +16,10 @@ suppressPackageStartupMessages(library(igraph))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(RMariaDB))
 
-# Parse the config file from the command line.
-configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
+set.seed(1)
 
-# Read config file.
-opt <- yaml::read_yaml(configFile)
-
-# Test for key items needed to run sanity tests.
-if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
-if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
-
-# Run config sanity tests.
-source(file.path(opt$softwareDir, 'lib.R'))
+source(file.path(yaml::read_yaml(commandArgs(trailingOnly=TRUE)[1])$softwareDir, 'lib.R'))
+opt <- loadConfig()
 optionsSanityCheck()
 
 createOuputDir()
@@ -49,10 +40,6 @@ quitOnErorr <- function(msg){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-runArchiveRunDetails()
-set.seed(1)
-
-
 # Setup.
 #-------------------------------------------------------------------------------
 
@@ -65,9 +52,7 @@ cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, 'opt')
 
-runArchiveRunDetails()
-
-if(tolower(opt$sequencingRunID) != 'none') conn <- createDBconnection()
+if(tolower(opt$databaseConfigGroup) != 'none') dbConn <- createDBconnection()
 
 
 # Load fragment data from database or local file depending on configuration file.
@@ -106,8 +91,6 @@ if(opt$buildStdFragments_trialSubjectList != 'none'){
   }
 }
 
-if(opt$databaseConfigGroup != 'none') RMariaDB::dbDisconnect(conn)
-
 # Make sure fragments were retrieved.
 if(nrow(frags) == 0) quitOnErorr('Error -- no fragments were loaded or retrieved.')
 
@@ -117,10 +100,10 @@ incomingSamples <- unique(sub('~\\d+$', '', frags$uniqueSample))
 # Set aside meta data till the end to save memory and add data back at the end 
 # and unpack the uniqueSample ids.
 # --------------------------------------------------------------------------------------------------------------
-sampleMetaData <- distinct(dplyr::select(frags, uniqueSample, refGenome, vectorFastaFile, pid, flags))
+sampleMetaData <- distinct(dplyr::select(frags, uniqueSample, refGenome, vectorFastaFile, flags))
 
 frags <- data.table(tidyr::separate(frags, uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~', remove = FALSE) %>% 
-         dplyr::select(-refGenome, -vectorFastaFile, -pid, -flags))
+         dplyr::select(-refGenome, -vectorFastaFile, -flags))
 
 frags$trialSubject <- paste0(frags$trial, '~', frags$subject)
 frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
@@ -676,7 +659,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
     suppressPackageStartupMessages(library(data.table))
     source(file.path(opt$softwareDir, 'lib.R'))
     
-    waitForMemory()
+    waitForMemory(stepDesc = 'Multihits', minMem = opt$system_minMemThreshold, maxWaitSecs = opt$system_minMemWaitTime, sleepSecs = opt$system_minMemSleepTime)
     
     # Work within trial/subject/sample groupings.
     rbindlist(lapply(split(x, x$n), function(x2){
@@ -708,10 +691,6 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'), compress = opt$compressDataFiles)
   
   if(opt$databaseConfigGroup != 'none'){
-    suppressPackageStartupMessages(library(RMariaDB))
-    
-    dbConn <- createDBconnection()
-    
     multiHitClusters$i <- paste0(multiHitClusters$trial, '~', multiHitClusters$subject, '~', multiHitClusters$sample)
 
     o <- select(sampleMetaData, uniqueSample, refGenome) %>% mutate(i = sub('~\\d+$', '', uniqueSample)) %>% select(-uniqueSample) %>% distinct()
@@ -732,17 +711,13 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
       
       r <- dbExecute(dbConn,
-                     "insert into multihits values (?, ?, ?, ?, ?, ?)",
-                     params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], as.character(lubridate::today()), list(serialize(tab, NULL))))
+                     "insert into multihits values (?, ?, ?, ?, ?)",
+                     params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], list(serialize(tab, NULL))))
       
       if(r == 0) {
         quitOnErorr(paste0('Error -- could not upload multihit data for ', x$sample[1], ' to the database.'))
-      } else {
-        updateLog(paste0('Uploaded multihit data for ', x$trial, '~', x$subject[1], '~', x$sample[1], ' to the database.'))
-      }
+      } 
     }))
-    
-    dbDisconnect(dbConn)
   }
 }
 
@@ -789,6 +764,8 @@ if(nrow(b) > 0){
   o <- split(b, b$fragID)
 
   updateLog('Bundling fragment reads into fragment records.')
+  
+  # (!) Add progress notes to log...
  
   b2 <- bind_rows(lapply(o, function(x){
          totalReads <- n_distinct(x$readID) + sum(x$nDuplicateReads)
@@ -854,5 +831,7 @@ saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -lea
 readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -i, -leaderSeqGroup, -leaderSeqGroupNum, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
 
 updateLog('buildStdFragments completed.')
+
+if(opt$databaseConfigGroup != 'none') RMariaDB::dbDisconnect(dbConn)
 
 q(save = 'no', status = 0, runLast = FALSE) 

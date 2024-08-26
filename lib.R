@@ -4,6 +4,32 @@ updateLog <- function(msg, logFile = NULL){
   write(msg, file = logFile, append = TRUE)
 }
 
+loadConfig <- function(configFile = NULL){
+  if(is.null(configFile)){
+    args <- commandArgs(trailingOnly=TRUE)
+    if(length(args) == 0 ) stop('Error - No command line arguments provided to module.')
+    configFile <- args[1]
+  } else {
+    args <- configFile
+  }
+  
+  if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
+  opt <- yaml::read_yaml(configFile)
+  
+  if(length(args) == 2){
+    invisible(lapply(strsplit(unlist(strsplit(args[2], ',')), ':'), function(x){
+      val <- x[2]
+      if(! suppressWarnings(is.na(as.numeric(val))) & grepl('\\.', val)) val <- as.numeric(val)
+      if(! suppressWarnings(is.na(as.numeric(val))) & ! grepl('\\.', val)) val <- as.integer(val)
+      opt[[x[1]]] <<- val
+    })) 
+  }
+  
+  opt$configFile <- configFile
+  
+  opt
+}
+
 ppNum <- function(n) format(n, big.mark = ",", scientific = FALSE, trim = TRUE)
 
 createOuputDir <- function(){
@@ -16,6 +42,34 @@ createOuputDir <- function(){
       message('Error: Can not create the output directory.')
       q(save = 'no', status = 1, runLast = FALSE)
     }
+  }
+}
+
+
+previousSampleDatabaseCheck <- function(samples){
+  if(tolower(opt$databaseConfigGroup) != 'none'){
+      conn <- createDBconnection()
+      
+      r <- bind_rows(lapply(split(samples, 1:nrow(samples)), function(x){
+             o <- dbGetQuery(conn, paste0("select * from samples where trial = '", x$trial, "' and subject = '", x$subject, "' and sample = '", x$sample, "' and replicate = '", x$replicate, "' and refGenome = '", x$refGenome, "'"))
+             x <- select(x, trial, subject, sample, replicate, refGenome)
+             x$inDatabase <- nrow(o) > 0
+             x
+           }))
+    
+      write(pander::pandoc.table.return(r, style = 'simple'), file.path(opt$outputDir, 'databaseSampleCheck.txt'))
+    
+      dbDisconnect(conn)
+      
+      if(any(r$inDatabase)){
+        message('Error -- one or more sample replicates are already in the database.')
+        message('See report located here: ', file.path(opt$outputDir, 'databaseSampleCheck.txt'))
+        return(TRUE)
+      } else {
+        return(FALSE)
+      }
+  } else {
+    return(FALSE)
   }
 }
 
@@ -37,11 +91,13 @@ optionsSanityCheck <- function(){
   }
   
   if(tolower(opt$sequencingRunID) == 'none'){
-    message("Error - the sequencingRunID parameter was not defined in your configuration file or it was set to 'none'.")
+    message("Error - the sequencingRunID paramter is not allowed to be set to 'none'.")
     q(save = 'no', status = 1, runLast = FALSE) 
   }
   
-  defaultConfig <- yaml::read_yaml(file.path(opt$softwareDir, 'config.yml'))
+  
+  # Read in the default values and supplement user configs where appropriate.
+  defaultConfig <- yaml::read_yaml(file.path(opt$softwareDir, 'defaults.yml'))
   
   allowedToBeAdded <- names(defaultConfig)[! names(defaultConfig) %in% userRequired]
   
@@ -52,24 +108,16 @@ optionsSanityCheck <- function(){
       opt[[x]] <<- defaultConfig[[x]]
     }
   }
-  
-  # These are items either injected by other modules or options not in the default configuration file.
-  if(! 'core_createFauxFragDoneFiles' %in% names(opt)) opt$core_createFauxFragDoneFiles <<- FALSE
-  if(! 'core_createFauxSiteDoneFiles' %in% names(opt)) opt$core_createFauxSiteDoneFiles <<- FALSE
-  if(! 'buildStdFragments_minRemnantLengthToGroup' %in% names(opt)) opt$buildStdFragments_minRemnantLengthToGroup <<- 12
-  if(! 'core_processMaxPercentCPU' %in% names(opt)) opt$core_processMaxPercentCPU <<- 12
-  if(! 'core_processMaxCPUs' %in% names(opt)) opt$core_processMaxCPUs <<- 10
-  if(! 'calledFromCore' %in% names(opt)) opt$calledFromCore <<- FALSE
-  
+
   # The core_CPU value can not exceed the number of system cores.
   cores <- parallel::detectCores()
   if(opt$core_CPUs > cores) opt$core_CPUs <<- cores
   
   # Create list of all options containing 'CPUs' except core_CPUs.
-  a <- names(opt)[grepl('CPUs', names(opt))]
+  a <- names(opt)[grepl('_CPUs', names(opt))]
   a <- a[a != 'core_CPUs']
   
-  # Not not allow any non-core module exceed the number of system cores.
+  # Do not allow any non-core module exceed the number of system cores.
   # Set their values to core_CPUs value if requested except for cases when the congfig
   # file is written by the core module since it balances the CPUs based on read counts.
   
@@ -107,28 +155,7 @@ optionsSanityCheck <- function(){
   } else {
     stop('Error -- mode set to an unknown value.')
   }
-
-  if(grepl('quick', opt$mode, ignore.case = TRUE)){
-    opt$alignReads_genomeAlignment_blatRepMatch <<- 1000
-    opt$buildStdFragments_createMultiHitClusters <<- FALSE
-  }
 }
-
-
-runArchiveRunDetails <- function(){
-  if(tolower(opt$databaseConfigGroup) != 'none'){
-    updateLog('Archive configurations and source code in the AAVengeR database.')
-  
-    if('calledFromCore' %in% names(opt)){
-      if(! opt$calledFromCore){
-        archiveRunDetails(opt$sequencingRunID)
-      }
-    } else {
-      archiveRunDetails(opt$sequencingRunID)
-    }
-  }
-}
-
 
 runSam2Psl <- function(samFile, outputFile, cl){
    o <- data.table(line = readLines(samFile))
@@ -315,21 +342,21 @@ demultiplex <- function(x){
   index1Reads <- readFastq(f)
   invisible(file.remove(f))
   
-  waitForMemory(stepDesc = 'Demultiplex')
+  waitForMemory(stepDesc = 'Demultiplex', minMem = opt$system_minMemThreshold, maxWaitSecs = opt$system_minMemWaitTime, sleepSecs = opt$system_minMemSleepTime)
   
   f <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', x$file[grepl('anchor', x$file)])
   if(! file.exists(f)) waitForFile(f)
   anchorReads <- readFastq(f)
   invisible(file.remove(f))
   
-  waitForMemory(stepDesc = 'Demultiplex')
+  waitForMemory(stepDesc = 'Demultiplex', minMem = opt$system_minMemThreshold, maxWaitSecs = opt$system_minMemWaitTime, sleepSecs = opt$system_minMemSleepTime)
   
   f <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', x$file[grepl('adrift', x$file)])
   if(! file.exists(f)) waitForFile(f)
   adriftReads <- readFastq(f)
   invisible(file.remove(f))
   
-  waitForMemory(stepDesc = 'Demultiplex')
+  waitForMemory(stepDesc = 'Demultiplex', minMem = opt$system_minMemThreshold, maxWaitSecs = opt$system_minMemWaitTime, sleepSecs = opt$system_minMemSleepTime)
   
   anchorReads <- trimTailw(anchorReads, opt$demultiplex_qualtrim_events, opt$demultiplex_qualtrim_code, opt$demultiplex_qualtrim_halfWidth)
   anchorReads <- anchorReads[width(anchorReads) >= opt$demultiplex_qualtrim_minLength]
@@ -358,7 +385,7 @@ demultiplex <- function(x){
     index1Reads <- golayCorrection(index1Reads, tmpDirPath = tmpDir)
     percentChanged <- (sum(! as.character(index1Reads.org) == as.character(index1Reads)) / length(index1Reads))*100
     
-    updateLog(paste0('Golay correction complete.', sprintf("%.2f", percentChanged), '% of reads updated via Golay correction.'))
+    updateLog(paste0('Golay correction complete. ', sprintf("%.2f", percentChanged), '% of reads updated via Golay correction.'))
     
     rm(index1Reads.org)
     invisible(unlink(tmpDir, recursive = TRUE))
@@ -471,7 +498,7 @@ reconstructDBtable <- function(o, tmpDirPath){
   if(nrow(o) > 0){
     r <- bind_rows(lapply(split(o, 1:nrow(o)), function(y){
            f <- tmpFile()
-           writeBin(unserialize(o$data[[1]]), file.path(tmpDirPath, paste0(f, '.xz')))
+           writeBin(unserialize(y$data[[1]]), file.path(tmpDirPath, paste0(f, '.xz')))
            system(paste0('unxz ', file.path(tmpDirPath, paste0(f, '.xz'))))
            d <- readr::read_tsv(file.path(tmpDirPath, f))
            invisible(file.remove(file.path(tmpDirPath, f)))
@@ -547,13 +574,12 @@ uploadSitesToDB <- function(sites){
     updateLog('Pushing byte object to database.')
     
     r <- dbExecute(conn,
-                   "insert into sites values (?, ?, ?, ?, ?, ?)",
-                   params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], as.character(lubridate::today()),
-                                 list(serialize(tab, NULL))))
+                   "insert into sites values (?, ?, ?, ?, ?)",
+                   params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], list(serialize(tab, NULL))))
     if(r == 0){
       quitOnErorr(paset0('Error -- could not upload site data for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
     } else {
-      updateLog(paste0('Uploaded fragment data for ',  x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
+      updateLog(paste0('Uploaded sites data for ',  x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
     }
   }))
   
@@ -561,63 +587,63 @@ uploadSitesToDB <- function(sites){
 }
 
 
-archiveRunDetails <- function(pid){
-  suppressPackageStartupMessages(library(RMariaDB))
-  
-  conn <- createDBconnection()
-  
-  invisible(dbExecute(conn, paste0("delete from processes where pid='", pid, "'")))
-  
-  # Create a tar ball including the configuration file and sample data file.
-  # This tarball will be uploaded to the database as a binary blob.
-  
-  f <- paste0(paste0(stringi::stri_rand_strings(15, 1, '[A-Za-z0-9]'), collapse = ''))
-  dir.create(file.path(opt$outputDir, f))
-  
-  # Copy config file.
-  updateLog('Copying files for archive to a tmp location.')
-  invisible(file.copy(configFile, file.path(opt$outputDir, f)))
-  
-  # Copy sample data file.
-  invisible(file.copy(opt$demultiplex_sampleDataFile, file.path(opt$outputDir, f)))
-  
-  # Copy all R files.
-  invisible(sapply(list.files(opt$softwareDir, full.names = TRUE, recursive = FALSE, pattern = "*.R"), function(file){
-    file.copy(file, file.path(opt$outputDir, f))
-  }))
-  
-  # Copy version folder.
-  invisible(file.copy(file.path(opt$softwareDir, 'version'), file.path(opt$outputDir, f), recursive = TRUE))
-  
-  # Create tar ball.
-  updateLog('Creating a tar ball of files to archive.')
-  system(paste0('tar cvf ', file.path(opt$outputDir, paste0(f, '.tar')), ' ', file.path(opt$outputDir, f)))
-  
-  updateLog('Compressing tar ball.')
-  system(paste0('xz --best ', file.path(opt$outputDir, paste0(f, '.tar'))))
-  
-  fp <- file.path(opt$outputDir, paste0(f, '.tar.xz'))
-  
-  updateLog(paste0('Reading tar ball as a byte stream (', file.size(fp), ' bytes).'))
-  
-  tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
-  invisible(file.remove(fp))
-  
-  invisible(unlink(file.path(opt$outputDir, f), recursive = TRUE))
-  
-  updateLog('Uploading compressed file to the database.')
-  r <- dbExecute(conn,
-                 "insert into processes values (?, ?)",
-                 params = list(pid, list(serialize(tab, NULL))))
-  
-  dbDisconnect(conn)
-  
-  if(r == 0){
-    quitOnErorr(paset0('Error -- could not upload process information for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
-  } else {
-    updateLog('Uploaded code base and configurations to the database.')
-  }
-}
+# archiveRunDetails <- function(pid){
+#   suppressPackageStartupMessages(library(RMariaDB))
+#   
+#   conn <- createDBconnection()
+#   
+#   invisible(dbExecute(conn, paste0("delete from processes where pid='", pid, "'")))
+#   
+#   # Create a tar ball including the configuration file and sample data file.
+#   # This tarball will be uploaded to the database as a binary blob.
+#   
+#   f <- paste0(paste0(stringi::stri_rand_strings(15, 1, '[A-Za-z0-9]'), collapse = ''))
+#   dir.create(file.path(opt$outputDir, f))
+#   
+#   # Copy config file.
+#   updateLog('Copying files for archive to a tmp location.')
+#   invisible(file.copy(configFile, file.path(opt$outputDir, f)))
+#   
+#   # Copy sample data file.
+#   invisible(file.copy(opt$demultiplex_sampleDataFile, file.path(opt$outputDir, f)))
+#   
+#   # Copy all R files.
+#   invisible(sapply(list.files(opt$softwareDir, full.names = TRUE, recursive = FALSE, pattern = "*.R"), function(file){
+#     file.copy(file, file.path(opt$outputDir, f))
+#   }))
+#   
+#   # Copy version folder.
+#   invisible(file.copy(file.path(opt$softwareDir, 'version'), file.path(opt$outputDir, f), recursive = TRUE))
+#   
+#   # Create tar ball.
+#   updateLog('Creating a tar ball of files to archive.')
+#   system(paste0('tar cvf ', file.path(opt$outputDir, paste0(f, '.tar')), ' ', file.path(opt$outputDir, f)))
+#   
+#   updateLog('Compressing tar ball.')
+#   system(paste0('xz --best ', file.path(opt$outputDir, paste0(f, '.tar'))))
+#   
+#   fp <- file.path(opt$outputDir, paste0(f, '.tar.xz'))
+#   
+#   updateLog(paste0('Reading tar ball as a byte stream (', file.size(fp), ' bytes).'))
+#   
+#   tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
+#   invisible(file.remove(fp))
+#   
+#   invisible(unlink(file.path(opt$outputDir, f), recursive = TRUE))
+#   
+#   updateLog('Uploading compressed file to the database.')
+#   r <- dbExecute(conn,
+#                  "insert into processes values (?, ?)",
+#                  params = list(pid, list(serialize(tab, NULL))))
+#   
+#   dbDisconnect(conn)
+#   
+#   if(r == 0){
+#     quitOnErorr(paset0('Error -- could not upload process information for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
+#   } else {
+#     updateLog('Uploaded code base and configurations to the database.')
+#   }
+# }
 
 
 loadSamples <- function(){
@@ -722,8 +748,6 @@ loadSamples <- function(){
     updateLog('Error -- There are one ore more duplications of trial~subject~sample~replicate ids in the sample data file.')
     q(save = 'no', status = 1, runLast = FALSE)
   }
-  
-  samples$pid <- opt$sequencingRunID
   
   samples
 }

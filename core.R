@@ -11,19 +11,10 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(pander))
 
-# Parse the config file from the command line.
-configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
+set.seed(1)
 
-# Read config file.
-opt <- yaml::read_yaml(configFile)
-
-# Test for key items needed to run sanity tests.
-if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
-if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
-
-# Run config sanity tests.
-source(file.path(opt$softwareDir, 'lib.R'))
+source(file.path(yaml::read_yaml(commandArgs(trailingOnly=TRUE)[1])$softwareDir, 'lib.R'))
+opt <- loadConfig()
 optionsSanityCheck()
 
 # Create directories and start logging.
@@ -46,11 +37,6 @@ quitOnErorr <- function(msg){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-runArchiveRunDetails()
-set.seed(1)
-
-# Inject an parameter to let downstream modules know that they are being called by the core module.
-# This will block runArchiveRunDetails() in child processes.
 opt$calledFromCore <- TRUE
 
 updateLog('Starting core module.')
@@ -69,14 +55,20 @@ yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml
 
 # Create a shell script to start demultiplex module.
 write(c('#!/usr/bin/sh', 
-        paste(opt$Rscript, file.path(opt$softwareDir, 'demultiplex.R'), file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml'))), 
-      file = file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'))
+        paste(opt$Rscript, file.path(opt$softwareDir, 'demultiplex.R'), file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml')),
+        'echo $?'), 
+        file = file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'))
 
 updateLog('Running the demultiplex module.')
 
 # All core CPUs allocated to demultiplex.
 system(paste('chmod 755', file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh')))
-system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE)
+r <- system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, intern = TRUE)
+
+if(r != 0){
+  message('The demultiplex call from the demultiplex module failed.')
+  q(save = 'no', status = 1, runLast = FALSE) 
+}
 
 updateLog('Demultiplex completed.')
 
@@ -114,10 +106,13 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
   # Redefine CPUs.
   o <- jobTable[jobTable$done == FALSE & jobTable$active == FALSE,]
   
-  if(nrow(o) > 0 & nrow(o) <= 5){
-    a <- floor((1 / nrow(o)) * opt$core_CPUs) - 1
+  # End game CPU assignments.
+  if(nrow(o) > 0 & nrow(o) <= 3){
+    # a <- floor((1 / nrow(o)) * opt$core_CPUs) - 1
+    a <- floor((1 / nrow(o)) * (opt$core_CPUs - CPUs_used))
     
     a[a < 1] <- 1
+    
     a[a > opt$core_processMaxCPUs] <- opt$core_processMaxCPUs
     
     o$CPUs <- a
@@ -136,14 +131,13 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
 
 # Build a jobs table for prepReads, alignReads, and buildFragments.
 jobTable <- data.frame(table(reads$uniqueSample)) %>% 
-  dplyr::rename(id = Var1) %>%
-  dplyr::rename(reads = Freq)
+            dplyr::rename(id = Var1) %>%
+            dplyr::rename(reads = Freq)
 
-
-# Let the process with the greatest number of reads have 25% (setting dependent) of all cores, scale other processes. 
 a <- ceiling((jobTable$reads / max(jobTable$reads)) * (opt$core_CPUs * (opt$core_processMaxPercentCPU / 100)))
-a[a < 1] <- 1
 
+a[a < 1] <- 1
+a[a > opt$core_processMaxCPUs] <- opt$core_processMaxCPUs
 
 jobTable$CPUs         <- a
 jobTable$active       <- FALSE
@@ -200,7 +194,7 @@ while(! all(jobTable$done == TRUE)){
   
   updateLog(paste0('Starting ',  tab$id, '.'))
   
-  waitForMemory(stepDesc = 'Core module, replicate level jobs')
+  waitForMemory(stepDesc = 'Core module, replicate level jobs', minMem = opt$system_minMemThreshold, maxWaitSecs = opt$system_minMemWaitTime, sleepSecs = opt$system_minMemSleepTime)
   
   system(paste('chmod 755', file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'run.sh')))
   system(file.path(opt$outputDir, 'core', 'replicate_analyses', tab$id, 'run.sh'), wait = FALSE)
@@ -225,15 +219,15 @@ updateLog('Bundling together replicate level fragment records.')
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'fragments.rds', recursive = TRUE, full.names = TRUE)
 frags <- bind_rows(lapply(f, readRDS))
 
-# Identify unique trial / patient combinations from returned fragments.
-u <- tidyr::separate(tibble(u = unique(frags$uniqueSample)), u, c('trial', 'subject', 'sample', 'replicate'), sep = '~') %>% select(-sample, -replicate) %>% distinct()
-
-opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs / nrow(u))
-if(opt$core_maxCPUsPerProcess == 0) opt$core_maxCPUsPerProcess <- 1
-
-updateLog(paste0('Setting max. process CPU limit to ',opt$core_maxCPUsPerProcess, ' CPUs for subject level jobs.'))
-
-opt$core_maxPercentCPUs <- floor((opt$core_maxCPUsPerProcess / opt$core_CPUs) * 100)
+# # Identify unique trial / patient combinations from returned fragments.
+# u <- tidyr::separate(tibble(u = unique(frags$uniqueSample)), u, c('trial', 'subject', 'sample', 'replicate'), sep = '~') %>% select(-sample, -replicate) %>% distinct()
+# 
+# opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs / nrow(u))
+# if(opt$core_maxCPUsPerProcess == 0) opt$core_maxCPUsPerProcess <- 1
+# 
+# updateLog(paste0('Setting max. process CPU limit to ',opt$core_maxCPUsPerProcess, ' CPUs for subject level jobs.'))
+# 
+# opt$core_maxPercentCPUs <- floor((opt$core_maxCPUsPerProcess / opt$core_CPUs) * 100)
 
 # Create a subject level to-do table.
 jobTable <- tibble(u = unique(frags$uniqueSample))
@@ -251,7 +245,9 @@ jobTable <- group_by(distinct(frags), id) %>%
 
 # Let the process with the greatest number of reads have 25% of all cores, scale other processes. 
 a <- ceiling((jobTable$reads / max(jobTable$reads)) * (opt$core_CPUs * (opt$core_processMaxPercentCPU / 100)))
+
 a[a < 1] <- 1
+a[a > opt$core_processMaxCPUs] <- opt$core_processMaxCPUs
 
 jobTable$CPUs         <- a
 jobTable$active       <- FALSE
@@ -311,7 +307,7 @@ while(! all(jobTable$done == TRUE)){
   
   updateLog(paste0('Starting ',  tab$id, '.'))
   
-  waitForMemory(stepDesc = 'Core module, subject level jobs')
+  waitForMemory(stepDesc = 'Core module, subject level jobs', minMem = opt$system_minMemThreshold, maxWaitSecs = opt$system_minMemWaitTime, sleepSecs = opt$system_minMemSleepTime)
   
   system(paste('chmod 755', file.path(opt$outputDir, 'core', 'subject_analyses', tab$id, 'run.sh')))
   system(file.path(opt$outputDir, 'core', 'subject_analyses', tab$id, 'run.sh'), wait = FALSE)

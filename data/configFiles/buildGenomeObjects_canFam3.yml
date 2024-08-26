@@ -1,0 +1,10 @@
+CPUs: 12
+outputDir: canFam3_output
+refGenomeName: canFam3
+repeatMaskerSpecies: Canis lupus familiaris
+repeatMaskerPath: /home/ubuntu/software/RepeatMasker/RepeatMasker
+bwa2Path: /home/ubuntu/software/bwa-mem2/bwa-mem2
+faToTwoBitPath: /home/ubuntu/software/faToTwoBit
+refGenomeSeq_URL: https://hgdownload.soe.ucsc.edu/goldenPath/canFam3/bigZips/canFam3.fa.gz
+refSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/goldenPath/canFam3/database/ncbiRefSeqCurated.txt.gz
+xenoRefSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/goldenPath/canFam3/database/xenoRefGene.txt.gz

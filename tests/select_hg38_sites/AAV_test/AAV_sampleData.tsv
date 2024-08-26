@@ -1,5 +1,0 @@
-trial	subject	sample	replicate	adriftReadLinkerSeq	index1Seq	refGenome	vectorFastaFile	flags
-validation	validationSubject	sample1	1	ATAAGTAGTTTTAACGTGCANNNNNNNNNNNNCTCCGCTTAAGGGACT	CGGTAATAGTAG	hg38	ITR_scramble_vector.fasta	AAV
-validation	validationSubject	sample1	2	ATAAGTAGTTTTAACGTGCANNNNNNNNNNNNCTCCGCTTAAGGGACT	ACGGCGCGAGAA	hg38	ITR_scramble_vector.fasta	AAV
-validation	validationSubject	sample1	3	ATAAGTAGTTTTAACGTGCANNNNNNNNNNNNCTCCGCTTAAGGGACT	CGGGTTGTAGGA	hg38	ITR_scramble_vector.fasta	AAV
-validation	validationSubject	sample1	4	ATAAGTAGTTTTAACGTGCANNNNNNNNNNNNCTCCGCTTAAGGGACT	GTTTTCAACGCC	hg38	ITR_scramble_vector.fasta	AAV

@@ -13,19 +13,10 @@ suppressPackageStartupMessages(library(GenomicRanges))
 suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(RMariaDB))
 
-# Parse the config file from the command line.
-configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
+set.seed(1)
 
-# Read config file.
-opt <- yaml::read_yaml(configFile)
-
-# Test for key items needed to run sanity tests.
-if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
-if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
-
-# Run config sanity tests.
-source(file.path(opt$softwareDir, 'lib.R'))
+source(file.path(yaml::read_yaml(commandArgs(trailingOnly=TRUE)[1])$softwareDir, 'lib.R'))
+opt <- loadConfig()
 optionsSanityCheck()
 
 createOuputDir()
@@ -46,9 +37,6 @@ quitOnErorr <- function(msg){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-runArchiveRunDetails()
-set.seed(1)
-
 # Read in adrift alignment reads.
 updateLog('Reading in anchor and adrift read alignments.')
 
@@ -57,12 +45,13 @@ anchorReadAlignments <- readRDS(file.path(opt$outputDir, opt$buildFragments_anch
 
 if(nrow(anchorReadAlignments) == 0 | nrow(adriftReadAlignments) == 0) quitOnErorr('Error - anchor and/or adrift alignment data files were empty.')
 
+if(previousSampleDatabaseCheck(tibble(uniqueSample = anchorReadAlignments$uniqueSample, refGenome = anchorReadAlignments$refGenome) %>% tidyr::separate(uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~') %>% distinct())) q(save = 'no', status = 1, runLast = FALSE) 
+
 incomingSamples <- unique(anchorReadAlignments$uniqueSample)
 
 # Shorten file paths to save memory since we no longer need the full paths.
 anchorReadAlignments$refGenome <- sapply(anchorReadAlignments$refGenome, lpe)
 anchorReadAlignments$vectorFastaFile <- sapply(anchorReadAlignments$vectorFastaFile, lpe)
-
 
 # Create posid column.
 anchorReadAlignments$posid <- paste0(anchorReadAlignments$tName, anchorReadAlignments$strand, ifelse(anchorReadAlignments$strand == '+', anchorReadAlignments$tStart, anchorReadAlignments$tEnd))
@@ -82,7 +71,7 @@ updateLog('Preparing alignment data for fragment generation.')
 
 anchorReadAlignments <- subset(anchorReadAlignments, readID %in% adriftReadAlignments$readID)
 
-anchorReadAlignments <- select(anchorReadAlignments, uniqueSample, sample, readID, tName, strand, tStart, tEnd, leaderSeq, refGenome, pid, flags, vectorFastaFile)
+anchorReadAlignments <- select(anchorReadAlignments, uniqueSample, sample, readID, tName, strand, tStart, tEnd, leaderSeq, refGenome, flags, vectorFastaFile)
 adriftReadAlignments <- select(adriftReadAlignments, sample, readID, tName, strand, tStart, tEnd, randomLinkerSeq)
 
 names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads')
@@ -198,7 +187,7 @@ o <- lapply(id_groups, function(id_group){
 invisible(rm(anchorReadAlignments, adriftReadAlignments))
 
 invisible(gc())
-waitForMemory(stepDesc = 'Build fragments, replicate level jobs')
+waitForMemory(stepDesc = 'Build fragments, replicate level jobs', minMem = opt$system_minMemThreshold, maxWaitSecs = opt$system_minMemWaitTime, sleepSecs = opt$system_minMemSleepTime)
 
 counter <- 1
 total <- length(o)
@@ -242,7 +231,7 @@ frags <- bind_rows(lapply(o, function(z){
                 fragWidth >= opt$buildFragments_minFragLength) %>%
                 mutate(uniqueSample = uniqueSample.anchorReads, readID = readID.anchorReads) %>%
                 select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads, randomLinkerSeq.adriftReads, 
-                       refGenome.anchorReads, vectorFastaFile.anchorReads, pid.anchorReads, flags.anchorReads)
+                       refGenome.anchorReads, vectorFastaFile.anchorReads, flags.anchorReads)
    r
 }))
 
@@ -262,7 +251,7 @@ invisible(rm(o, r, id_groups))
 invisible(gc())
 
 frags <- dplyr::rename(frags, leaderSeq = leaderSeq.anchorReads, randomLinkerSeq = randomLinkerSeq.adriftReads, refGenome = refGenome.anchorReads, 
-                              vectorFastaFile = vectorFastaFile.anchorReads, pid = pid.anchorReads, flags = flags.anchorReads)
+                              vectorFastaFile = vectorFastaFile.anchorReads, flags = flags.anchorReads)
 
 if(any(! incomingSamples %in% frags$uniqueSample) & opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
 
@@ -278,10 +267,40 @@ if(opt$databaseConfigGroup != 'none'){
   
   invisible(lapply(split(frags, frags$uniqueSample), function(x){
     x <- tidyr::separate(x, uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~', remove = FALSE)
-  
+    
+    # By making an entry in the samples table, we mark that this sample replicate has been processed to the fragment
+    # generation stage and should not be processed again untill the record is removed from the samples table.
+    
+    f <- tmpFile()
+    dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, f))
+    invisible(file.copy(list.files(opt$softwareDir, pattern = '*.R', full.names = TRUE), file.path(opt$outputDir, opt$buildFragments_outputDir, f)))
+    dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'version'))
+    invisible(file.copy(list.files(file.path(opt$softwareDir, 'version'), full.names = TRUE), file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'version'), recursive = TRUE))
+    invisible(file.copy(opt$configFile, file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'userConfigFile.yml')))
+    if('demultiplex_sampleDataFile' %in% names(opt)){
+      tab <- readr::read_tsv(opt$demultiplex_sampleDataFile)
+      readr::write_tsv(subset(tab, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & replicate == x$replicate[1]), 
+                       file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'userSampleDataFile.tsv'))
+    }
+    
+    system(paste('tar cf', file.path(opt$outputDir, opt$buildFragments_outputDir, paste0(f, '.tar')), file.path(opt$outputDir, opt$buildFragments_outputDir, f)))
+    system(paste0('xz --best ', file.path(opt$outputDir, opt$buildFragments_outputDir, paste0(f, '.tar'))))
+    
+    fp <- file.path(opt$outputDir, opt$buildFragments_outputDir, paste0(f, '.tar.xz'))
+    tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
+    invisible(file.remove(fp))
+    unlink(file.path(opt$outputDir, opt$buildFragments_outputDir, f), recursive = TRUE)
+    
+    r <- dbExecute(conn,
+                   "insert into samples values (?, ?, ?, ?, ?, ?)",
+                   params = list(list(serialize(tab, NULL)), x$trial[1], x$subject[1], x$sample[1], x$replicate[1], x$refGenome[1]))
+    
+    
+    # Remove any pre-existing records. Sample table entry should mostly eliminate need for this step.
     dbExecute(conn, paste0("delete from fragments where trial='", x$trial[1], "' and subject='", x$subject[1],
                           "' and sample='", x$sample[1], "' and replicate='", x$replicate[1], "' and refGenome='", x$refGenome[1], "'"))
     
+    # Create a table of fragments, compress it, and upload it to the database.
     f <- tmpFile()
     readr::write_tsv(dplyr::select(x, -trial, -subject, -sample, -replicate), file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', f))
     system(paste0('xz --best ', file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp', f)))
@@ -293,9 +312,9 @@ if(opt$databaseConfigGroup != 'none'){
     invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
     
     r <- dbExecute(conn,
-                   "insert into fragments values (?, ?, ?, ?, ?, ?, ?, ?)",
+                   "insert into fragments values (?, ?, ?, ?, ?, ?)",
                    params = list(x$trial[1], x$subject[1], x$sample[1], x$replicate[1], x$refGenome[1],
-                                 list(serialize(tab, NULL)), as.character(lubridate::today()), x$pid[1]))
+                                 list(serialize(tab, NULL))))
     if(r == 0){
       quitOnErorr(paste0('Error -- could not upload fragment data for ', x$uniqueSample[1], ' to the database.'))
     } else {

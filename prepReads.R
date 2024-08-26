@@ -15,19 +15,10 @@ suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(RMariaDB))
 options(stringsAsFactors = FALSE)
 
-# Parse the config file from the command line.
-configFile <- commandArgs(trailingOnly=TRUE)
-if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
+set.seed(1)
 
-# Read config file.
-opt <- yaml::read_yaml(configFile)
-
-# Test for key items needed to run sanity tests.
-if(! 'softwareDir' %in% names(opt)) stop('Error - the softwareDir parameter was not found in the configuration file.')
-if(! dir.exists(opt$softwareDir)) stop(paste0('Error - the softwareDir directory (', opt$softwareDir, ') does not exist.'))
-
-# Run config sanity tests.
-source(file.path(opt$softwareDir, 'lib.R'))
+source(file.path(yaml::read_yaml(commandArgs(trailingOnly=TRUE)[1])$softwareDir, 'lib.R'))
+opt <- loadConfig()
 optionsSanityCheck()
 
 createOuputDir()
@@ -50,13 +41,8 @@ quitOnErorr <- function(msg){
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
-runArchiveRunDetails()
-set.seed(1)
-
 updateLog('Reading sample data.')
 samples <- loadSamples()
-
-runArchiveRunDetails()
 
 if(tolower(opt$prepReads_additionalAnchorReadOverReadingSeqs) != 'none'){
   opt$prepReads_additionalAnchorReadOverReadingSeqs <- paste0(' -a ', paste0(unlist(strsplit(opt$prepReads_additionalAnchorReadOverReadingSeqs, ',')), collapse = ' -a '))
@@ -78,6 +64,7 @@ if(nrow(reads) == 0) quitOnErorr('Error - the input table contained no rows.')
 
 incomingSamples <- unique(reads$uniqueSample)
 
+if(previousSampleDatabaseCheck(tibble(uniqueSample = reads$uniqueSample, refGenome = reads$refGenome) %>% tidyr::separate(uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~') %>% distinct())) q(save = 'no', status = 1, runLast = FALSE) 
 
 # Trim anchor read over-reading with cutadapt using the RC of the common linker in adrift reads.
 # The trim sequence is defined in the reads table created by demultiplex.R.

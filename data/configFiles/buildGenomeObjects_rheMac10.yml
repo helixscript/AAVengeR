@@ -1,0 +1,10 @@
+CPUs: 20
+outputDir: rheMac10_output
+refGenomeName: rheMac10
+repeatMaskerSpecies: Macaca mulatta
+repeatMaskerPath: /home/ubuntu/software/RepeatMasker/RepeatMasker
+bwa2Path: /home/ubuntu/software/bwa-mem2/bwa-mem2
+faToTwoBitPath: /home/ubuntu/software/faToTwoBit
+refGenomeSeq_URL: https://hgdownload.soe.ucsc.edu/goldenPath/rheMac10/bigZips/rheMac10.fa.gz
+refSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/goldenPath/rheMac10/database/ncbiRefSeqCurated.txt.gz
+xenoRefSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/goldenPath/rheMac10/database/xenoRefGene.txt.gz

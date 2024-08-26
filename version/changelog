@@ -130,3 +130,17 @@ Added new config option to make other module CPU values match core CPU value.
 Cleaned up code in core.R and lib (HMM matching).
 Added new option sanity checks
 Added automatic addtition of not critical use options to config file from provided config file.
+2.1.1
+Patched reconstructDBtable()
+New version of anchorReadRearrangements.R
+2.2.0
+Added genome manager.
+Added synthetic data builder.
+Added test data sets.
+Added defaults file and handler for missing parameters.
+Added module overrides.
+Added human gene list file.
+Added COSMIC gene list.
+Removed callNearestGenesFiltered.
+Rebuilt database structure.
+Added database over-write protections.
