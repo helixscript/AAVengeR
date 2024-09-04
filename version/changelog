@@ -144,3 +144,14 @@ Added COSMIC gene list.
 Removed callNearestGenesFiltered.
 Rebuilt database structure.
 Added database over-write protections.
+2.2.1
+Changed the behavior of leader sequence captures.
+Previously, additional NTs would be appended to captured leader sequences when anchor read alignments started 
+beyond the first NT of trimmed reads. Now this behavior only occurs when prepReads_HMMmatchEnd is set to FALSE.
+prepReads_HMMmatchEnd is set to TRUE for mode integrase and FALSE for mode AAV. 
+
+Changed the behavior of buildStdFrags by first sorting leader sequences by frequency before passing to CD-HIT-EST.
+CD-HIT-EST selects cluster representatives by both length and order in input files. By moving less common leader
+sequences to the end of input files, commonly seen sequences are more likely to be selected as cluster representatives.
+
+Added runBuildSynSeqDataBatch.R

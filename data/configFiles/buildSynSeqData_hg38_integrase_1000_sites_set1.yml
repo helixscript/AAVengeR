@@ -1,7 +1,7 @@
 mode:   IN_u5
 seed:   1
 nSites: 1000
-nSitesPool:  2000
+nSitesPool: 2000
 nFragsperSite:  5
 nReadsPerFrag:  30
 fragStartSize:  50

@@ -7,9 +7,9 @@ mode: integrase                       # (integrase, AAV, transposase, or manual)
 core_CPUs: 7
 
 outputDir: output
-softwareDir: /home/ubuntu/AAVengeR
+softwareDir: /home/everett/AAVengeR
 
-databaseConfigFile: /home/ubuntu/.my.cnf
+databaseConfigFile: /home/everett/.my.cnf
 databaseConfigGroup: none
 
 sequencingRunID: 200101_M03500_0001_000000000-ABCXY

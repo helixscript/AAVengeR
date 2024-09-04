@@ -116,6 +116,13 @@ frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+'
 updateLog('Categorizing leader sequences.')
 
 frags <- rbindlist(lapply(split(frags, paste(frags$trial, frags$subject)), function(k){
+  
+            # Arrange reads so that the most common sequences are listed first so that CD-HIT
+            # will be more likely to select common sequences as cluster seeds.
+            o <- data.frame(sort(table(k$leaderSeq), decreasing = TRUE))
+            o$i <- 1:nrow(o)
+            k <- left_join(k, select(o, -Freq), by = c('leaderSeq' = 'Var1')) %>% arrange(i) %>% select(-i)
+  
             d <- DNAStringSet(unique(k$leaderSeq))
             names(d) <- paste0('s', 1:length(d))
             
@@ -430,6 +437,13 @@ frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPos
     x$posid <- paste0(x$posid2, '.1')
     x$leaderSeqGroupNum <- 1
   } else {
+    
+    # Arrange reads so that the most common sequences are listed first so that CD-HIT
+    # will be more likely to select common sequences as cluster seeds.
+    o <- data.frame(sort(table(x$leaderSeq), decreasing = TRUE))
+    o$i <- 1:nrow(o)
+    x <- left_join(x, select(o, -Freq), by = c('leaderSeq' = 'Var1')) %>% arrange(i) %>% select(-i)
+    
     d <- DNAStringSet(x$leaderSeq)
     names(d) <- x$readID
     clstrs <- CD_HIT_clusters(d, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), opt$buildStdFragments_remnantClusterParams)

@@ -143,7 +143,8 @@ optionsSanityCheck <- function(){
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 300
     opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
     opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 10
-    opt$prepReads_forceAnchorReadStartSeq <<- TRUE
+    opt$prepReads_forceAnchorReadStartSeq <<- TRUE # Use provided start sequence if a leader seq model is not returned.
+    opt$prepReads_HMMmatchEnd <<- FALSE # Triggers leaderSeq extension in alignReads.R.
   } else if(grepl('transposase', opt$mode, ignore.case = TRUE)){
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
     opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5

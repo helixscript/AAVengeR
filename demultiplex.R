@@ -102,6 +102,9 @@ options(scipen = 999)
 
 updateLog('Starting demultipling.')
 
+# The number of incoming reads can not not be perfectly divisible by opt$demultiplex_sequenceChunkSize
+if(dataSetLength %% opt$demultiplex_sequenceChunkSize == 0) opt$demultiplex_sequenceChunkSize <- opt$demultiplex_sequenceChunkSize + 1
+
 repeat {
   
   updateLog(paste0('   processing data chunk ', k, '.'))
