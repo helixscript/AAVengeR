@@ -761,8 +761,6 @@ buildConsensusSeq <- function(x){
 
 
 filterUMIs <- function(x){
-
-  browser() 
   k <- data.frame(table(x)) %>%
        dplyr::mutate(f = (Freq / sum(Freq) * 100)) %>%
        dplyr::filter(f >= opt$buildStdFragments_UMIminPercentReads) %>%
