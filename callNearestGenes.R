@@ -100,14 +100,14 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
            }
           
           posids <- x$posid
-          posids <- unique(sub('\\.\\d+$', '', posids))
+          posids <- unique(sub('\\.\\S+$', '', posids))
           
           updateLog(paste0('Calling nearestGene() for ', n_distinct(posids), ' sites.'))
           n <- nearestGene(posids, genes, exons, CPUs = opt$callNearestGenes_CPUs)
           
           n$posid2 <- paste0(n$chromosome, n$strand, n$position)
           n <- n[!duplicated(n$posid2),]
-          x$posid2 <- sub('\\.\\d+', '', x$posid)
+          x$posid2 <- sub('\\.\\S+$', '', x$posid)
           
           len <- length(x)
           n <- select(n, nearestGene, nearestGeneStrand, nearestGeneDist, inGene, inExon, beforeNearestGene, posid2)

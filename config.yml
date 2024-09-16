@@ -134,6 +134,7 @@ buildStdFragments_autoPullTrialSamples: FALSE
 buildStdFragments_trialSubjectList: none
 buildStdFragments_randomIDdupReadMult: 3
 buildStdFragments_randomIDdupAbundMult: 2
+buildStdFragments_clusterLeaderSeqs: TRUE
 buildStdFragments_standardizeIntegrationPositions: TRUE
 buildStdFragments_standardizeBreakPositions: TRUE
 buildStdFragments_standardizeBreakPositionsWithin: replicates

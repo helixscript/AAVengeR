@@ -71,7 +71,7 @@ sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
                 o <- unlist(strsplit(x2, '[\\+\\-]'))
                 strand <- stringr::str_extract(x2, '[\\-\\+]')
              
-                o[2] <- sub('\\.\\d+$', '', o[2])
+                o[2] <- sub('\\.\\S+$', '', o[2])
                 pos <- as.integer(o[2])
              
                 if(! o[1] %in% names(g)) return(tibble(uniqueSite = us, PCRartifact1 = NA))
@@ -156,7 +156,7 @@ o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
     o <- unlist(strsplit(x2, '[\\+\\-]'))
     strand <- stringr::str_extract(x2, '[\\-\\+]')
     
-    o[2] <- sub('\\.\\d+$', '', o[2])
+    o[2] <- sub('\\.\\S+$', '', o[2])
     pos <- as.integer(o[2])
     
     if(! o[1] %in% names(g)) return(tibble(uniqueSite = us, strand = strand, seq = paste0(rep('N', opt$predictPCRartifacts_adjacentSeqLength), collapse = '')))

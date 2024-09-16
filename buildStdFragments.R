@@ -115,36 +115,41 @@ frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+'
 # -------------------------------------------------------------------------------
 updateLog('Categorizing leader sequences.')
 
-frags <- rbindlist(lapply(split(frags, paste(frags$trial, frags$subject)), function(k){
+if(opt$buildStdFragments_clusterLeaderSeqs){
+   frags <- rbindlist(lapply(split(frags, paste(frags$trial, frags$subject)), function(k){
   
-            # Arrange reads so that the most common sequences are listed first so that CD-HIT
-            # will be more likely to select common sequences as cluster seeds.
-            o <- data.frame(sort(table(k$leaderSeq), decreasing = TRUE))
-            o$i <- 1:nrow(o)
-            k <- left_join(k, select(o, -Freq), by = c('leaderSeq' = 'Var1')) %>% arrange(i) %>% select(-i)
+               # Arrange reads so that the most common sequences are listed first so that CD-HIT
+               # will be more likely to select common sequences as cluster seeds.
+               o <- data.frame(sort(table(k$leaderSeq), decreasing = TRUE))
+               o$i <- 1:nrow(o)
+               k <- left_join(k, select(o, -Freq), by = c('leaderSeq' = 'Var1')) %>% arrange(i) %>% select(-i)
   
-            d <- DNAStringSet(unique(k$leaderSeq))
-            names(d) <- paste0('s', 1:length(d))
+               d <- DNAStringSet(unique(k$leaderSeq))
+               names(d) <- paste0('s', 1:length(d))
             
-            clstrs <- CD_HIT_clusters(d, opt$outputDir, opt$buildStdFragments_remnantClusterParams)
+               clstrs <- CD_HIT_clusters(d, opt$outputDir, opt$buildStdFragments_remnantClusterParams)
 
-            n <- 0
-            m <- rbindlist(lapply(clstrs, function(x){
-              e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
+               n <- 0
+               m <- rbindlist(lapply(clstrs, function(x){
+               e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
               
-              if(length(e) > 0){
+               if(length(e) > 0){
                 n <<- n + 1
                 return(data.table(readID = sub('^>', '', e), leaderSeqGroupNum = n))
-              } else {
-                return(data.table())
-              }
-            })) %>% left_join(data.frame(seq = as.character(d), readID = names(d)), by = 'readID') %>%
+               } else {
+                 return(data.table())
+               }
+              })) %>% left_join(data.frame(seq = as.character(d), readID = names(d)), by = 'readID') %>%
               select(-readID) 
             
-            m <- m[! duplicated(m$seq),]
+              m <- m[! duplicated(m$seq),]
             
-            left_join(k, m, by = c('leaderSeq' = 'seq'))
-           }))
+              left_join(k, m, by = c('leaderSeq' = 'seq'))
+             }))
+} else {
+  frags$leaderSeqGroupNum <- '*'
+}
+
 
 
 # Build fragment ids.
@@ -429,77 +434,80 @@ if(length(z) > 0){
 # ------------------------------------------------------------------------------
 updateLog('Reevaluating leader sequence classification after standardization.')
 
-frags_uniqPosIDs$posid2 <- gsub('\\.\\d+$', '', frags_uniqPosIDs$posid)
+frags_uniqPosIDs$posid2 <- gsub('\\.\\S+$', '', frags_uniqPosIDs$posid)
 
-frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPosIDs$trialSubject, frags_uniqPosIDs$sample, frags_uniqPosIDs$posid2)), function(x){
+if(opt$buildStdFragments_clusterLeaderSeqs){
+  frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPosIDs$trialSubject, frags_uniqPosIDs$sample, frags_uniqPosIDs$posid2)), function(x){
   
-  if(n_distinct(x$leaderSeq) == 1){
-    x$posid <- paste0(x$posid2, '.1')
-    x$leaderSeqGroupNum <- 1
-  } else {
-    
-    # Arrange reads so that the most common sequences are listed first so that CD-HIT
-    # will be more likely to select common sequences as cluster seeds.
-    o <- data.frame(sort(table(x$leaderSeq), decreasing = TRUE))
-    o$i <- 1:nrow(o)
-    x <- left_join(x, select(o, -Freq), by = c('leaderSeq' = 'Var1')) %>% arrange(i) %>% select(-i)
-    
-    d <- DNAStringSet(x$leaderSeq)
-    names(d) <- x$readID
-    clstrs <- CD_HIT_clusters(d, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), opt$buildStdFragments_remnantClusterParams)
-    
-    if(length(clstrs) == 1 | any(is.na(clstrs))){
+    if(n_distinct(x$leaderSeq) == 1){
       x$posid <- paste0(x$posid2, '.1')
       x$leaderSeqGroupNum <- 1
     } else {
-      # here are more than one remnant group associated with this posid.
-      n <- 0
+    
+      # Arrange reads so that the most common sequences are listed first so that CD-HIT
+      # will be more likely to select common sequences as cluster seeds.
+      o <- data.frame(sort(table(x$leaderSeq), decreasing = TRUE))
+      o$i <- 1:nrow(o)
+      x <- left_join(x, select(o, -Freq), by = c('leaderSeq' = 'Var1')) %>% arrange(i) %>% select(-i)
+    
+      d <- DNAStringSet(x$leaderSeq)
+      names(d) <- x$readID
+      clstrs <- CD_HIT_clusters(d, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), opt$buildStdFragments_remnantClusterParams)
+    
+      if(length(clstrs) == 1 | any(is.na(clstrs))){
+        x$posid <- paste0(x$posid2, '.1')
+        x$leaderSeqGroupNum <- 1
+      } else {
+        # here are more than one remnant group associated with this posid.
+        n <- 0
       
-      m <- rbindlist(lapply(clstrs, function(x){
-             e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
+        m <- rbindlist(lapply(clstrs, function(x){
+               e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
              
-             if(length(e) > 0){
-               n <<- n + 1
-               return(data.table(readID = sub('^>', '', e), leaderSeqGroupNum = n))
-             } else {
-               return(data.table())
-             }
-           })) %>% left_join(data.frame(seq = as.character(d), readID = names(d)), by = 'readID') %>% select(-readID) 
+               if(length(e) > 0){
+                 n <<- n + 1
+                 return(data.table(readID = sub('^>', '', e), leaderSeqGroupNum = n))
+               } else {
+                 return(data.table())
+               }
+             })) %>% left_join(data.frame(seq = as.character(d), readID = names(d)), by = 'readID') %>% select(-readID) 
       
-      m <- m[! duplicated(m$seq),]
+        m <- m[! duplicated(m$seq),]
       
-      x$leaderSeqGroupNum <- NULL
+        x$leaderSeqGroupNum <- NULL
       
-      x <- left_join(x, m, by = c('leaderSeq' = 'seq'))
+        x <- left_join(x, m, by = c('leaderSeq' = 'seq'))
       
-      i <- is.na(x$leaderSeqGroupNum)
-      if(any(i)) x[i, ]$leaderSeqGroupNum <- 1
+        i <- is.na(x$leaderSeqGroupNum)
+        if(any(i)) x[i, ]$leaderSeqGroupNum <- 1
       
-      x$w <- x$fragEnd - x$fragStart
-      o <- group_by(x, leaderSeqGroupNum) %>% 
-           summarise(nWidths = n_distinct(w), nReads = n()) %>% 
-           ungroup() %>% 
-           arrange(desc(nWidths), desc(nReads)) %>% 
-           mutate(leaderSeqGroupNum2 = 1:n())
+        x$w <- x$fragEnd - x$fragStart
+        o <- group_by(x, leaderSeqGroupNum) %>% 
+             summarise(nWidths = n_distinct(w), nReads = n()) %>% 
+             ungroup() %>% 
+             arrange(desc(nWidths), desc(nReads)) %>% 
+             mutate(leaderSeqGroupNum2 = 1:n())
       
-      x <- left_join(x, select(o, -nWidths, -nReads), by = 'leaderSeqGroupNum')
-      x$leaderSeqGroupNum <- x$leaderSeqGroupNum2
-      x <- select(x, -leaderSeqGroupNum2, -w)
+        x <- left_join(x, select(o, -nWidths, -nReads), by = 'leaderSeqGroupNum')
+        x$leaderSeqGroupNum <- x$leaderSeqGroupNum2
+        x <- select(x, -leaderSeqGroupNum2, -w)
       
-      x$posid <- paste0(x$posid2, '.', x$leaderSeqGroupNum)
+        x$posid <- paste0(x$posid2, '.', x$leaderSeqGroupNum)
+      }
     }
-  }
   
-  x
-})) 
-
-
-# Exceptions.
-i <- is.na(frags_uniqPosIDs$leaderSeqGroupNum)
-if(any(i)) frags_uniqPosIDs[i, ]$leaderSeqGroupNum <- 1
-
-i <- nchar(frags_uniqPosIDs$leaderSeq) < opt$buildStdFragments_minRemnantLengthToGroup
-if(any(i)) frags_uniqPosIDs[i, ]$leaderSeqGroupNum <- 1
+    x
+  })) 
+  
+  i <- is.na(frags_uniqPosIDs$leaderSeqGroupNum)
+  if(any(i)) frags_uniqPosIDs[i, ]$leaderSeqGroupNum <- 1
+  
+  i <- nchar(frags_uniqPosIDs$leaderSeq) < opt$buildStdFragments_minRemnantLengthToGroup
+  if(any(i)) frags_uniqPosIDs[i, ]$leaderSeqGroupNum <- 1
+  
+} else {
+  frags_uniqPosIDs$leaderSeqGroupNum <- '*'
+}
 
 frags_uniqPosIDs$posid <- paste0(frags_uniqPosIDs$posid2, '.', frags_uniqPosIDs$leaderSeqGroupNum)
 

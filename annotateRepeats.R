@@ -76,6 +76,8 @@ sites <- bind_rows(lapply(unique(sites$refGenome), function(x){
   s$strand <- stringr::str_extract(s$posid, '[\\+\\-]')
   s$position <- unlist(lapply(a, '[', 2))
   
+  s$position <- sub('\\.\\S+$', '', s$position)
+  
   s2 <- makeGRangesFromDataFrame(select(s, chromosome, strand, position, posid), 
                                 start.field = 'position', end.field = 'position', keep.extra.columns = TRUE)
   
@@ -141,6 +143,8 @@ if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiH
     
       s2 <- makeGRangesFromDataFrame(select(d, chromosome, strand, position, posid), 
                                    start.field = 'position', end.field = 'position', keep.extra.columns = TRUE)
+      
+      s2$position <- sub('\\.\\S+$', '', s2$position)
     
       o <- GenomicRanges::findOverlaps(s2, g, ignore.strand = TRUE)
       k <- tibble(posid = s2[queryHits(o)]$posid, 

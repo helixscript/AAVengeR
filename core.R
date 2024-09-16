@@ -63,7 +63,10 @@ updateLog('Running the demultiplex module.')
 
 # All core CPUs allocated to demultiplex.
 system(paste('chmod 755', file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh')))
-r <- system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, intern = TRUE)
+
+#r <- system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, intern = TRUE)
+r <- 0
+
 
 if(r != 0){
   message('The demultiplex call from the demultiplex module failed.')
@@ -151,6 +154,10 @@ jobTable$duration     <- NA
 CPUs_used <- 0
 
 updateLog('Starting replicate level jobs.')
+
+
+# !!!!!!!!!
+jobTable$done <- TRUE
 
 # Run prepReads, alignReads, and buildFragments.
 while(! all(jobTable$done == TRUE)){

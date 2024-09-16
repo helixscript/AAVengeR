@@ -155,3 +155,6 @@ CD-HIT-EST selects cluster representatives by both length and order in input fil
 sequences to the end of input files, commonly seen sequences are more likely to be selected as cluster representatives.
 
 Added runBuildSynSeqDataBatch.R
+2.2.2
+Added buildStdFragments_clusterLeaderSeqs option and updated select modules to accomindate using '*' in addtion 
+to integers to denote remnant sequence groupings.
