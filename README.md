@@ -36,7 +36,7 @@
 %> ../../../aavenger.R config.yml
 
 # Compare the result to the provided truth file.
-%> ./../../evalSynSeqData.R $PWD result.tsv; cat result.tsv
+%> ../../../evalSynSeqData.R $PWD result.tsv; cat result.tsv
       exp	     nSites	 set	percentUniqueRecovery	percentTotalRecovery	unexpectedSites	leaderSeqDist.meanleaderSeqDist.sd
    integrase	       100	  1	         90.0%	              99.0%	               0             	0	             0
 ```
