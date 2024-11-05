@@ -121,7 +121,7 @@ buildFragments_adriftReadsAlignmentFile: alignReads/adriftReadAlignments.rds
 buildFragments_idGroup_size: 500
 buildFragments_maxReadAlignments: 1500
 buildFragments_salvageReadsBeyondMaxNumAlignments: TRUE
-buildFragments_minFragLength: 40
+buildFragments_minFragLength: 30
 buildFragments_maxFragLength: 3000
 buildFragments_randomLinkerID_minReadCountToSegreagate: 10
 buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90
