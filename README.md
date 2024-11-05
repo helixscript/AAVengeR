@@ -29,7 +29,7 @@
 # Change into the test directory built by the previous command.
 %> cd data/tests/hg38_integrase_100_sites_set1
 
-# Copy the defaul configuration file to the test directory.
+# Copy the default configuration file to the test directory.
 %> cp ../../../config.yml ./
 
 # Update config with your installation path and names of synthetic read file names then run.
