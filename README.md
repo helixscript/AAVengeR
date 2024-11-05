@@ -1,3 +1,46 @@
+# Installation
+
+```
+%> git clone https://github.com/helixscript/AAVengeR
+%> cd AAVengeR
+
+%> ./aavenger.R --list.available.genomes
+   Available genomes:
+
+   refGenome   dataSize 
+   ----------- ----------
+     canFam3     13 GB   
+      hg38       17 GB   
+       hs1       17 GB   
+      mm10       15 GB   
+       mm9       15 GB   
+    rheMac10     16 GB   
+     sacCer3     68 MB   
+
+%> ./aavenger.R --install.genome sacCer3
+%> ./aavenger.R --install.genome hg38
+```
+# Installation testing
+
+```
+# Build one of the provided test data set configurations.
+%> ./buildSynSeqData.R data/configFiles/buildSynSeqData_hg38_integrase_100_sites_set1.yml
+
+# Change into the test directory built by the previous command.
+%> cd data/tests/hg38_integrase_100_sites_set1
+
+# Copy the defaul configuration file to the test directory.
+%> cp ../../../config.yml ./
+
+# Update config with your installation path and names of synthetic read file names then run.
+%> ../../../aavenger.R config.yml
+
+# Compare the result to the provided truth file.
+%> ./../../evalSynSeqData.R $PWD result.tsv; cat result.tsv
+      exp	     nSites	 set	percentUniqueRecovery	percentTotalRecovery	unexpectedSites	leaderSeqDist.meanleaderSeqDist.sd
+   integrase	       100	  1	         90.0%	              99.0%	               0             	0	             0
+```
+
 # Implementation  
 
 AAVengeR is written in the R programming language and is designed to run on a single server with modest resources while its modular design can be easily adapted to more distributive solutions such as Nextflow and cloud computing platforms. The software is driven by two configuration files, one that defines processing parameters for each module and a second that describes experimental samples. The sample configuration file contains sample specific details such as barcode and linker sequences, vector details, and reference genomes.  AAVengeR modules can be chained together to create custom pipelines and custom modules can be used by simply adding them to module chain lists and adding their parameters to the software configuration file.
