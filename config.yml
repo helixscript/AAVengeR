@@ -4,12 +4,12 @@
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 mode: integrase                       # (integrase, AAV, transposase, or manual)
 
-core_CPUs: 7
+core_CPUs: 15
 
 outputDir: output
-softwareDir: /home/everett/AAVengeR
+softwareDir: /home/ubuntu/AAVengeR
 
-databaseConfigFile: /home/everett/.my.cnf
+databaseConfigFile: /home/ubuntu/.my.cnf
 databaseConfigGroup: none
 
 sequencingRunID: 200101_M03500_0001_000000000-ABCXY
@@ -22,9 +22,7 @@ demultiplex_sampleDataFile:  sampleData.tsv
 modules:
    - core
    - callNearestGenes
-   - callNearestGenes   callNearestGenes_outputDir:nearestOncoGenes,callNearestGenes_columnPrefix:onco_,callNearestGenes_geneListFilter:data/geneLists/COSMIC_v10_genes
    - annotateRepeats
-
 
 # Additional parameters.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
@@ -47,8 +45,8 @@ demultiplex_requirePostUmiLinker: TRUE
 demultiplex_requirePostUmiLinker_maxMismatch: 2
 demultiplex_RC_I1_barcodes: FALSE
 demultiplex_RC_I1_barcodes_auto: TRUE
-demultiplex_qualtrim_code: '5'
-demultiplex_qualtrim_halfWidth: 5
+demultiplex_qualtrim_code: '+'
+demultiplex_qualtrim_halfWidth: 3
 demultiplex_qualtrim_events: 2
 demultiplex_qualtrim_minLength: 50
 demultiplex_correctGolayIndexReads: FALSE
@@ -102,10 +100,14 @@ alignReads_blat_fastMap: FALSE
 alignReads_blatUseOocFile: FALSE
 alignReads_genomeAlignment_anchorRead_maxStartPos: 3
 alignReads_genomeAlignment_adriftRead_maxStartPos: 3
-alignReads_genomeAlignment_minPercentID: 98
-alignReads_genomeAlignment_blatStepSize: 9
+alignReads_genomeAlignment_minPercentID: 95
+alignReads_genomeAlignment_blatStepSize: 5
 alignReads_genomeAlignment_blatTileSize: 11
 alignReads_genomeAlignment_blatRepMatch: 3000
+alignReads_genomeAlignment_blatMaxtNumInsert: 1
+alignReads_genomeAlignment_blatMaxqNumInsert: 1
+alignReads_genomeAlignment_blatMaxtBaseInsert: 1
+alignReads_genomeAlignment_blatMaxqBaseInsert: 1
 alignReads_genomeAlignment_anchorReadEnd_maxUnaligned: 5
 alignReads_genomeAlignment_adriftReadEnd_maxUnaligned: 5
 
@@ -119,7 +121,7 @@ buildFragments_adriftReadsAlignmentFile: alignReads/adriftReadAlignments.rds
 buildFragments_idGroup_size: 500
 buildFragments_maxReadAlignments: 1500
 buildFragments_salvageReadsBeyondMaxNumAlignments: TRUE
-buildFragments_minFragLength: 20
+buildFragments_minFragLength: 40
 buildFragments_maxFragLength: 3000
 buildFragments_randomLinkerID_minReadCountToSegreagate: 10
 buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90
@@ -142,6 +144,7 @@ buildStdFragments_intSiteStdWindowWidth: 5
 buildStdFragments_breakPointStdWindowWidth: 3
 buildStdFragments_minReadsPerFrag: 1
 buildStdFragments_createMultiHitClusters: TRUE
+buildStdFragments_salvageMultiHitReads: TRUE
 buildStdFragments_UMIminPercentReads: 15
 buildStdFragments_remnantClusterParams: -c 0.85 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -5 -gap-ext -1 -aS 0.85 -aL 0.85
 
@@ -153,13 +156,14 @@ buildSites_inputFile: buildStdFragments/stdFragments.rds
 buildSites_outputDir: buildSites
 buildSites_enableDualDetection: TRUE
 buildSites_dualDetectWidth: 6
+buildSites_integraseCorrectionDist: 0
 buildSites_sumSonicBreaksWithin: samples
 
 
 # annotateRepeat module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 annotateRepeats_CPUs: 15
-annotateRepeats_inputFile: predictPCRartifacts/sites.rds
+annotateRepeats_inputFile: callNearestGenes/sites.rds
 annotateRepeats_outputDir: annotateRepeats
 annotateRepeats_addAfter: nRepsObs
 
@@ -177,6 +181,9 @@ callNearestGenes_boundaries:
   hg38:
     TUs:   hg38.TUs.rds
     exons: hg38.exons.rds
+  hs1:
+    TUs:   hs1.TUs.rds
+    exons: hs1.exons.rds
   sacCer3:
         TUs:   sacCer3.TUs.rds
         exons: sacCer3.exons.rds
