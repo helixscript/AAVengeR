@@ -45,17 +45,6 @@
 
 AAVengeR is written in the R programming language and is designed to run on a single server with modest resources while its modular design can be easily adapted to more distributive solutions such as Nextflow and cloud computing platforms. The software is driven by two configuration files, one that defines processing parameters for each module and a second that describes experimental samples. The sample configuration file contains sample specific details such as barcode and linker sequences, vector details, and reference genomes.  AAVengeR modules can be chained together to create custom pipelines and custom modules can be used by simply adding them to module chain lists and adding their parameters to the software configuration file.
   
-  
-# Installing additional AAVengeR genomes and genome annotations   
-
-Due to GitHub size restrictions, only the sacCer3 genome and annotation files are provided 
-with the software. Additional genomes and genome annotations are available: hg38, mm9, canFam3, macFas5, and GCA_009914755.4. 
-The importGenomeData.R script can be used to pull reference genomes (2bit format) and supporting genome annotations.
-
-```
-importGenomeData.R hg38
-```
-
 # Usage
 
 AAVengeR requires two configuration files. The [first configuration file](config.yml) contains the list of modules to run, module specific processing paramers, paths to resources, and the path to the second configuration file which defines sample specific parameters. The [sample configuration file](sampleData.tsv) contains sample specific information such as barcode sequences for demultiplexing, linker sequences, and reference genome against which reads should be aligned.  
