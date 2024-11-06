@@ -24,19 +24,9 @@
 
 ```
 # Build one of the provided test data set configurations.
-%> ./buildSynSeqData.R data/configFiles/buildSynSeqData_hg38_integrase_100_sites_set1.yml
+%> ./buildRunSynSeqData.R data/configFiles/buildSynSeqData_hg38_integrase_100_sites_set1.yml
 
-# Change into the test directory built by the previous command.
-%> cd data/tests/hg38_integrase_100_sites_set1
-
-# Copy the default configuration file to the test directory.
-%> cp ../../../config.yml ./
-
-# Update config with your installation path and names of synthetic read file names then run.
-%> ../../../aavenger.R config.yml
-
-# Compare the result to the provided truth file.
-%> ../../../evalSynSeqData.R $PWD result.tsv; cat result.tsv
+%> cat data/tests/hg38_integrase_100_sites_set1/result.tsv
       exp	     nSites	 set	percentUniqueRecovery	percentTotalRecovery	unexpectedSites	leaderSeqDist.meanleaderSeqDist.sd
    integrase	       100	  1	         90.0%	              99.0%	               0             	0	             0
 ```
