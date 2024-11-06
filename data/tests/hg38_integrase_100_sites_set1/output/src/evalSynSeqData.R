@@ -35,7 +35,6 @@ if(file.exists(file.path(args[1], 'output', 'core', 'sites.rds'))){
     if(length(z) > 0) unexpectedSites <- n_distinct(z)
         
     if(file.exists(file.path(args[1], 'output', 'core', 'multiHitClusters.rds'))){
-          message('Found multiHit result.')
           m <- readRDS(file.path(args[1], 'output', 'core', 'multiHitClusters.rds'))
          
           missingSites <- posidToGrange(unique(sub('\\.\\d+$', '', missingSites)), expand = 3)
@@ -44,7 +43,6 @@ if(file.exists(file.path(args[1], 'output', 'core', 'sites.rds'))){
           i2 <- findOverlaps(missingSites, multiHitSites)
           p2 <- (n_distinct(subjectHits(i)) + n_distinct(queryHits(i2))) / n_distinct(t$posid)
     } else {
-          
           p2 <- NA
     }
         

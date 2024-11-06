@@ -1,0 +1,9 @@
+Wed Nov  6 06:41:59 2024
+Available CPUs: 32
+
+
+              id                reads   CPUs   active       startTime             endTime         done   duration  
+------------------------------ ------- ------ -------- -------------------- -------------------- ------ -----------
+ validation~validationSubject   3575     5       NA     11.06.2024  6:40am   11.06.2024  6:41am   TRUE   1 minutes 
+
+
