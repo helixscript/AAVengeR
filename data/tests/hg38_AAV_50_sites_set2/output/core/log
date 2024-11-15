@@ -1,0 +1,24 @@
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 2.3.1
+
+11.15.2024  3:50am	Starting core module.
+11.15.2024  3:50am	This module will call the following modules:
+11.15.2024  3:50am	demultiplex, prepReads, alignReads, buildFragments, buildStdFragments, and buildSites.
+11.15.2024  3:50am	Running the demultiplex module.
+11.15.2024  3:53am	Demultiplex completed.
+11.15.2024  3:53am	1,760 reads demultiplexed across 6 sample replicates.
+11.15.2024  3:53am	Starting replicate level jobs.
+11.15.2024  3:53am	Starting validation~validationSubject~sample1~2.
+11.15.2024  3:53am	Starting validation~validationSubject~sample1~1.
+11.15.2024  3:53am	Starting validation~validationSubject~sample2~2.
+11.15.2024  3:53am	Starting validation~validationSubject~sample2~1.
+11.15.2024  3:53am	Starting validation~validationSubject~sample3~1.
+11.15.2024  3:54am	Starting validation~validationSubject~sample3~2.

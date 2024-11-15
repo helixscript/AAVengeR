@@ -29,7 +29,7 @@ modules:
 Rscript: /usr/bin/Rscript
 compressDataFiles: FALSE
 processAdriftReadLinkerUMIs: FALSE
-core_keepIntermediateFiles: TRUE
+core_keepIntermediateFiles: FALSE
 core_applyCoreCPUsToAllModules: TRUE
 
 
@@ -121,7 +121,7 @@ buildFragments_idGroup_size: 500
 buildFragments_maxReadAlignments: 1500
 buildFragments_salvageReadsBeyondMaxNumAlignments: TRUE
 buildFragments_minFragLength: 30
-buildFragments_maxFragLength: 3000
+buildFragments_maxFragLength: 100000
 buildFragments_randomLinkerID_minReadCountToSegreagate: 10
 buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90
 
@@ -142,6 +142,7 @@ buildStdFragments_standardizeBreakPositionsWithin: replicates
 buildStdFragments_intSiteStdWindowWidth: 5
 buildStdFragments_breakPointStdWindowWidth: 3
 buildStdFragments_minReadsPerFrag: 1
+buildStdFragments_maxFragLength: 3000
 buildStdFragments_createMultiHitClusters: TRUE
 buildStdFragments_salvageMultiHitReads: TRUE
 buildStdFragments_UMIminPercentReads: 15
@@ -232,7 +233,7 @@ barcodeAssocLinkers_excludePolyG_index1BarCodes: TRUE
 barcodeAssocLinkers_adriftReadUniqueLinkerLength: 20
 
 
-# barcodeAssocLinkers module.
+# buildAAVremnantPlots module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 buildAAVremnantPlots_outputDir: buildAAVremnantPlots
 buildAAVremnantPlots_inputFile: mapSiteLeaderSequences/sites.rds

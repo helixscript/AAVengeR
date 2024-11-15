@@ -848,6 +848,10 @@ if(nrow(a) > 0){
 f <- bind_rows(a2, b2)
 
 
+# Apply second max fragment length filter.
+f <- f[(f$fragEnd - f$fragStart) + 1 <= opt$buildStdFragments_maxFragLength,]
+
+
 # Clear out the tmp/ directory.
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), full.names = TRUE)))
 

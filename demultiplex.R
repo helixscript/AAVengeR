@@ -411,7 +411,7 @@ if(opt$demultiplex_quickAlignFilter){
     if(nrow(a) > 0){
       updateLog('Subsetting read data.')
       x <- subset(x, readID %in% a$qName)
-    
+      
       updateLog('Calculating and appending min. alignment start positions.')
       
       minAlnStarts <- group_by(lazy_dt(a), qName) %>% 
