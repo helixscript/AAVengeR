@@ -324,16 +324,18 @@ if(opt$demultiplex_quickAlignFilter){
     
     # Substr will not fail if boundaries are unrealistic.
     updateLog('Creating adrift read FASTA for alignment.')
+    
+    # Do not align the ends of reads because they may be from over-reading.
     o <- DNAStringSet(substr(x$adriftReadSeq, x$adriftLinkerSeqEnd+1, nchar(x$adriftReadSeq)))
     names(o) <- x$readID
-    
-    minAdriftReadToAlign <- 30
+    minAdriftReadToAlign <- 50
     o <- o[width(o) >= minAdriftReadToAlign]
+    o <- subseq(o, 1, minAdriftReadToAlign)
     
     writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'))
     
     updateLog('Starting BWA2.')
-    system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 10000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
+    system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'), ' > ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam')))
     
@@ -346,15 +348,16 @@ if(opt$demultiplex_quickAlignFilter){
     p <- readr::read_tsv(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'), col_names = FALSE)
     p$X12 <- ifelse(p$X9 == '-', p$X11 - p$X13, p$X12)
     p$X13 <- ifelse(p$X9 == '-', p$X11 - p$X12, p$X13)
-    p$X2 <- 0 # Erase mismatches since UCSC scoring function penalizes mismatches when calculating % id.
+    
     readr::write_tsv(p, file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'), col_names = FALSE)
     
     updateLog('Parsing psl table.')
     a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'))
     
     if(nrow(a) > 0){
-      a <- dplyr::filter(a, queryPercentID >= opt$demultiplex_quickAlignFilter_minPercentID, tNumInsert <= 1, 
-                         qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= 5, matches >= opt$demultiplex_quickAlignFilter_minMatches)
+      a <- dplyr::filter(a, queryPercentID >= opt$demultiplex_quickAlignFilter_minPercentID, 
+                            matches >= opt$demultiplex_quickAlignFilter_minMatches,
+                            tNumInsert <= 1, qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, qStart <= 5)
     }
     
     updateLog('Cleaning up files.')
@@ -366,20 +369,15 @@ if(opt$demultiplex_quickAlignFilter){
     x <- subset(x, readID %in% a$qName)
     
     updateLog('Creating anchor read FASTA for alignment.')
-    o <- DNAStringSet(substr(x$anchorReadSeq, opt$demultiplex_quickAlignFilter_minEstLeaderSeqLength, nchar(x$anchorReadSeq)))
-    names(o) <- x$readID
     
-    minAnchorReadToAlign <- 30
-    o <- o[width(o) >= minAnchorReadToAlign]
+    o <- DNAStringSet(x$anchorReadSeq)
+    names(o) <- x$readID
     
     writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'))
     
     updateLog('Starting BWA2.')
     
-    # -B -O flags makes bwa-mem2 more tolerant of mismatches near the ends of alignments.
-    # system(paste0('bwa-mem2 mem -B 2 -O 4 -t ', opt$demultiplex_CPUs, ' -c 10000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
-    # (!) These options are making results too voluminous.
-    system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -c 10000 -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
+    system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'), ' > ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam')))
     
@@ -396,7 +394,6 @@ if(opt$demultiplex_quickAlignFilter){
     updateLog('Rearranging psl table columns and rewriting.')
     p$X12 <- ifelse(p$X9 == '-', p$X11 - p$X13, p$X12)
     p$X13 <- ifelse(p$X9 == '-', p$X11 - p$X12, p$X13)
-    p$X2 <- 0 # Erase mismatches since UCSC scoring function penalizes mismatches when calculating % id.
     
     readr::write_tsv(p, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'), col_names = FALSE)
     
@@ -404,9 +401,11 @@ if(opt$demultiplex_quickAlignFilter){
     a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'))
     
     updateLog('Filtering psl table.')
+    
     if(nrow(a) > 0){
-      a <- dplyr::filter(a, queryPercentID >= opt$demultiplex_quickAlignFilter_minPercentID, tNumInsert <= 1, 
-                         qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2, matches >= opt$demultiplex_quickAlignFilter_minMatches)
+      # Here we just count matches rather than filter against percent id because a number of NTs at the start of reads will likely be from the ITR
+      # and NTs at the end of reads may arise from over-reading
+      a <- dplyr::filter(a, matches >= opt$demultiplex_quickAlignFilter_minMatches, tNumInsert <= 1, qNumInsert <= 1, tBaseInsert <= 2, qBaseInsert <= 2)
     }
     
     if(nrow(a) > 0){
@@ -420,15 +419,9 @@ if(opt$demultiplex_quickAlignFilter){
                       slice_min(qStart, with_ties = FALSE) %>%
                       select(qName, qStart) %>% 
                       ungroup() %>%
-                      mutate(quickFilterStartPos = qStart + opt$demultiplex_quickAlignFilter_minEstLeaderSeqLength) %>%
+                      mutate(quickFilterStartPos = qStart) %>%
                       select(-qStart) %>%
                       as_tibble()
-      
-      #  qName                                     quickFilterStartPos
-      #  <chr>                                                   <int>
-      #  1 chr1-217358038:sitePair386:frag1:read1                   15
-      #  2 chr1-217358038:sitePair386:frag1:read10                  15
-      #  3 chr1-217358038:sitePair386:frag1:read11                  15
       
       x$quickFilterStartPos <- NULL
       x <- left_join(x, minAlnStarts, by = c('readID' = 'qName'))

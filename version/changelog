@@ -167,4 +167,5 @@ Moved integrase correction shift to options, set to zero to disable (buildSites_
 Patched data.frame(table()) bug in prepReads
 Allow commenting out of lines with # character in sampleData files.
 Replaced alignment percent id calculation with UCSC's scorePSL.pl script.
-
+2.3.1
+AAV update only - changed way max LTR trimming from pre-BWA filtering works.

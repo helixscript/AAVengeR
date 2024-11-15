@@ -247,9 +247,6 @@ system(paste0("sed -i -E 's/core_CPUs:\\s\\S+/core_CPUs: ", parallel::detectCore
 
 system(paste0('./aavenger.R ', file.path(opt$outputDir,'config.yml')))
 
-o <- unlist(strsplit(opt$outputDir, '/'))
-o <- paste0(o[1:(length(o)-1)], collapse = '/')
-
-system(paste0('./evalSynSeqData.R ', o, ' ', paste0(paste0(o[1:(length(o)-1)], collapse = '/'), '/result.tsv'))) 
+system(paste0('./evalSynSeqData.R ', opt$outputDir, ' ', file.path(opt$outputDir, '/result.tsv')))
 
 q()

@@ -29,7 +29,7 @@ modules:
 Rscript: /usr/bin/Rscript
 compressDataFiles: FALSE
 processAdriftReadLinkerUMIs: FALSE
-core_keepIntermediateFiles: FALSE
+core_keepIntermediateFiles: TRUE
 core_applyCoreCPUsToAllModules: TRUE
 
 
@@ -57,7 +57,6 @@ demultiplex_anchorReadStartSeq.maxMisMatch: 1
 demultiplex_exportFASTQ: FALSE
 demultiplex_quickAlignFilter_minPercentID: 97
 demultiplex_quickAlignFilter_minMatches: 30
-demultiplex_quickAlignFilter_minEstLeaderSeqLength: 15
 demultiplex_mergeSimilarReadPairsParams: -c 0.98 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -10 -gap-ext -5 -aS 0.98 -aL 0.98
 
 
