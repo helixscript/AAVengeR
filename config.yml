@@ -4,7 +4,7 @@
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 mode: integrase                       # (integrase, AAV, transposase, or manual)
 
-core_CPUs: 30
+core_CPUs: 15
 
 outputDir: output
 softwareDir: /home/ubuntu/AAVengeR
@@ -147,10 +147,11 @@ buildStdFragments_createMultiHitClusters: TRUE
 buildStdFragments_salvageMultiHitReads: TRUE
 buildStdFragments_UMIminPercentReads: 15
 buildStdFragments_remnantClusterParams: -c 0.85 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -5 -gap-ext -1 -aS 0.85 -aL 0.85
+buildStdFragments_evalFragAnchorReadSeqs: TRUE
 buildStdFragments_fragEvalAnchorReadTestLen: 20
-buildStdFragments_fragmentClusterParams: -c 0.87 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -10 -gap-ext -5 -aS 0.95 -aL 0.95
-buildStdFragments_fragEvalAnchorReadMinAbundDiff: 1
-buildStdFragments_fragEvalAnchorReadMinReadDiff: 5
+buildStdFragments_fragClusterParams: -c 0.87 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -10 -gap-ext -5 -aS 0.95 -aL 0.95
+buildStdFragments_fragEvalAnchorReadMinAbundDiff: 2
+buildStdFragments_fragEvalAnchorReadMinReadDiff: 10
 
 
 # buildSites module.
