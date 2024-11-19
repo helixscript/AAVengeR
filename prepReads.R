@@ -101,12 +101,19 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
          
              # Add back trimmed anchor read sequences.
              o <- subset(y, readID %in% names(t))
+             
+             # JKE
+             if(nrow(o) == 0) return(data.table())
+             
              trimmed <- data.table(readID = names(t), anchorReadSeq2 = as.character(t))
              o <- left_join(o, trimmed, by = 'readID')
          
              # Trim off adrift read adapters.
              o$adriftReadSeq2 <- substr(o$adriftReadSeq, o$adriftLinkerSeqEnd+1, nchar(o$adriftReadSeq))
              o <- o[nchar(o$adriftReadSeq2) >= opt$prepReads_minAdriftReadLength,]
+             
+             # JKE
+             if(nrow(o) == 0) return(data.table())
 
              data.table(dplyr::select(o, -adriftReadTrimSeq, -adriftLinkerSeqEnd))
           }))
