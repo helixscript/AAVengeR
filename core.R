@@ -158,7 +158,7 @@ CPUs_used <- 0
 updateLog('Starting replicate level jobs.')
 
 # !!!
-# jobTable$done <- TRUE
+### jobTable$done <- TRUE
 
 # Run prepReads, alignReads, and buildFragments.
 while(! all(jobTable$done == TRUE)){
@@ -342,6 +342,15 @@ if(length(f) > 0){
   multiHitClusters <- bind_rows(lapply(f, readRDS))
   saveRDS(multiHitClusters, file = file.path(opt$outputDir, 'core', 'multiHitClusters.rds'), compress = opt$compressDataFiles)
 }
+
+f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'anchorReadClusterTable.rds', recursive = TRUE, full.names = TRUE)
+
+if(length(f) > 0){
+  updateLog('Bundling anchorReadClusterTable data objects.')
+  anchorReadClusterTable <- bind_rows(lapply(f, readRDS))
+  saveRDS(anchorReadClusterTable, file = file.path(opt$outputDir, 'core', 'anchorReadClusterTable.rds'), compress = opt$compressDataFiles)
+}
+
 
 # Bundle together site output files.
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'sites.rds', recursive = TRUE, full.names = TRUE)

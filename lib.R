@@ -130,6 +130,7 @@ optionsSanityCheck <- function(){
   
   # Set mode specific values.
   if(grepl('integrase', opt$mode, ignore.case = TRUE)){
+    opt$buildStdFragments_clusterLeaderSeqs <<- FALSE
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
     opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
     opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
@@ -138,6 +139,7 @@ optionsSanityCheck <- function(){
     opt$prepReads_limitLeaderSeqsWithQuickAlignFilter <<- FALSE
     opt$prepReads_forceAnchorReadStartSeq <<- FALSE
   } else if(grepl('AAV', opt$mode, ignore.case = TRUE)){
+    opt$buildStdFragments_clusterLeaderSeqs <<- TRUE
     opt$demultiplex_quickAlignFilter <<- TRUE
     opt$prepReads_limitLeaderSeqsWithQuickAlignFilter <<- TRUE
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 300
@@ -146,6 +148,7 @@ optionsSanityCheck <- function(){
     opt$prepReads_forceAnchorReadStartSeq <<- TRUE # Use provided start sequence if a leader seq model is not returned.
     opt$prepReads_HMMmatchEnd <<- FALSE # Triggers leaderSeq extension in alignReads.R.
   } else if(grepl('transposase', opt$mode, ignore.case = TRUE)){
+    opt$buildStdFragments_clusterLeaderSeqs <<- FALSE
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
     opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
     opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <<- 5
@@ -399,7 +402,7 @@ demultiplex <- function(x){
   # Loop through samples in sample data file to demultiplex and apply read specific filters.
   invisible(lapply(1:nrow(samples), function(r){
     r <- samples[r,]
-    
+      
     v0 <- rep(TRUE, length(anchorReads))
     if('anchorReadStartSeq' %in% names(r)){
       v0 <- vcountPattern(r$anchorReadStartSeq, subseq(anchorReads, 1, nchar(r$anchorReadStartSeq)), max.mismatch = opt$demultiplex_anchorReadStartSeq.maxMisMatch) == 1

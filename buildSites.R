@@ -10,6 +10,7 @@
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(RMariaDB))
+suppressPackageStartupMessages(library(Biostrings))
 
 set.seed(1)
 
@@ -74,10 +75,6 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
         # Cycle through u3 position ids.
         counter <- 1
         invisible(lapply(unique(u3.frags$posid), function(u3_posid){
-        
-          # "chr15+61328555.1" "chr15-61328555.1"
-          # message(u3_posid)
-          # if(grepl('6132855', u3_posid)) browser()
           
           # Create alternative sites +/- a couple NT this u3 site.
           a <- sub('\\.\\d+$', '', u3_posid)
@@ -176,7 +173,6 @@ updateLog('Building replicate level integration sites.')
 
 frags$replicate <- as.integer(frags$replicate)
 
-
 maxRepNum <- max(frags$replicate)
 
 # Dual detentions are assembled on the sample level.
@@ -192,6 +188,15 @@ buildConsensusSeq <- function(x){
          arrange(desc(nWidths), desc(nReads))
   
   as.character(tab[1, 'repLeaderSeq'])
+}
+
+clusterConsensusSeqs <- function(x){
+  if(nrow(x) > 1){
+    o <- CD_HIT_clusters(DNAStringSet(x$repLeaderSeq), opt$outputDir, opt$buildStdFragments_remnantClusterParams)
+    return(length(o))
+  } else {
+    return(1)
+  }
 }
 
 frags <- group_by(frags, trial, subject, sample, posid) %>% 
@@ -220,12 +225,15 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
                    refGenome = x$refGenome[1], posid = x$posid[1],
                    rUMIs = ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(x$rUMI_list)), NA),
                    fUMIs = ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(x$fUMI_list)), NA),
+                   anchorReadClusters = ifelse(any(x$anchorReadCluster), TRUE, NA),
                    sonicLengths = ifelse(opt$buildSites_sumSonicBreaksWithin == 'replicates', 
                                          sum(r[, grepl('sonicLengths', names(r))], na.rm = TRUE),
                                          n_distinct(x$fragWidths)),
                    reads = sum(x$reads),
                    repLeaderSeq = buildConsensusSeq(x),
+                   repLeaderSeqClusters = 1,
                    nRepsObs = sum(! is.na(unlist(r[,which(grepl('reads', names(r)))]))),
+                   anchorReadConsensus = Biostrings::consensusString(x$anchorReadSeq), 
                    flags = x$flags[1],
                    vector = x$vectorFastaFile[1]), r)
 })) %>% arrange(desc(sonicLengths))

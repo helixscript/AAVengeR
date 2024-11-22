@@ -4,7 +4,7 @@
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 mode: integrase                       # (integrase, AAV, transposase, or manual)
 
-core_CPUs: 15
+core_CPUs: 30
 
 outputDir: output
 softwareDir: /home/ubuntu/AAVengeR
@@ -24,12 +24,13 @@ modules:
    - callNearestGenes
    - annotateRepeats
 
+
 # Additional parameters.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 Rscript: /usr/bin/Rscript
 compressDataFiles: FALSE
 processAdriftReadLinkerUMIs: FALSE
-core_keepIntermediateFiles: TRUE
+core_keepIntermediateFiles: FALSE
 core_applyCoreCPUsToAllModules: TRUE
 
 
@@ -148,10 +149,10 @@ buildStdFragments_salvageMultiHitReads: TRUE
 buildStdFragments_UMIminPercentReads: 15
 buildStdFragments_remnantClusterParams: -c 0.85 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -5 -gap-ext -1 -aS 0.85 -aL 0.85
 buildStdFragments_evalFragAnchorReadSeqs: TRUE
-buildStdFragments_fragEvalAnchorReadTestLen: 20
+buildStdFragments_fragEvalAnchorReadTestLen: 30
 buildStdFragments_fragClusterParams: -c 0.87 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -10 -gap-ext -5 -aS 0.95 -aL 0.95
-buildStdFragments_fragEvalAnchorReadMinAbundDiff: 2
-buildStdFragments_fragEvalAnchorReadMinReadDiff: 10
+buildStdFragments_fragEvalAnchorReadMinAbundDiff: 5
+buildStdFragments_fragEvalAnchorReadMinReadMult: 10
 
 
 # buildSites module.

@@ -1,0 +1,25 @@
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 2.3.0
+
+11.22.2024  4:45am	Reading in fragment file(s).
+11.22.2024  4:45am	Categorizing leader sequences.
+11.22.2024  4:45am	Standardizing integration positions within subjects.
+11.22.2024  4:45am	54.30% integration positions shifted for 17303 fragments.
+11.22.2024  4:45am	Standardizing break positions.
+11.22.2024  4:45am	Standardizing break positions within replicates.
+11.22.2024  4:45am	68.77% break points shifted for 10416 fragments.
+11.22.2024  4:45am	Updating positions and fragment ids.
+11.22.2024  4:45am	Idenitfying uniquely called postions.
+11.22.2024  4:45am	86.57% of fragment reads mapped uniquely to the genome.
+11.22.2024  4:45am	Resolving multi-hit reads.
+11.22.2024  4:45am	   0.78% of multihit reads recovered because one potential site was in the unabiguous site list.
+11.22.2024  4:45am	Reevaluating leader sequence classification after standardization.
+11.22.2024  4:45am	Building mulit-hit networks.
