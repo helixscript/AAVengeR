@@ -1,0 +1,17 @@
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 2.4.0
+
+11.26.2024  4:34pm	Starting AAVengeR's module chain.
+11.26.2024  4:34pm	Each module will create its own output folder in the main output folder.
+11.26.2024  4:34pm	The log files for each module are stored within their output folders.
+11.26.2024  4:34pm	Starting buildStdFragments.
+11.26.2024  4:36pm	Starting buildSites.
+11.26.2024  4:36pm	Done.

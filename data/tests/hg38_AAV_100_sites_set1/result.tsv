@@ -1,0 +1,2 @@
+exp	nSites	set	percentUniqueRecovery	percentTotalRecovery	unexpectedSites	leaderSeqDist.mean	leaderSeqDist.sd
+AAV	100	1	86.0%	96.0%	0	0.29	0.66

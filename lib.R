@@ -130,7 +130,6 @@ optionsSanityCheck <- function(){
   
   # Set mode specific values.
   if(grepl('integrase', opt$mode, ignore.case = TRUE)){
-    opt$buildStdFragments_evalFragAnchorReadSeqs <<- TRUE
     opt$buildStdFragments_clusterLeaderSeqs <<- FALSE
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
     opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
@@ -140,7 +139,6 @@ optionsSanityCheck <- function(){
     opt$prepReads_limitLeaderSeqsWithQuickAlignFilter <<- FALSE
     opt$prepReads_forceAnchorReadStartSeq <<- FALSE
   } else if(grepl('AAV', opt$mode, ignore.case = TRUE)){
-    opt$buildStdFragments_evalFragAnchorReadSeqs <<- TRUE
     opt$buildStdFragments_clusterLeaderSeqs <<- TRUE
     opt$demultiplex_quickAlignFilter <<- TRUE
     opt$prepReads_limitLeaderSeqsWithQuickAlignFilter <<- TRUE
@@ -150,7 +148,6 @@ optionsSanityCheck <- function(){
     opt$prepReads_forceAnchorReadStartSeq <<- TRUE # Use provided start sequence if a leader seq model is not returned.
     opt$prepReads_HMMmatchEnd <<- FALSE # Triggers leaderSeq extension in alignReads.R.
   } else if(grepl('transposase', opt$mode, ignore.case = TRUE)){
-    opt$buildStdFragments_evalFragAnchorReadSeqs <<- TRUE
     opt$buildStdFragments_clusterLeaderSeqs <<- FALSE
     opt$alignReads_genomeAlignment_anchorRead_maxStartPos <<- 3
     opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <<- 5
