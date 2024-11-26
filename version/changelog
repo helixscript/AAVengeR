@@ -169,3 +169,6 @@ Allow commenting out of lines with # character in sampleData files.
 Replaced alignment percent id calculation with UCSC's scorePSL.pl script.
 Changed way max LTR trimming from pre-BWA filtering works.
 Added a second max fragment length filter to buildStdFrags so that a broader filter can be used first by buildFragments.
+2.4.0
+Added anchor read clustering filtered.
+Fixed parseBLAToutput() - corrected for zero based half open coord system.

@@ -157,7 +157,6 @@ CPUs_used <- 0
 
 updateLog('Starting replicate level jobs.')
 
-# !!!
 ### jobTable$done <- TRUE
 
 # Run prepReads, alignReads, and buildFragments.

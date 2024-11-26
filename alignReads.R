@@ -223,8 +223,6 @@ anchorReadAlignments <- left_join(anchorReadAlignments, distinct(select(reads, r
 # Expand predicted leaderSeq sequences by extending with delayed alignment sequences. 
 anchorReadAlignments <- left_join(anchorReadAlignments, select(reads, readID, anchorReadSeq, leaderSeq), by = 'readID')
 
-# JKE
-### anchorReadAlignments$leaderSeq <- paste0(anchorReadAlignments$leaderSeq, substr(anchorReadAlignments$anchorReadSeq, 1, anchorReadAlignments$qStart))
 if(! opt$prepReads_HMMmatchEnd) anchorReadAlignments$leaderSeq <- paste0(anchorReadAlignments$leaderSeq, substr(anchorReadAlignments$anchorReadSeq, 1, anchorReadAlignments$qStart))
 
 anchorReadAlignments <- dplyr::select(anchorReadAlignments, -anchorReadSeq)

@@ -239,6 +239,9 @@ system(paste0("sed -i -E 's/softwareDir:\\s\\S+/softwareDir: ",  p, "/' ", file.
 p <- ifelse(grepl('integrase', args), 'integrase', 'AAV')
 system(paste0("sed -i -E 's/mode:\\s\\S+/mode: ",  p, "/' ", file.path(opt$outputDir,'config.yml')))
 
+# Turn off anchor read clustering filter.
+system(paste0("sed -i -E 's/buildStdFragments_evalFragAnchorReadSeqs:\\s\\S+/buildStdFragments_evalFragAnchorReadSeqs: FALSE/' ", file.path(opt$outputDir,'config.yml')))
+
 p <- '~\\/.my.cnf'
 system(paste0("sed -i -E 's/databaseConfigFile:\\s\\S+/databaseConfigFile: ",  p, "/' ", file.path(opt$outputDir,'config.yml')))
  

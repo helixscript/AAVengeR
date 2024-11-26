@@ -4,7 +4,7 @@
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 mode: integrase                       # (integrase, AAV, transposase, or manual)
 
-core_CPUs: 30
+core_CPUs: 15
 
 outputDir: output
 softwareDir: /home/ubuntu/AAVengeR
@@ -30,7 +30,7 @@ modules:
 Rscript: /usr/bin/Rscript
 compressDataFiles: FALSE
 processAdriftReadLinkerUMIs: FALSE
-core_keepIntermediateFiles: FALSE
+core_keepIntermediateFiles: TRUE
 core_applyCoreCPUsToAllModules: TRUE
 
 
