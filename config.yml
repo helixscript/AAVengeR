@@ -50,7 +50,7 @@ demultiplex_qualtrim_code: '+'
 demultiplex_qualtrim_halfWidth: 3
 demultiplex_qualtrim_events: 2
 demultiplex_qualtrim_minLength: 50
-demultiplex_correctGolayIndexReads: TRUE
+demultiplex_correctGolayIndexReads: FALSE
 demultiplex_sequenceChunkSize: 300000
 demultiplex_index1ReadMaxMismatch: 1
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1
