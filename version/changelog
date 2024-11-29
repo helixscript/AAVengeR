@@ -173,3 +173,5 @@ Added a second max fragment length filter to buildStdFrags so that a broader fil
 Added new broad fragment filter to buildFragments and a narrow filter to buildStdFragments to handle centromer repeats.
 Added anchor read clustering filtered.
 Fixed parseBLAToutput() - corrected for zero based half open coord system.
+2.5.0
+Fixed anchor read clustering filter to work with AAV mode.

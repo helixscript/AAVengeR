@@ -8,5 +8,6 @@ fragStartSize:  50
 fragStepSize:   20
 buildSitePairs: FALSE
 addIntegraseCorrection: TRUE
+evalFragAnchorReadSeqs: FALSE
 outputDir:  data/tests/hg38_integrase_25_sites_set2
 dbPath: data/referenceGenomes/blat/hg38.2bit

@@ -30,7 +30,7 @@ modules:
 Rscript: /usr/bin/Rscript
 compressDataFiles: FALSE
 processAdriftReadLinkerUMIs: FALSE
-core_keepIntermediateFiles: TRUE
+core_keepIntermediateFiles: FALSE
 core_applyCoreCPUsToAllModules: TRUE
 
 
@@ -71,8 +71,8 @@ prepReads_excludeAdriftReadVectorHits: FALSE
 prepReads_vectorAlignmentTestLength: 25
 prepReads_vectorAlignmentTest_minPercentCoverage: 90
 prepReads_vectorAlignmentTest_minPercentID: 90
-prepReads_minAnchorReadLength: 20
-prepReads_minAdriftReadLength: 20
+prepReads_minAnchorReadLength: 30
+prepReads_minAdriftReadLength: 30
 prepReads_buildReadMaps_blastReconstruction: TRUE
 prepReads_mapLeaderSeqsMinAlignmentLength: 15
 prepReads_mapLeaderSeqsMinPercentID: 95
@@ -136,7 +136,7 @@ buildStdFragments_autoPullTrialSamples: FALSE
 buildStdFragments_trialSubjectList: none
 buildStdFragments_randomIDdupReadMult: 3
 buildStdFragments_randomIDdupAbundMult: 2
-buildStdFragments_clusterLeaderSeqs: TRUE
+buildStdFragments_clusterLeaderSeqs: FALSE
 buildStdFragments_standardizeIntegrationPositions: TRUE
 buildStdFragments_standardizeBreakPositions: TRUE
 buildStdFragments_standardizeBreakPositionsWithin: replicates

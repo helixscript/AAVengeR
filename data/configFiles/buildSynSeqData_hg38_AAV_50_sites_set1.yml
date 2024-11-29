@@ -8,5 +8,6 @@ fragStartSize:  50
 fragStepSize:   20
 buildSitePairs: FALSE
 addIntegraseCorrection: FALSE
+evalFragAnchorReadSeqs: FALSE
 outputDir:  data/tests/hg38_AAV_50_sites_set1
 dbPath: data/referenceGenomes/blat/hg38.2bit
