@@ -119,6 +119,11 @@ buildStdFragments_createMultiHitClusters: TRUE
 buildStdFragments_salvageMultiHitReads: FALSE
 buildStdFragments_UMIminPercentReads: 15
 buildStdFragments_remnantClusterParams: -c 0.85 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -5 -gap-ext -1 -aS 0.85 -aL 0.85
+buildStdFragments_evalFragAnchorReadSeqs: TRUE
+buildStdFragments_fragEvalAnchorReadTestLen: 30
+buildStdFragments_fragClusterParams: -c 0.87 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -10 -gap-ext -5 -aS 0.95 -aL 0.95
+buildStdFragments_fragEvalAnchorReadMinAbundDiff: 5
+buildStdFragments_fragEvalAnchorReadMinReadMult: 10
 
 buildSites_CPUs: 15
 buildSites_outputDir: buildSites
@@ -142,14 +147,14 @@ callNearestGenes_boundaries:
     TUs:   hg38.TUs.rds
     exons: hg38.exons.rds
   sacCer3:
-        TUs:   sacCer3.TUs.rds
-        exons: sacCer3.exons.rds
+    TUs:   sacCer3.TUs.rds
+    exons: sacCer3.exons.rds
   canFam3:
-        TUs:   canFam3.humanXeno.TUs.rds
-        exons: canFam3.humanXeno.exons.rds
+    TUs:   canFam3.humanXenoRef.TUs.rds
+    exons: canFam3.humanXenoRef.exons.rds
   macFas5:
-        TUs:   macFas5.humanXeno.TUs.rds
-        exons: macFas5.humanXeno.exons.rds
+    TUs:   macFas5.humanXenoRef.TUs.rds
+    exons: macFas5.humanXenoRef.exons.rds
 
 mapSiteLeaderSequences_CPUs: 15
 mapSiteLeaderSequences_outputDir: mapSiteLeaderSequences

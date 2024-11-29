@@ -191,17 +191,22 @@ buildConsensusSeq <- function(x){
 }
 
 clusterConsensusSeqs <- function(x){
-  if(nrow(x) > 1){
-    o <- CD_HIT_clusters(DNAStringSet(x$repLeaderSeq), opt$outputDir, opt$buildStdFragments_remnantClusterParams)
+  if(n_distinct(x$repLeaderSeq) > 1){
+    seqs <- DNAStringSet(unique(x$repLeaderSeq))
+    names(seqs) <- paste0('s', 1:length(seqs))
+    o <- CD_HIT_clusters(seqs, opt$outputDir, opt$buildStdFragments_remnantClusterParams)
+    o <- stringr::str_extract_all(o, '>[^\\.]+')
     return(length(o))
   } else {
     return(1)
   }
 }
 
+
 frags <- group_by(frags, trial, subject, sample, posid) %>% 
   mutate(g = cur_group_id()) %>%
   ungroup()
+
 
 sites <- bind_rows(lapply(split(frags, frags$g), function(x){
   
@@ -221,6 +226,8 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
          b
        }))
   
+  repLeaderSeqClusters <- clusterConsensusSeqs(x)
+     
   bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], 
                    refGenome = x$refGenome[1], posid = x$posid[1],
                    rUMIs = ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(x$rUMI_list)), NA),
@@ -231,7 +238,7 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
                                          n_distinct(x$fragWidths)),
                    reads = sum(x$reads),
                    repLeaderSeq = buildConsensusSeq(x),
-                   repLeaderSeqClusters = 1,
+                   repLeaderSeqClusters = clusterConsensusSeqs(x),
                    nRepsObs = sum(! is.na(unlist(r[,which(grepl('reads', names(r)))]))),
                    anchorReadConsensus = Biostrings::consensusString(x$anchorReadSeq), 
                    flags = x$flags[1],

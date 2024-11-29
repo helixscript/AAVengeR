@@ -50,7 +50,7 @@ demultiplex_qualtrim_code: '+'
 demultiplex_qualtrim_halfWidth: 3
 demultiplex_qualtrim_events: 2
 demultiplex_qualtrim_minLength: 50
-demultiplex_correctGolayIndexReads: FALSE
+demultiplex_correctGolayIndexReads: TRUE
 demultiplex_sequenceChunkSize: 300000
 demultiplex_index1ReadMaxMismatch: 1
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1
@@ -191,14 +191,14 @@ callNearestGenes_boundaries:
     TUs:   hs1.TUs.rds
     exons: hs1.exons.rds
   sacCer3:
-        TUs:   sacCer3.TUs.rds
-        exons: sacCer3.exons.rds
+    TUs:   sacCer3.TUs.rds
+    exons: sacCer3.exons.rds
   canFam3:
-        TUs:   canFam3.humanXeno.TUs.rds
-        exons: canFam3.humanXeno.exons.rds
+    TUs:   canFam3.humanXenoRef.TUs.rds
+    exons: canFam3.humanXenoRef.exons.rds
   macFas5:
-        TUs:   macFas5.humanXeno.TUs.rds
-        exons: macFas5.humanXeno.exons.rds
+    TUs:   macFas5.humanXenoRef.TUs.rds
+    exons: macFas5.humanXenoRef.exons.rds
 
 
 # mapSiteLeaderSequences module.

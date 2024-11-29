@@ -15,6 +15,15 @@ suppressPackageStartupMessages(library(optparse))
 
 args <- commandArgs(trailingOnly=TRUE)
 
+if(length(args) == 0){
+  message('primary usage:   aavenger.R  <config file>\n')
+  message('genome management:   aavenger.R --list.available.genomes')
+  message('genome management:   aavenger.R --list.installed.genomes')
+  message('genome management:   aavenger.R --install.genome <genome id>')
+  message('genome management:   aavenger.R --remove.genome <genome id>\n')
+  q()
+}
+
 if(any(grepl('\\-\\-', args))){
   option_list = list(
     make_option(c("--list.available.genomes"), type="character", default=NULL, help="Display a list of available genomes.", action="store_true"),
