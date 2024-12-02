@@ -175,3 +175,6 @@ Added anchor read clustering filtered.
 Fixed parseBLAToutput() - corrected for zero based half open coord system.
 2.5.0
 Fixed anchor read clustering filter to work with AAV mode.
+2.5.1
+Made multi-hit salvage remnant independent.
+Added exception to multi-hit clustering in buildStdFragments.
