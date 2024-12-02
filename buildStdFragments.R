@@ -363,7 +363,7 @@ if(nrow(frags_multPosIDs) > 0){
   frags_multPosIDs$returnToFrags <- FALSE
   
   frags_multPosIDs <- bind_rows(lapply(split(frags_multPosIDs, frags_multPosIDs$s), function(x){
-    uniqueSites <- unique(dplyr::filter(frags_uniqPosIDs, trial == x$trial[1], subject == x$subject[1])$posid2)
+    uniqueSites <- sub('\\.\\d+$', '', unique(dplyr::filter(frags_uniqPosIDs, trial == x$trial[1], subject == x$subject[1])$posid))
     
     bind_rows(lapply(split(x, x$readID), function(x2){
       if(sum(unique(x2$posid2) %in% uniqueSites) == 1) x2[x2$posid2 %in% uniqueSites,]$returnToFrags <- TRUE
@@ -827,14 +827,14 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
                          group_by(trial, subject, sample, posid) %>%
                          summarise(reads = list(readID), UMIs = list(randomLinkerSeq), .groups = 'drop') %>%
                          distinct()
-    
+
   clusterExport(cluster, 'multiHitFragWidths')
   
   # For each read, create a from -> to data frame and capture the width of the read. 
   multiHitNet_replicates <- rbindlist(lapply(split(frags_multPosIDs, frags_multPosIDs$readID), function(x){
-    
+
     if(n_distinct(x$posid) == 1) return(tibble()) # Cases of break point only variation.
-    
+
     # Create unique to - from permutations.
     node_pairs <- RcppAlgos::comboGeneral(unique(x$posid), 2)
     data.table(trial = x[1,]$trial, 
@@ -925,6 +925,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   }
 }
 
+updateLog(paste0('Multi-hit table rows:', nrow(multiHitClusters)))
 
 # Remove randomLinkerSeq from fragIDs.
 # If you include the UMIs in the fragID, frags will be split into many smaller pieces.
