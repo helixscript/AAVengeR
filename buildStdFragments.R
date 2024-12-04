@@ -17,7 +17,6 @@ suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(igraph))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(RMariaDB))
-suppressPackageStartupMessages(library(msa))
 
 set.seed(1)
 
@@ -773,13 +772,14 @@ if(opt$buildStdFragments_evalFragAnchorReadSeqs){
     s <- left_join(s, m, by = 'readID')
     s$posid2  <- sub('\\.\\d+$', '', s$posid)
     
-    s$remove <- 0
+    s$remove <- FALSE
     clusterNum <- 1
+    
     bind_rows(lapply(split(s, s$fragClusterGroup), function(x){
-      seqs <- unique(o[names(o) %in% x$readID])
-      repSeq <- ifelse(length(seqs) > 1, ppConsensusSeq(seqs), as.character(seqs))
-        
-      updateLog(paste0('Analyzing cluster number: ', clusterNum, ', reads in cluster: ', n_distinct(x$readID), ', test seq consensus: ', repSeq))
+      seqs <- o[names(o) %in% x$readID]
+      repSeq <- names(sort(table(as.character(seqs)), decreasing = TRUE)[1])
+      
+      updateLog(paste0('Analyzing cluster number: ', clusterNum, ', reads in cluster: ', length(seqs), ', test seq consensus: ', repSeq))
       
       clusterNum <<- clusterNum + 1
       
@@ -793,36 +793,50 @@ if(opt$buildStdFragments_evalFragAnchorReadSeqs){
         
         write(pander::pandoc.table.return(select(z, -readIDs), style = "simple", split.tables = Inf, plain.ascii = TRUE), file = opt$defaultLogFile, append = TRUE)
         
-        z$posid1 = z[1,]$posid2
         z$trial = x$trial[1]
         z$subject = x$subject[1]
         z$sample = x$sample[1]
-        z$anchorReadConsensusSeq = repSeq
-        z <- dplyr::relocate(z, trial, subject, sample, posid1, .before = posid2)
+        z$clusterNum <- clusterNum - 1 
+        z$clusterRepSeq = repSeq
+        z$selected = FALSE
+        z$remove = TRUE
+        z$criteria = NA
+        z <- dplyr::relocate(z, trial, subject, sample, .before = posid2)
         
         # Re-sort table for read based decisions.
         z2 <- arrange(z, desc(reads), desc(frags))
 
         if((z[1,]$frags - z[2,]$frags) >= opt$buildStdFragments_fragEvalAnchorReadMinAbundDiff){
           updateLog('Top candidate position selected based on fragment count - details stored in anchorReadClusterDecisionTable.rds')
-          x$remove <- ifelse(x$posid2 == z[1,]$posid2, 0, 1)
+          x$remove <- ifelse(x$posid2 == z[1,]$posid2, FALSE, TRUE)
+          z$remove <- ifelse(z$posid2 == z[1,]$posid2, FALSE, TRUE)
+          z$criteria <- ifelse(z$posid2 == z[1,]$posid2, 'fragment counts', NA)
+          z$selected <- z$posid2 == z[1,]$posid2
           anchorReadClusterDecisionTable <<- bind_rows(anchorReadClusterDecisionTable, z)
         } else if(z2[1,]$reads >= (z2[2,]$reads * opt$buildStdFragments_fragEvalAnchorReadMinReadMult)){
           updateLog('Top candidate position selected based on read count - details stored in anchorReadClusterDecisionTable.rds')
-          x$remove <- ifelse(x$posid2 == z2[1,]$posid2, 0, 1)
+          x$remove  <- ifelse(x$posid2 == z2[1,]$posid2, FALSE, TRUE)
+          z2$remove <- ifelse(z2$posid2 == z2[1,]$posid2, FALSE, TRUE)
+          z2$criteria <- ifelse(z2$posid2 == z2[1,]$posid2, 'read counts', NA)
+          z2$selected <- z2$posid2 == z2[1,]$posid2
           anchorReadClusterDecisionTable <<- bind_rows(anchorReadClusterDecisionTable, z2)
         } else {
-          updateLog('No candidate selected - removing reads and reporting in anchorReadClusterNoDecisionTable.rds')
-          x$remove <- 1
-          anchorReadClusterNoDecisionTable <<- bind_rows(anchorReadClusterNoDecisionTable, z)
+          updateLog('No candidate selected - removing reads and reporting in anchorReadClusterDecisionTable.rds')
+          x$remove <- TRUE
+          z$remove <- TRUE
+          z$selected <- FALSE
+          anchorReadClusterDecisionTable <<- bind_rows(anchorReadClusterDecisionTable, z)
         }
+      } else {
+        x$anchorReadCluster <- FALSE
+        x$remove <- FALSE
       }
       x 
     }))
   }))
   
-  updateLog(paste0('Removing ', n_distinct(subset(frags_uniqPosIDs, remove == 1)$readID), ' reads due to not being the first choice.'))
-  frags_uniqPosIDs <- subset(frags_uniqPosIDs, remove == 0)
+  updateLog(paste0('Removing ', n_distinct(subset(frags_uniqPosIDs, remove == TRUE)$readID), ' reads due to not being the first choice.'))
+  frags_uniqPosIDs <- subset(frags_uniqPosIDs, remove == FALSE)
   frags_uniqPosIDs <- select(frags_uniqPosIDs, -fragClusterGroup, -posid2, -remove)
 }
 
@@ -1055,7 +1069,6 @@ readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads,
 
 # Write out anchorReadCluster table.
 saveRDS(anchorReadClusterDecisionTable, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'anchorReadClusterDecisionTable.rds'))
-saveRDS(anchorReadClusterNoDecisionTable, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'anchorReadClusterNoDecisionTable.rds'))
 
 
 updateLog('buildStdFragments completed.')

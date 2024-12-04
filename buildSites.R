@@ -11,7 +11,6 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(RMariaDB))
 suppressPackageStartupMessages(library(Biostrings))
-suppressPackageStartupMessages(library(msa))
 
 set.seed(1)
 
@@ -111,7 +110,7 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
             frags[i,]$posid <<- unlist(lapply(strsplit(frags[i,]$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '-', as.integer(x[2]) - opt$buildSites_integraseCorrectionDist, '.', x[3])))
           
             i <- which(frags$fragID %in% c(f1$fragID, f2$fragID))
-            frags[i,]$repLeaderSeq <<- paste0(names(sort(table(f1$repLeaderSeq), decreasing = TRUE))[1], 'VVVVV', names(sort(table(f2$repLeaderSeq), decreasing = TRUE))[1])
+            frags[i,]$repLeaderSeq <<- paste0(names(sort(table(f1$repLeaderSeq), decreasing = TRUE))[1], '/', names(sort(table(f2$repLeaderSeq), decreasing = TRUE))[1])
 
             frags[i,]$flags <<- 'dual detect'
           
@@ -182,14 +181,33 @@ if(any(frags$flags == 'dual detect')) frags[frags$flags == 'dual detect',]$repli
 
 minRepNum <- min(frags$replicate)
 
-buildConsensusSeq <- function(x){
-  tab <- group_by(x, repLeaderSeq) %>% 
-         summarise(nWidths = n_distinct(fragWidths), nReads = sum(reads)) %>% 
-         ungroup() %>%
-         arrange(desc(nWidths), desc(nReads))
+consensusLeaderSeq <- function(x){
+  tab <- dplyr::group_by(x, repLeaderSeq) %>% 
+         dplyr::summarise(nWidths = n_distinct(fragWidths), nReads = sum(reads)) %>% 
+         dplyr::ungroup() %>%
+         dplyr::arrange(desc(nWidths), desc(nReads))
   
   as.character(tab[1, 'repLeaderSeq'])
 }
+
+consensusLeaderSeq <- function(x){
+  tab <- dplyr::group_by(x, repLeaderSeq) %>% 
+    dplyr::summarise(nWidths = n_distinct(fragWidths), nReads = sum(reads)) %>% 
+    dplyr::ungroup() %>%
+    dplyr::arrange(desc(nWidths), desc(nReads))
+  
+  as.character(tab[1, 'repLeaderSeq'])
+}
+
+consensusAnchorSeq <- function(x){
+  tab <- dplyr::group_by(x, anchorReadSeq) %>% 
+         dplyr::summarise(nWidths = n_distinct(fragWidths), nReads = sum(reads)) %>% 
+         dplyr::ungroup() %>%
+         dplyr::arrange(desc(nWidths), desc(nReads))
+  
+  as.character(tab[1, 'anchorReadSeq'])
+}
+  
 
 clusterConsensusSeqs <- function(x){
   if(n_distinct(x$repLeaderSeq) > 1){
@@ -220,7 +238,7 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
            b$fUMIs <- ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(o$fUMI_list)), NA)
            b$sonicLengths <- n_distinct(o$fragWidths)
            b$reads <- sum(o$reads)
-           b$repLeaderSeq <- ifelse(n_distinct(o$repLeaderSeq) > 1, ppConsensusSeq(DNAStringSet(o$repLeaderSeq)), sub('VVVVV', '/', o$repLeaderSeq[1]))
+           b$repLeaderSeq <- consensusLeaderSeq(o)
          } 
     
          names(b) <- paste0('rep', r, '-', names(b))
@@ -236,10 +254,10 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
                                          sum(r[, grepl('sonicLengths', names(r))], na.rm = TRUE),
                                          n_distinct(x$fragWidths)),
                    reads = sum(x$reads),
-                   repLeaderSeq = ifelse(n_distinct(x$repLeaderSeq) > 1, ppConsensusSeq(DNAStringSet(x$repLeaderSeq)), sub('VVVVV', '/', x$repLeaderSeq[1])),
+                   repLeaderSeq = consensusLeaderSeq(x),
                    repLeaderSeqClusters = clusterConsensusSeqs(x),
-                   nRepsObs = sum(! is.na(unlist(r[,which(grepl('reads', names(r)))]))),
-                   anchorReadConsensus = ifelse(n_distinct(x$anchorReadSeq) > 1, ppConsensusSeq(DNAStringSet(x$anchorReadSeq)), sub('VVVVV', '/', x$anchorReadSeq[1])),
+                   nRepsObs = sum(! is.na(unlist(r[, which(grepl('reads', names(r)))]))),
+                   anchorReadConsensus = consensusAnchorSeq(x),
                    flags = x$flags[1],
                    vector = x$vectorFastaFile[1]), r)
 })) %>% arrange(desc(sonicLengths))
