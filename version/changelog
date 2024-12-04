@@ -178,3 +178,6 @@ Fixed anchor read clustering filter to work with AAV mode.
 2.5.1
 Made multi-hit salvage remnant independent.
 Added exception to multi-hit clustering in buildStdFragments.
+2.6.0
+Created new anchor read cluster data files -- no longer pushed cluster data into multi-hits.
+

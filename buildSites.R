@@ -11,6 +11,7 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(RMariaDB))
 suppressPackageStartupMessages(library(Biostrings))
+suppressPackageStartupMessages(library(msa))
 
 set.seed(1)
 
@@ -110,7 +111,7 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
             frags[i,]$posid <<- unlist(lapply(strsplit(frags[i,]$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '-', as.integer(x[2]) - opt$buildSites_integraseCorrectionDist, '.', x[3])))
           
             i <- which(frags$fragID %in% c(f1$fragID, f2$fragID))
-            frags[i,]$repLeaderSeq <<- paste0(names(sort(table(f1$repLeaderSeq), decreasing = TRUE))[1], '/', names(sort(table(f2$repLeaderSeq), decreasing = TRUE))[1])
+            frags[i,]$repLeaderSeq <<- paste0(names(sort(table(f1$repLeaderSeq), decreasing = TRUE))[1], 'VVVVV', names(sort(table(f2$repLeaderSeq), decreasing = TRUE))[1])
 
             frags[i,]$flags <<- 'dual detect'
           
@@ -214,20 +215,18 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
          b <- tibble(rUMIs = NA, fUMIs = NA, sonicLengths = NA, reads = NA, repLeaderSeq = NA)
          o <- x[x$replicate == r,]
     
-         if(nrow(o) > 0){
+         if(nrow(o) > 1){
            b$rUMIs <- ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(o$rUMI_list)), NA)
            b$fUMIs <- ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(o$fUMI_list)), NA)
            b$sonicLengths <- n_distinct(o$fragWidths)
            b$reads <- sum(o$reads)
-           b$repLeaderSeq <- buildConsensusSeq(o)
+           b$repLeaderSeq <- ifelse(n_distinct(o$repLeaderSeq) > 1, ppConsensusSeq(DNAStringSet(o$repLeaderSeq)), sub('VVVVV', '/', o$repLeaderSeq[1]))
          } 
     
          names(b) <- paste0('rep', r, '-', names(b))
          b
        }))
   
-  repLeaderSeqClusters <- clusterConsensusSeqs(x)
-     
   bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], 
                    refGenome = x$refGenome[1], posid = x$posid[1],
                    rUMIs = ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(x$rUMI_list)), NA),
@@ -237,10 +236,10 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
                                          sum(r[, grepl('sonicLengths', names(r))], na.rm = TRUE),
                                          n_distinct(x$fragWidths)),
                    reads = sum(x$reads),
-                   repLeaderSeq = buildConsensusSeq(x),
+                   repLeaderSeq = ifelse(n_distinct(x$repLeaderSeq) > 1, ppConsensusSeq(DNAStringSet(x$repLeaderSeq)), sub('VVVVV', '/', x$repLeaderSeq[1])),
                    repLeaderSeqClusters = clusterConsensusSeqs(x),
                    nRepsObs = sum(! is.na(unlist(r[,which(grepl('reads', names(r)))]))),
-                   anchorReadConsensus = Biostrings::consensusString(x$anchorReadSeq), 
+                   anchorReadConsensus = ifelse(n_distinct(x$anchorReadSeq) > 1, ppConsensusSeq(DNAStringSet(x$anchorReadSeq)), sub('VVVVV', '/', x$anchorReadSeq[1])),
                    flags = x$flags[1],
                    vector = x$vectorFastaFile[1]), r)
 })) %>% arrange(desc(sonicLengths))

@@ -70,8 +70,8 @@ system(paste('chmod 755', file.path(opt$outputDir, 'core',  'demultiplex', 'run.
 # Run demultiplex.
 
 # !!! Set r to zero to bypass if this result is already available.
-r <- system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, intern = TRUE)
-### r <- 0
+### r <- system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, intern = TRUE)
+r <- 0
 
 
 if(r != 0){
@@ -161,10 +161,8 @@ CPUs_used <- 0
 
 updateLog('Starting replicate level jobs.')
 
-
 # !!! Short circuit replicate level analyses
-### jobTable$done <- TRUE
-
+jobTable$done <- TRUE
 
 # Run prepReads, alignReads, and buildFragments.
 while(! all(jobTable$done == TRUE)){
@@ -233,15 +231,17 @@ updateLog('Bundling together replicate level fragment records.')
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'fragments.rds', recursive = TRUE, full.names = TRUE)
 frags <- bind_rows(lapply(f, readRDS))
 
-# # Identify unique trial / patient combinations from returned fragments.
-# u <- tidyr::separate(tibble(u = unique(frags$uniqueSample)), u, c('trial', 'subject', 'sample', 'replicate'), sep = '~') %>% select(-sample, -replicate) %>% distinct()
-# 
-# opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs / nrow(u))
-# if(opt$core_maxCPUsPerProcess == 0) opt$core_maxCPUsPerProcess <- 1
-# 
-# updateLog(paste0('Setting max. process CPU limit to ',opt$core_maxCPUsPerProcess, ' CPUs for subject level jobs.'))
-# 
-# opt$core_maxPercentCPUs <- floor((opt$core_maxCPUsPerProcess / opt$core_CPUs) * 100)
+# Identify unique trial / patient combinations from returned fragments.
+u <- tidyr::separate(tibble(u = unique(frags$uniqueSample)), u, c('trial', 'subject', 'sample', 'replicate'), sep = '~') %>% select(-sample, -replicate) %>% distinct()
+
+opt$core_maxCPUsPerProcess <- floor(opt$core_CPUs / nrow(u))
+if(opt$core_maxCPUsPerProcess == 0) opt$core_maxCPUsPerProcess <- 1
+
+updateLog(paste0('Setting max. process CPU limit to ',opt$core_maxCPUsPerProcess, ' CPUs for subject level jobs.'))
+
+opt$core_maxPercentCPUs <- floor((opt$core_maxCPUsPerProcess / opt$core_CPUs) * 100)
+
+
 
 # Create a subject level to-do table.
 jobTable <- tibble(u = unique(frags$uniqueSample))

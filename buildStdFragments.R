@@ -17,6 +17,7 @@ suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(igraph))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(RMariaDB))
+suppressPackageStartupMessages(library(msa))
 
 set.seed(1)
 
@@ -377,6 +378,8 @@ if(nrow(frags_multPosIDs) > 0){
     # Isolate frag reads that should be returned.
     m <- subset(frags_multPosIDs, returnToFrags == TRUE)
     
+    updateLog(paste0('Salvaging ', n_distinct(m$readID), ' reads from multiHits, (', n_distinct(m$posid2), ' positions).'))
+    
     # We correct for instances where a read supports multiple breaks but a single position (again)
     # because reads may of been missed earlier.
     
@@ -444,16 +447,17 @@ if(length(z) > 0){
 # ------------------------------------------------------------------------------
 updateLog('Reevaluating leader sequence classification after standardization.')
 
-frags_uniqPosIDs$posid2 <- gsub('\\.\\S+$', '', frags_uniqPosIDs$posid)
+frags_uniqPosIDs$posid2 <- gsub('\\.\\d+$', '', frags_uniqPosIDs$posid)
+frags_multPosIDs$posid2 <- gsub('\\.\\d+$', '', frags_multPosIDs$posid)
 
 if(opt$buildStdFragments_clusterLeaderSeqs){
-  frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPosIDs$trialSubject, frags_uniqPosIDs$sample, frags_uniqPosIDs$posid2)), function(x){
   
+  reClassifyLeaderSeqs <- function(x){
     if(n_distinct(x$leaderSeq) == 1){
       x$posid <- paste0(x$posid2, '.1')
       x$leaderSeqGroupNum <- 1
     } else {
-    
+      
       # Arrange reads so that the most common sequences are listed first so that CD-HIT
       # will be more likely to select common sequences as cluster seeds.
       
@@ -465,55 +469,57 @@ if(opt$buildStdFragments_clusterLeaderSeqs){
       
       o$i <- 1:nrow(o)
       x <- left_join(x, select(o, -Freq), by = c('leaderSeq' = 'Var1')) %>% arrange(i) %>% select(-i)
-    
+      
       d <- DNAStringSet(x$leaderSeq)
       names(d) <- x$readID
       clstrs <- CD_HIT_clusters(d, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), opt$buildStdFragments_remnantClusterParams)
-    
+      
       if(length(clstrs) == 1 | any(is.na(clstrs))){
         x$posid <- paste0(x$posid2, '.1')
         x$leaderSeqGroupNum <- 1
       } else {
         # here are more than one remnant group associated with this posid.
         n <- 0
-      
+        
         m <- rbindlist(lapply(clstrs, function(x){
-               e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
-             
-               if(length(e) > 0){
-                 n <<- n + 1
-                 return(data.table(readID = sub('^>', '', e), leaderSeqGroupNum = n))
-               } else {
-                 return(data.table())
-               }
-             })) %>% left_join(data.frame(seq = as.character(d), readID = names(d)), by = 'readID') %>% select(-readID) 
-      
+          e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
+          
+          if(length(e) > 0){
+            n <<- n + 1
+            return(data.table(readID = sub('^>', '', e), leaderSeqGroupNum = n))
+          } else {
+            return(data.table())
+          }
+        })) %>% left_join(data.frame(seq = as.character(d), readID = names(d)), by = 'readID') %>% select(-readID) 
+        
         m <- m[! duplicated(m$seq),]
-      
+        
         x$leaderSeqGroupNum <- NULL
-      
+        
         x <- left_join(x, m, by = c('leaderSeq' = 'seq'))
-      
+        
         i <- is.na(x$leaderSeqGroupNum)
         if(any(i)) x[i, ]$leaderSeqGroupNum <- 1
-      
+        
         x$w <- x$fragEnd - x$fragStart
         o <- group_by(x, leaderSeqGroupNum) %>% 
-             summarise(nWidths = n_distinct(w), nReads = n()) %>% 
-             ungroup() %>% 
-             arrange(desc(nWidths), desc(nReads)) %>% 
-             mutate(leaderSeqGroupNum2 = 1:n())
-      
+          summarise(nWidths = n_distinct(w), nReads = n()) %>% 
+          ungroup() %>% 
+          arrange(desc(nWidths), desc(nReads)) %>% 
+          mutate(leaderSeqGroupNum2 = 1:n())
+        
         x <- left_join(x, select(o, -nWidths, -nReads), by = 'leaderSeqGroupNum')
         x$leaderSeqGroupNum <- x$leaderSeqGroupNum2
         x <- select(x, -leaderSeqGroupNum2, -w)
-      
+        
         x$posid <- paste0(x$posid2, '.', x$leaderSeqGroupNum)
       }
     }
-  
+    
     x
-  })) 
+  }
+  
+  frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, paste(frags_uniqPosIDs$trialSubject, frags_uniqPosIDs$sample, frags_uniqPosIDs$posid2)), reClassifyLeaderSeqs)) 
   
   i <- is.na(frags_uniqPosIDs$leaderSeqGroupNum)
   if(any(i)) frags_uniqPosIDs[i, ]$leaderSeqGroupNum <- 1
@@ -521,8 +527,18 @@ if(opt$buildStdFragments_clusterLeaderSeqs){
   i <- nchar(frags_uniqPosIDs$leaderSeq) < opt$buildStdFragments_minRemnantLengthToGroup
   if(any(i)) frags_uniqPosIDs[i, ]$leaderSeqGroupNum <- 1
   
+  if(nrow(frags_multPosIDs) > 0){
+    frags_multPosIDs <- bind_rows(lapply(split(frags_multPosIDs, paste(frags_multPosIDs$trialSubject, frags_multPosIDs$sample, frags_multPosIDs$posid2)), reClassifyLeaderSeqs)) 
+  
+    i <- is.na(frags_multPosIDs$leaderSeqGroupNum)
+    if(any(i)) frags_multPosIDs[i, ]$leaderSeqGroupNum <- 1
+    
+    i <- nchar(frags_multPosIDs$leaderSeq) < opt$buildStdFragments_minRemnantLengthToGroup
+    if(any(i)) frags_multPosIDs[i, ]$leaderSeqGroupNum <- 1
+  }
 } else {
   frags_uniqPosIDs$leaderSeqGroupNum <- 1
+  if(nrow(frags_multPosIDs) > 0) frags_multPosIDs$leaderSeqGroupNum <- 1
 }
 
 frags_uniqPosIDs$posid <- paste0(frags_uniqPosIDs$posid2, '.', frags_uniqPosIDs$leaderSeqGroupNum)
@@ -657,10 +673,6 @@ if(opt$processAdriftReadLinkerUMIs){
 frags_uniqPosIDs <- frags_uniqPosIDs[(frags_uniqPosIDs$fragEnd - frags_uniqPosIDs$fragStart) + 1 <= opt$buildStdFragments_maxFragLength,]
 
 
-frags_uniqPosIDs$anchorReadCluster <- FALSE
-anchorReadClusterTable <- tibble()
-
-
 
 # Anchor read filtering.
 #-------------------------------------------------------------------------------
@@ -694,7 +706,7 @@ for(path in f){
 alignments <- select(alignments, readID, strand, qStart)
 alignments <- subset(alignments, readID %in% frags_uniqPosIDs$readID)
 
-# Need to find the best
+# Need to find the best appropriate alignment.
 z <- group_by(alignments, readID, strand, qStart) %>%
        summarise(n = n()) %>%
      ungroup() %>%
@@ -721,7 +733,9 @@ updateLog(paste0('Length of unique fragment list after updating with read info: 
 
 rm(reads, alignments)
 
-
+frags_uniqPosIDs$anchorReadCluster <- FALSE
+anchorReadClusterDecisionTable <- tibble()
+anchorReadClusterNoDecisionTable <- tibble()
 
 if(opt$buildStdFragments_evalFragAnchorReadSeqs){
   # Evaluate the beginning of anchor reads by clustering them and looking for instances where more than
@@ -732,7 +746,6 @@ if(opt$buildStdFragments_evalFragAnchorReadSeqs){
   # Remove flag:
   #  0: do not remove
   #  1: remove
-  #  2: push to multihits.
   
   frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, frags_uniqPosIDs$sample), function(s){
     
@@ -763,8 +776,10 @@ if(opt$buildStdFragments_evalFragAnchorReadSeqs){
     s$remove <- 0
     clusterNum <- 1
     bind_rows(lapply(split(s, s$fragClusterGroup), function(x){
-      
-      updateLog(paste0('Analyzing cluster number: ', clusterNum, ', reads in cluster: ', n_distinct(x$readID), ', test seq consensus: ', Biostrings::consensusString(x$anchorReadSeq)))
+      seqs <- unique(o[names(o) %in% x$readID])
+      repSeq <- ifelse(length(seqs) > 1, ppConsensusSeq(seqs), as.character(seqs))
+        
+      updateLog(paste0('Analyzing cluster number: ', clusterNum, ', reads in cluster: ', n_distinct(x$readID), ', test seq consensus: ', repSeq))
       
       clusterNum <<- clusterNum + 1
       
@@ -772,40 +787,39 @@ if(opt$buildStdFragments_evalFragAnchorReadSeqs){
         
         x$anchorReadCluster <- TRUE
         
-        z <- group_by(x, posid2) %>% summarise(frags = n_distinct(fragEnd - fragStart + 1), reads = n()) %>% ungroup() %>% arrange(desc(frags), desc(reads))
+        z  <- group_by(x, posid2) %>% summarise(frags = n_distinct(fragEnd - fragStart + 1), reads = n(), readIDs = list(readID)) %>% ungroup() %>% arrange(desc(frags), desc(reads))
         
         updateLog(paste0(nrow(z), ' possible positions found.'))
         
-        write(pander::pandoc.table.return(z, style = "simple", split.tables = Inf, plain.ascii = TRUE), file = opt$defaultLogFile, append = TRUE)
+        write(pander::pandoc.table.return(select(z, -readIDs), style = "simple", split.tables = Inf, plain.ascii = TRUE), file = opt$defaultLogFile, append = TRUE)
         
-        if((z[1,]$frags - z[2,]$frags) >= opt$buildStdFragments_fragEvalAnchorReadMinAbundDiff | 
-           z[1,]$reads >= (z[2,]$reads * opt$buildStdFragments_fragEvalAnchorReadMinReadMult))
-        {
-          updateLog('Top candidate position selected.')
-          
+        z$posid1 = z[1,]$posid2
+        z$trial = x$trial[1]
+        z$subject = x$subject[1]
+        z$sample = x$sample[1]
+        z$anchorReadConsensusSeq = repSeq
+        z <- dplyr::relocate(z, trial, subject, sample, posid1, .before = posid2)
+        
+        # Re-sort table for read based decisions.
+        z2 <- arrange(z, desc(reads), desc(frags))
+
+        if((z[1,]$frags - z[2,]$frags) >= opt$buildStdFragments_fragEvalAnchorReadMinAbundDiff){
+          updateLog('Top candidate position selected based on fragment count - details stored in anchorReadClusterDecisionTable.rds')
           x$remove <- ifelse(x$posid2 == z[1,]$posid2, 0, 1)
-          
-          z$posid1 = z[1,]$posid2
-          z$trial = x$trial[1]
-          z$subject = x$subject[1]
-          z$sample = x$sample[1]
-          z$anchorReadConsensusSeq = Biostrings::consensusString(o[names(o) %in% x$readID])
-          z <- dplyr::relocate(z, trial, subject, sample, posid1, .before = posid2)
-          anchorReadClusterTable <<- bind_rows(anchorReadClusterTable, z)
+          anchorReadClusterDecisionTable <<- bind_rows(anchorReadClusterDecisionTable, z)
+        } else if(z2[1,]$reads >= (z2[2,]$reads * opt$buildStdFragments_fragEvalAnchorReadMinReadMult)){
+          updateLog('Top candidate position selected based on read count - details stored in anchorReadClusterDecisionTable.rds')
+          x$remove <- ifelse(x$posid2 == z2[1,]$posid2, 0, 1)
+          anchorReadClusterDecisionTable <<- bind_rows(anchorReadClusterDecisionTable, z2)
         } else {
-          updateLog('No candidate selected -- pushing all reads to multihits.')
-          x$remove <- 2
+          updateLog('No candidate selected - removing reads and reporting in anchorReadClusterNoDecisionTable.rds')
+          x$remove <- 1
+          anchorReadClusterNoDecisionTable <<- bind_rows(anchorReadClusterNoDecisionTable, z)
         }
       }
       x 
     }))
   }))
-  
-  m <- subset(frags_uniqPosIDs, remove == 2)
-  if(nrow(m) > 0){
-    updateLog(paste0('Pushing ', n_distinct(m$readID), ' reads to multihits.'))
-    frags_multPosIDs <- bind_rows(frags_multPosIDs, select(m, -fragClusterGroup, -posid2, -remove))
-  }
   
   updateLog(paste0('Removing ', n_distinct(subset(frags_uniqPosIDs, remove == 1)$readID), ' reads due to not being the first choice.'))
   frags_uniqPosIDs <- subset(frags_uniqPosIDs, remove == 0)
@@ -824,7 +838,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   # Create a data frame with width data needed by multi-hit calculating worker nodes
   # then export the data to the cluster nodes.
   multiHitFragWidths  <- mutate(frags_multPosIDs, width = fragEnd - fragStart + 1) %>%
-                         group_by(trial, subject, sample, posid) %>%
+                         group_by(trial, subject, sample, posid2) %>%
                          summarise(reads = list(readID), UMIs = list(randomLinkerSeq), .groups = 'drop') %>%
                          distinct()
 
@@ -833,10 +847,10 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   # For each read, create a from -> to data frame and capture the width of the read. 
   multiHitNet_replicates <- rbindlist(lapply(split(frags_multPosIDs, frags_multPosIDs$readID), function(x){
 
-    if(n_distinct(x$posid) == 1) return(tibble()) # Cases of break point only variation.
+    if(n_distinct(x$posid2) == 1) return(tibble()) # Cases of break point only variation.
 
     # Create unique to - from permutations.
-    node_pairs <- RcppAlgos::comboGeneral(unique(x$posid), 2)
+    node_pairs <- RcppAlgos::comboGeneral(unique(x$posid2), 2)
     data.table(trial = x[1,]$trial, 
                subject = x[1,]$subject,
                sample = x[1,]$sample, 
@@ -876,7 +890,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
         o$clusterID <- paste0('MHC.', 1:nrow(o))
       
         tidyr::unnest(o, clusters) %>%
-        dplyr::left_join(subset(multiHitFragWidths, sample == x2$sample[1]) %>% dplyr::select(posid, reads, UMIs), by = c('clusters' = 'posid')) %>%
+        dplyr::left_join(subset(multiHitFragWidths, sample == x2$sample[1]) %>% dplyr::select(posid2, reads, UMIs), by = c('clusters' = 'posid2')) %>%
         dplyr::group_by(trial, subject, sample, clusterID) %>%
         dplyr::summarise(nodes = n_distinct(clusters), 
                          readIDs = list(unique(unlist(reads))), 
@@ -888,10 +902,17 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       }))
     }))
    
-    rm(frags_multPosIDs, multiHitNet_replicates, multiHitFragWidths) 
+    # Add back leaderSeq identifiers.
+    z <- select(frags_multPosIDs, posid, posid2)
+    multiHitClusters <- bind_rows(lapply(split(multiHitClusters, 1:nrow(multiHitClusters)), function(x){
+      x$posids <- list(unique(subset(z, z$posid2 %in% unlist(x$posids))$posid))
+      x
+    }))
+    
+    rm(z, frags_multPosIDs, multiHitNet_replicates, multiHitFragWidths) 
     invisible(gc())
   }
-    
+  
   saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'), compress = opt$compressDataFiles)
   
   if(opt$databaseConfigGroup != 'none' & nrow(multiHitClusters) > 0){
@@ -942,12 +963,11 @@ a <- subset(frags, i == 1)
 b <- subset(frags, i > 1)    
 
 buildConsensusSeq <- function(x){
-  x$w <- x$fragEnd - x$fragStart
-  tab <- group_by(x, leaderSeq) %>% 
-    summarise(nWidths = n_distinct(fragEnd - fragStart), nReads = n()) %>% 
-    ungroup() %>%
-    arrange(desc(nWidths), desc(nReads))
-  as.character(tab[1, 'leaderSeq'])
+  dplyr::group_by(x, leaderSeq) %>% 
+    dplyr::summarise(nReads = n()) %>% 
+  dplyr::ungroup() %>%
+  dplyr::slice_max(nReads, with_ties = FALSE) %>%
+  dplyr::pull(leaderSeq)
 }
 
 
@@ -968,8 +988,6 @@ if(nrow(b) > 0){
   o <- split(b, b$fragID)
 
   updateLog('Bundling fragment reads into fragment records.')
-  
-  # (!) Add progress notes to log...
  
   b2 <- bind_rows(lapply(o, function(x){
          totalReads <- n_distinct(x$readID) + sum(x$nDuplicateReads)
@@ -1029,12 +1047,16 @@ if (nrow(f) > 0) f <- left_join(f, sampleMetaData, by = 'uniqueSample')
 s <- unique(paste0(f$trial, '~', f$subject, '~', f$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
+
 # Write out fragments.
 saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -leaderSeqGroup, -leaderSeqGroupNum, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
 readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -leaderSeqGroup, -leaderSeqGroupNum, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
 
+
 # Write out anchorReadCluster table.
-saveRDS(anchorReadClusterTable, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'anchorReadClusterTable.rds'))
+saveRDS(anchorReadClusterDecisionTable, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'anchorReadClusterDecisionTable.rds'))
+saveRDS(anchorReadClusterNoDecisionTable, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'anchorReadClusterNoDecisionTable.rds'))
+
 
 updateLog('buildStdFragments completed.')
 

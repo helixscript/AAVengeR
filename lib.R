@@ -32,6 +32,18 @@ loadConfig <- function(configFile = NULL){
 
 ppNum <- function(n) format(n, big.mark = ",", scientific = FALSE, trim = TRUE)
 
+ppConsensusSeq <- function(x){
+  library(msa)
+  if(length(unique(x)) == 1) return(as.character(unique(x)))
+  names(x) <- paste0('seq', 1:length(x))
+  
+  o <- consensusString(msa(x, method = 'ClustalW'))
+  o <- sub('^[\\-]+', '', o)
+  o <- sub('[\\-]+$', '', o)
+  o <- sub('VVVVV', '/', o)  # Special run of ambiguity codes designed to be replaced by a '/' when displaying two leader sequences in buildSites.
+  o
+}
+
 createOuputDir <- function(){
   if(! dir.exists(opt$outputDir)){
     invisible(sapply(readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt')), message))
