@@ -389,35 +389,35 @@ stopCluster(cluster)
 saveRDS(r, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result.rds'))
 openxlsx::write.xlsx(r, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result.xlsx'))
 
-# o <- mutate(r, sample2 = sub('~\\d+$', '', sample)) %>% 
-#      group_by(sample2, window) %>%
-#      summarise(avgRepReads = mean(totalReads),
-#               avgAltStructs = mean(altStructs),
-#               avgPercentAltStructReads = mean(percentAltStructReads),
-#               sd = sd(percentAltStructReads)) %>%
-#     ungroup() %>%
-#     mutate(altStructBin = cut(avgAltStructs, 
-#                               breaks = c(0, 10, 50, 100, 250, 500, Inf), labels = FALSE, right = FALSE)) 
-# 
-# ggplot(o, aes(window, avgPercentAltStructReads, group = sample2, color= sample2, fill = sample2)) +
-# theme_bw() +
-# geom_line(position = position_dodge(width = 30), guide = 'none') +
-# geom_jitter(aes(size = altStructBin), 
-#             shape = 21, 
-#             color = 'black', 
-#             position = position_dodge(width = 30)) +
-# scale_fill_manual(name = 'Samples', 
-#                   values = grDevices::colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))(n_distinct(o$sample2))) +
-# scale_color_manual(values = grDevices::colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))(n_distinct(o$sample2))) +
-# scale_size(name = 'Alternative structures', 
-#            range = c(2, 6), 
-#            breaks = c(1:6),
-#            labels = c('0 - 10', '10 - 50', '50 - 100', '100 - 250', '250 - 500', '> 500'), 
-#            guide = "legend") +
-# scale_y_continuous(limits = c(0, 30)) +
-# geom_errorbar(aes(ymin = avgPercentAltStructReads - sd,
-#                   ymax = avgPercentAltStructReads + sd), 
-#                   position = position_dodge(width = 30), width = 30) +
-# labs(x = 'Read width', y = 'Percent rearranged') + 
-# theme(text = element_text(size = 14)) + 
-# guides(color = "none", fill = guide_legend(override.aes = list(size = 6)))
+o <- mutate(r, sample2 = sub('~\\d+$', '', sample)) %>%
+     group_by(sample2, window) %>%
+     summarise(avgRepReads = mean(totalReads),
+              avgAltStructs = mean(altStructs),
+              avgPercentAltStructReads = mean(percentAltStructReads),
+              sd = sd(percentAltStructReads)) %>%
+    ungroup() %>%
+    mutate(altStructBin = cut(avgAltStructs,
+                              breaks = c(0, 10, 50, 100, 250, 500, Inf), labels = FALSE, right = FALSE))
+
+ggplot(o, aes(window, avgPercentAltStructReads, group = sample2, color= sample2, fill = sample2)) +
+theme_bw() +
+geom_line(position = position_dodge(width = 30), guide = 'none') +
+geom_jitter(aes(size = altStructBin),
+            shape = 21,
+            color = 'black',
+            position = position_dodge(width = 30)) +
+scale_fill_manual(name = 'Samples',
+                  values = grDevices::colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))(n_distinct(o$sample2))) +
+scale_color_manual(values = grDevices::colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))(n_distinct(o$sample2))) +
+scale_size(name = 'Alternative structures',
+           range = c(2, 6),
+           breaks = c(1:6),
+           labels = c('0 - 10', '10 - 50', '50 - 100', '100 - 250', '250 - 500', '> 500'),
+           guide = "legend") +
+scale_y_continuous(limits = c(0, 30)) +
+geom_errorbar(aes(ymin = avgPercentAltStructReads - sd,
+                  ymax = avgPercentAltStructReads + sd),
+                  position = position_dodge(width = 30), width = 30) +
+labs(x = 'Read width', y = 'Percent rearranged') +
+theme(text = element_text(size = 14)) +
+guides(color = "none", fill = guide_legend(override.aes = list(size = 6)))
