@@ -1,0 +1,43 @@
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 2.6.0
+
+12.06.2024  7:27pm	Loading sample data.
+12.06.2024  7:27pm	15,000 reads in paired end data set.
+12.06.2024  7:27pm	Determining if I1 barcodes should be switched to RC.
+12.06.2024  7:27pm	Setting demultiplex_RC_I1_barcodes to FALSE.
+12.06.2024  7:27pm	Starting demultipling.
+12.06.2024  7:27pm	   processing data chunk 1.
+12.06.2024  7:27pm	   15,000 reads processed.
+12.06.2024  7:27pm	   Batch read limit reached, calling demultiplex().
+12.06.2024  7:27pm	   processed 100.00% of all reads.
+12.06.2024  7:27pm	   processing data chunk 2.
+12.06.2024  7:27pm	Completed processing read batches.
+12.06.2024  7:27pm	Colating data files.
+12.06.2024  7:27pm	Colating reads for validation~validationSubject~sample1~2.
+12.06.2024  7:27pm	Colating reads for validation~validationSubject~sample1~1.
+12.06.2024  7:27pm	Colating reads for validation~validationSubject~sample2~2.
+12.06.2024  7:27pm	Colating reads for validation~validationSubject~sample2~1.
+12.06.2024  7:27pm	Colating reads for validation~validationSubject~sample3~2.
+12.06.2024  7:27pm	Colating reads for validation~validationSubject~sample3~1.
+12.06.2024  7:27pm	Clearing tmp files.
+12.06.2024  7:27pm	Colating log files.
+12.06.2024  7:27pm	Writing attrition table.
+12.06.2024  7:27pm	Expanding read table with meta data from sample table.
+12.06.2024  7:27pm	Setting read UMI sequences to poly-A because processAdriftReadLinkerUMIs is set to FALSE.
+12.06.2024  7:27pm	Applying post UMI filter because demultiplex_requirePostUmiLinker is set to TRUE.
+12.06.2024  7:27pm	validation~validationSubject~sample1~1 - 0.00% reads missing post UMI linker.
+12.06.2024  7:27pm	validation~validationSubject~sample1~2 - 0.00% reads missing post UMI linker.
+12.06.2024  7:27pm	validation~validationSubject~sample2~1 - 0.00% reads missing post UMI linker.
+12.06.2024  7:27pm	validation~validationSubject~sample2~2 - 0.00% reads missing post UMI linker.
+12.06.2024  7:27pm	validation~validationSubject~sample3~1 - 0.00% reads missing post UMI linker.
+12.06.2024  7:27pm	validation~validationSubject~sample3~2 - 0.00% reads missing post UMI linker.
+12.06.2024  7:27pm	Writing output files.
+12.06.2024  7:27pm	Demultiplex completed.

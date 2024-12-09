@@ -1,0 +1,23 @@
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 2.6.0
+
+12.06.2024  8:03pm	Reading in anchor and adrift read alignments.
+12.06.2024  8:03pm	Preparing alignment data for fragment generation.
+12.06.2024  8:03pm	Building initial fragments.
+12.06.2024  8:03pm	Building rational fragments from alignment data.
+12.06.2024  8:03pm	1/6: 1212 anchorRead alignments, 525 adriftRead_alignments.
+12.06.2024  8:03pm	2/6: 4186 anchorRead alignments, 437 adriftRead_alignments.
+12.06.2024  8:03pm	3/6: 1979 anchorRead alignments, 1101 adriftRead_alignments.
+12.06.2024  8:03pm	4/6: 4311 anchorRead alignments, 3029 adriftRead_alignments.
+12.06.2024  8:03pm	5/6: 2327 anchorRead alignments, 724 adriftRead_alignments.
+12.06.2024  8:03pm	6/6: 3462 anchorRead alignments, 1496 adriftRead_alignments.
+12.06.2024  8:03pm	Fragment generation complete.
+12.06.2024  8:03pm	buildFragments completed.

@@ -1,0 +1,14 @@
+Fri Dec  6 19:39:51 2024
+Available CPUs: 15
+
+
+                   id                     reads   CPUs   active       startTime             endTime         done    duration  
+---------------------------------------- ------- ------ -------- -------------------- -------------------- ------ ------------
+ validation~validationSubject~sample1~1   2100     2       NA     12.06.2024  7:27pm   12.06.2024  7:37pm   TRUE   9 minutes  
+ validation~validationSubject~sample1~2   3150     3       NA     12.06.2024  7:27pm   12.06.2024  7:37pm   TRUE   9 minutes  
+ validation~validationSubject~sample2~1   2160     2       NA     12.06.2024  7:27pm   12.06.2024  7:38pm   TRUE   10 minutes 
+ validation~validationSubject~sample2~2   3240     3       NA     12.06.2024  7:27pm   12.06.2024  7:39pm   TRUE   12 minutes 
+ validation~validationSubject~sample3~1   1740     2       NA     12.06.2024  7:27pm   12.06.2024  7:36pm   TRUE   8 minutes  
+ validation~validationSubject~sample3~2   2610     3       NA     12.06.2024  7:28pm   12.06.2024  7:36pm   TRUE   8 minutes  
+
+

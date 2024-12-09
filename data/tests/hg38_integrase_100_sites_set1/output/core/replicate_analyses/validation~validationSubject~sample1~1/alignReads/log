@@ -1,0 +1,20 @@
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 2.6.0
+
+12.06.2024  7:28pm	Reading in prepped reads.
+12.06.2024  7:28pm	Aligning 2,100 anchor reads to reference genomes.
+12.06.2024  7:33pm	100.00% of prepped anchor reads aligned to the reference genome.
+12.06.2024  7:33pm	0.00% of anchor reads removed because their alignments ended more than 5 NTs from the end of reads.
+12.06.2024  7:33pm	Aligning 2,100 adrift reads to reference genomes.
+12.06.2024  7:37pm	100.00% of prepped adrift reads aligned to the reference genome.
+12.06.2024  7:37pm	0.00% of adrift reads removed because their alignments ended more than 5 NTs from the end of reads.
+12.06.2024  7:37pm	Finding read pairs where both anchor and adrift read pair mates aligned well.
+12.06.2024  7:37pm	alignReads completed.

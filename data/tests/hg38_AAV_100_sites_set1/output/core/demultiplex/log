@@ -1,0 +1,64 @@
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 2.6.0
+
+12.06.2024  7:52pm	Loading sample data.
+12.06.2024  7:52pm	15,000 reads in paired end data set.
+12.06.2024  7:52pm	Determining if I1 barcodes should be switched to RC.
+12.06.2024  7:52pm	Setting demultiplex_RC_I1_barcodes to FALSE.
+12.06.2024  7:52pm	Starting demultipling.
+12.06.2024  7:52pm	   processing data chunk 1.
+12.06.2024  7:52pm	   15,000 reads processed.
+12.06.2024  7:52pm	   Batch read limit reached, calling demultiplex().
+12.06.2024  7:52pm	   processed 100.00% of all reads.
+12.06.2024  7:52pm	   processing data chunk 2.
+12.06.2024  7:52pm	Completed processing read batches.
+12.06.2024  7:52pm	Colating data files.
+12.06.2024  7:52pm	Colating reads for validation~validationSubject~sample2~2.
+12.06.2024  7:52pm	Colating reads for validation~validationSubject~sample2~1.
+12.06.2024  7:52pm	Colating reads for validation~validationSubject~sample3~2.
+12.06.2024  7:52pm	Colating reads for validation~validationSubject~sample3~1.
+12.06.2024  7:52pm	Colating reads for validation~validationSubject~sample1~2.
+12.06.2024  7:52pm	Colating reads for validation~validationSubject~sample1~1.
+12.06.2024  7:52pm	Clearing tmp files.
+12.06.2024  7:52pm	Colating log files.
+12.06.2024  7:52pm	Writing attrition table.
+12.06.2024  7:52pm	Expanding read table with meta data from sample table.
+12.06.2024  7:52pm	Setting read UMI sequences to poly-A because processAdriftReadLinkerUMIs is set to FALSE.
+12.06.2024  7:52pm	Prefiltering 15,000 reads with bwa2.
+12.06.2024  7:52pm	Aligning reads to hg38...
+12.06.2024  7:52pm	Creating adrift read FASTA for alignment.
+12.06.2024  7:52pm	Starting BWA2.
+12.06.2024  7:53pm	BWA2 complete. Starting sam2psl.
+12.06.2024  7:53pm	Parsing psl table.
+12.06.2024  7:53pm	Cleaning up files.
+12.06.2024  7:53pm	Subsetting read data.
+12.06.2024  7:53pm	Creating anchor read FASTA for alignment.
+12.06.2024  7:53pm	Starting BWA2.
+12.06.2024  7:53pm	BWA2 complete. Starting sam2psl.
+12.06.2024  7:53pm	Reading psl table.
+12.06.2024  7:53pm	Rearranging psl table columns and rewriting.
+12.06.2024  7:53pm	Parsing psl table.
+12.06.2024  7:53pm	Filtering psl table.
+12.06.2024  7:53pm	Subsetting read data.
+12.06.2024  7:53pm	Calculating and appending min. alignment start positions.
+12.06.2024  7:54pm	Joining min. alignment starts to data and returing.
+12.06.2024  7:54pm	Cleaning up files.
+12.06.2024  7:54pm	Prefiltering done.
+12.06.2024  7:54pm	0.00% reads removed because they had no hit to the reference genome.
+12.06.2024  7:54pm	Applying post UMI filter because demultiplex_requirePostUmiLinker is set to TRUE.
+12.06.2024  7:54pm	validation~validationSubject~sample1~1 - 0.00% reads missing post UMI linker.
+12.06.2024  7:54pm	validation~validationSubject~sample1~2 - 0.00% reads missing post UMI linker.
+12.06.2024  7:54pm	validation~validationSubject~sample2~1 - 0.00% reads missing post UMI linker.
+12.06.2024  7:54pm	validation~validationSubject~sample2~2 - 0.00% reads missing post UMI linker.
+12.06.2024  7:54pm	validation~validationSubject~sample3~1 - 0.00% reads missing post UMI linker.
+12.06.2024  7:54pm	validation~validationSubject~sample3~2 - 0.00% reads missing post UMI linker.
+12.06.2024  7:54pm	Writing output files.
+12.06.2024  7:54pm	Demultiplex completed.
