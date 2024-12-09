@@ -39,7 +39,7 @@ core_applyCoreCPUsToAllModules: TRUE
 demultiplex_CPUs: 20
 demultiplex_outputDir: demultiplex
 demultiplex_replicateMergingInstructions: none
-demultiplex_level: all                          # (all, unique, or clustered)
+demultiplex_level: unique                          # (all, unique, or clustered)
 demultiplex_quickAlignFilter: FALSE
 demultiplex_useAdriftReadUniqueLinkers: TRUE
 demultiplex_requirePostUmiLinker: TRUE
