@@ -7,9 +7,9 @@ mode: integrase                       # (integrase, AAV, transposase, or manual)
 core_CPUs: 15
 
 outputDir: output
-softwareDir: /home/everett/AAVengeR
+softwareDir: /home/ubuntu/AAVengeR
 
-databaseConfigFile: /home/everett/.my.cnf
+databaseConfigFile: /home/ubuntu/.my.cnf
 databaseConfigGroup: none
 
 sequencingRunID: 200101_M03500_0001_000000000-ABCXY
@@ -162,7 +162,7 @@ buildSites_inputFile: buildStdFragments/stdFragments.rds
 buildSites_outputDir: buildSites
 buildSites_enableDualDetection: TRUE
 buildSites_dualDetectWidth: 6
-buildSites_integraseCorrectionDist: 0
+buildSites_integraseCorrectionDist: 2
 buildSites_sumSonicBreaksWithin: samples
 
 

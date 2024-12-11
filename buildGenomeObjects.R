@@ -11,7 +11,6 @@ library(parallel)
 tmpFile <- paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = '')
 
 # Read in the configuration file and perform basic sanity checks.
-set.seed(1)
 args <- commandArgs(trailingOnly=TRUE)
 if(length(args) == 0) stop('Expected at least one command line argument')
 source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))

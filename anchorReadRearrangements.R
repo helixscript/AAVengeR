@@ -14,8 +14,6 @@ suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(data.table))
 
-# Read in the configuration file and perform basic sanity checks.
-set.seed(1)
 args <- commandArgs(trailingOnly=TRUE)
 if(length(args) == 0) stop('Expected at least one command line argument')
 source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
@@ -60,7 +58,7 @@ if(nrow(reads) == 0) quitOnErorr('Error - the input table contained no rows.')
 
 # (!) Hot fix.
 # (!) -------------
-# reads[grepl('pTBG_HC_VCN20', reads$uniqueSample)]$vectorFastaFile <- 'Sabatino_PMC7855056_heavyChain_plasmid.fasta'
+reads[grepl('pTBG_HC_VCN20', reads$uniqueSample)]$vectorFastaFile <- 'Sabatino_PMC7855056_heavyChain_plasmid.fasta'
 # (!) -------------
 
 
@@ -164,8 +162,6 @@ reads <- bind_rows(lapply(split(reads, reads$uniqueSample), function(x){
 }))
 
 
-# save.image('step1.RData')
-
 reads$w <- nchar(reads$seq)
 
 # Limit reads to those that start with the expected sequences.
@@ -193,8 +189,6 @@ reads$sample <- sub('~\\d+$', '', reads$uniqueSample)
 
 nReadsPreFilter <- nrow(reads)
 
-### reads$vectorFastaFile <- sub('BushmanAAVcontrols.fasta', 'BushmanAAVcontrolsLargestRemnant-plasmid.fasta', reads$vectorFastaFile)
-
 # Remove reads whoes ends do not align with their vector plasmid.
 reads <- bind_rows(lapply(split(reads, reads$vectorFastaFile), function(x){
   f <- tmpFile()
@@ -214,17 +208,12 @@ reads <- bind_rows(lapply(split(reads, reads$vectorFastaFile), function(x){
                 ' -tileSize=6 -stepSize=3 -repMatch=3000 -out=psl -t=dna -q=dna -minScore=0 -minIdentity=0 -noHead -noTrimA'))
   
   o <- parseBLAToutput(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.psl')))
-  
-  if(nrow(o) > 0){
-    o <- subset(o, matches >= opt$anchorReadRearrangements_readEndAlignmentTestMinMatch)
-    x <- subset(x, lastNTs %in% o$qName)
-  } else {
-    x <- tibble()
-  }
+  o <- subset(o, matches >= opt$anchorReadRearrangements_readEndAlignmentTestMinMatch)
   
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
   
-  x
+  # add alignment failure test...
+  subset(x, lastNTs %in% o$qName)
 }))
 
 updateLog(paste0(sprintf("%.2f%%", (n_distinct(reads$readID) / nReadsPreFilter)*100), ' reads remain after removing reads whoes tails do not align to the vector.'))
@@ -327,7 +316,7 @@ r <- bind_rows(lapply(split(reads, paste(reads$vectorFastaFile, reads$uniqueSamp
       files <- list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'dbs'), full.names = TRUE)
       if(length(files) > 0) invisible(file.remove(files))
       
-      system(paste0('/home/everett/ext/blast+/bin/makeblastdb -in ', file.path(opt$softwareDir, 'data', 'vectors', x$vector[1]), 
+      system(paste0('/home/ubuntu/software/ncbi-blast-2.12.0+/bin/makeblastdb -in ', file.path(opt$softwareDir, 'data', 'vectors', x$vector[1]), 
                     ' -dbtype nucl -out ', file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'dbs', 'd')), ignore.stderr = FALSE)
       
       # Here we cluster representatives to control for wiggle between recombined forms.
@@ -340,7 +329,7 @@ r <- bind_rows(lapply(split(reads, paste(reads$vectorFastaFile, reads$uniqueSamp
       #
       # (!) Here we increase the penalty from the default -3 to -4 to prevent runs of mismatches to come through if followed by a string of matches.
       #
-      system(paste0('/home/everett/ext/blast+/bin/blastn -penalty -4 -max_target_seqs 10000 -gapopen 10 -gapextend 5 -dust no -soft_masking false -word_size 5 -evalue 100 -outfmt 6 -query repReads.fasta -db ',
+      system(paste0('/home/ubuntu/software/ncbi-blast-2.12.0+/bin/blastn -penalty -4 -max_target_seqs 10000 -gapopen 10 -gapextend 5 -dust no -soft_masking false -word_size 5 -evalue 100 -outfmt 6 -query repReads.fasta -db ',
                     file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'dbs', 'd'),
                     ' -num_threads ', opt$anchorReadRearrangements_CPUs  ,' -out repReads.blast'), ignore.stdout = TRUE, ignore.stderr = TRUE)
       
@@ -426,7 +415,7 @@ scale_size(name = 'Alternative structures',
            breaks = c(1:6),
            labels = c('0 - 10', '10 - 50', '50 - 100', '100 - 250', '250 - 500', '> 500'),
            guide = "legend") +
-scale_y_continuous(limits = c(0, 10)) +
+scale_y_continuous(limits = c(0, 30)) +
 geom_errorbar(aes(ymin = avgPercentAltStructReads - sd,
                   ymax = avgPercentAltStructReads + sd),
                   position = position_dodge(width = 30), width = 30) +

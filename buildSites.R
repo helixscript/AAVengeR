@@ -13,7 +13,6 @@ suppressPackageStartupMessages(library(RMariaDB))
 suppressPackageStartupMessages(library(Biostrings))
 
 # Read in the configuration file and perform basic sanity checks.
-set.seed(1)
 args <- commandArgs(trailingOnly=TRUE)
 if(length(args) == 0) stop('Expected at least one command line argument')
 source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
@@ -114,7 +113,7 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
             frags[i,]$repLeaderSeq <<- paste0(names(sort(table(f1$repLeaderSeq), decreasing = TRUE))[1], '/', names(sort(table(f2$repLeaderSeq), decreasing = TRUE))[1])
 
             frags[i,]$flags <<- 'dual detect'
-          
+            
             chr <- stringr::str_extract(a, 'chr[XY\\d]+')
             pos <- names(sort(table(sub('[\\+\\-]', '', stringr::str_extract(frags[i,]$posid, '[\\+\\-]\\d+'))), decreasing = TRUE))[1]
           
@@ -234,7 +233,7 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
          b <- tibble(rUMIs = NA, fUMIs = NA, sonicLengths = NA, reads = NA, repLeaderSeq = NA)
          o <- x[x$replicate == r,]
     
-         if(nrow(o) > 1){
+         if(nrow(o) == 1){
            b$rUMIs <- ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(o$rUMI_list)), NA)
            b$fUMIs <- ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(o$fUMI_list)), NA)
            b$sonicLengths <- n_distinct(o$fragWidths)

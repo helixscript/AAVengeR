@@ -11,7 +11,6 @@ suppressPackageStartupMessages(library(ShortRead))
 suppressPackageStartupMessages(library(dplyr))
 
 # Read in the configuration file and perform basic sanity checks.
-set.seed(1)
 args <- commandArgs(trailingOnly=TRUE)
 if(length(args) == 0) stop('Expected at least one command line argument')
 source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
