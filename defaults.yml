@@ -104,8 +104,6 @@ buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90
 
 buildStdFragments_CPUs: 15
 buildStdFragments_outputDir: buildStdFragments
-buildStdFragments_autoPullTrialSamples: TRUE
-buildStdFragments_trialSubjectList: none
 buildStdFragments_randomIDdupReadMult: 3
 buildStdFragments_randomIDdupAbundMult: 2
 buildStdFragments_clusterLeaderSeqs: TRUE

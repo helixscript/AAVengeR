@@ -233,7 +233,7 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
          b <- tibble(rUMIs = NA, fUMIs = NA, sonicLengths = NA, reads = NA, repLeaderSeq = NA)
          o <- x[x$replicate == r,]
     
-         if(nrow(o) == 1){
+         if(nrow(o) >= 1){
            b$rUMIs <- ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(o$rUMI_list)), NA)
            b$fUMIs <- ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(o$fUMI_list)), NA)
            b$sonicLengths <- n_distinct(o$fragWidths)

@@ -45,11 +45,6 @@ quitOnErorr <- function(msg){
 # Setup.
 #-------------------------------------------------------------------------------
 
-# Check for configuration errors.
-if(opt$buildStdFragments_autoPullTrialSamples & opt$databaseConfigGroup == 'none') quitOnErorr('Error -- the databaseConfigGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')
-if(opt$buildStdFragments_trialSubjectList != 'none' & opt$databaseConfigGroup == 'none') quitOnErorr('Error -- the databaseConfigGroup option must be provided with the buildStdFragments_autoPullTrialSamples option.')
-
-
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, 'opt')
@@ -64,40 +59,12 @@ if(tolower(opt$databaseConfigGroup) != 'none') dbConn <- createDBconnection()
 #----------------------------------------------------------------------------------------
 updateLog('Reading in fragment file(s).')
 
-if(opt$buildStdFragments_trialSubjectList != 'none'){
-  # Format:  trial;subject|trial;subject, eg. 'Sabatino;pM50|Sabatino;pLinus'
+frags <- distinct(readRDS(file.path(opt$outputDir, opt$buildStdFragments_inputFile)))
   
-  frags <- distinct(bind_rows(lapply(unlist(base::strsplit(opt$buildStdFragments_trialSubjectList, '\\|')), function(x){
-    d <- unlist(base::strsplit(x, ';'))
-    pullDBsubjectFrags(dbConn, d[1], d[2], tmpDirPath = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'))
-  })))
-  
-} else {
-  frags <- distinct(readRDS(file.path(opt$outputDir, opt$buildStdFragments_inputFile)))
-  
-  if(opt$buildStdFragments_autoPullTrialSamples){
-    
-    trialSubjects <- dplyr::select(frags, uniqueSample) %>% 
-                     tidyr::separate(uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~', remove = TRUE) %>% 
-                     dplyr::select(trial, subject) %>% 
-                     dplyr::distinct()
-    
-    dbFrags <- bind_rows(lapply(split(trialSubjects, 1:nrow(trialSubjects)), function(x) pullDBsubjectFrags(dbConn, x$trial, x$subject, tmpDirPath = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'))))
-    
-    dbFragsToAdd <- dbFrags[! dbFrags$uniqueSample %in% frags$uniqueSample,]
-    
-    if(nrow(dbFragsToAdd) > 0){
-      updateLog(paste0('Adding ', nrow(dbFragsToAdd), ' fragment read records to incoming fragment data.'))
-      frags <- distinct(bind_rows(frags, dbFragsToAdd))
-    }
-  }
-}
-
 # Make sure fragments were retrieved.
 if(nrow(frags) == 0) quitOnErorr('Error -- no fragments were loaded or retrieved.')
 
 incomingSamples <- unique(sub('~\\d+$', '', frags$uniqueSample))
-
 
 # Set aside meta data till the end to save memory and add data back at the end 
 # and unpack the uniqueSample ids.
@@ -684,19 +651,21 @@ for(path in f){
   readsPath <- list.files(path, pattern = 'reads.rds', recursive = TRUE, full.names = TRUE)
   readsPath <- readsPath[grepl('prepReads', readsPath)]
   if(length(readsPath) > 0){
+    updateLog(paste0('Reading in prep read data from: ', readsPath))
     reads <- bind_rows(lapply(readsPath, readRDS))
     break
   }
 }
+
 reads <- select(reads, readID, anchorReadSeq)
 reads <- subset(reads, readID %in% frags_uniqPosIDs$readID)
-
 
 # Find the nearest source of anchor alignments and load them.
 for(path in f){
   alignmentPath <- list.files(path, pattern = 'anchorReadAlignments.rds', recursive = TRUE, full.names = TRUE)
   alignmentPath <- alignmentPath[grepl('alignReads', alignmentPath)]
   if(length(alignmentPath) > 0){
+    updateLog(paste0('Reading in alignment data from: ', alignmentPath))
     alignments <- bind_rows(lapply(alignmentPath, readRDS))
     break
   }
@@ -705,7 +674,7 @@ for(path in f){
 alignments <- select(alignments, readID, strand, qStart)
 alignments <- subset(alignments, readID %in% frags_uniqPosIDs$readID)
 
-# Need to find the best appropriate alignment.
+# Need to find the most appropriate alignment.
 z <- group_by(alignments, readID, strand, qStart) %>%
        summarise(n = n()) %>%
      ungroup() %>%
@@ -874,7 +843,6 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
                readID = x[1,]$readID)
   }))
   
-  
   if(nrow(multiHitNet_replicates) > 0){
 
     # Create trial/subject/sample grouping indices that will be used to create a splitting vector.
@@ -968,7 +936,6 @@ updateLog(paste0('Multi-hit table rows:', nrow(multiHitClusters)))
 frags_uniqPosIDs <- tidyr::unite(frags_uniqPosIDs, fragID, trial, subject, sample, replicate, 
                       chromosome, strand, fragStart, fragEnd, leaderSeqGroupNum, sep = ':', remove = FALSE)
 
-
 # Count the number of reads associated with each fragment.
 # fragments with more than one read, i > 1, need additional processing.
 frags <- group_by(data.frame(frags_uniqPosIDs), fragID) %>% mutate(i = n()) %>% ungroup()
@@ -984,7 +951,6 @@ buildConsensusSeq <- function(x){
   dplyr::pull(leaderSeq)
 }
 
-
 filterUMIs <- function(x){
   k <- data.frame(table(x)) %>%
        dplyr::mutate(f = (Freq / sum(Freq) * 100)) %>%
@@ -996,7 +962,6 @@ filterUMIs <- function(x){
   
   k
 }
-
 
 if(nrow(b) > 0){
   o <- split(b, b$fragID)
@@ -1029,7 +994,6 @@ if(nrow(b) > 0){
   b2 <- tibble()
 }
 
-
 if(nrow(a) > 0){
   a2 <- dplyr::group_by(a, fragID) %>%
         dplyr::mutate(reads = nDuplicateReads+1, 
@@ -1044,32 +1008,25 @@ if(nrow(a) > 0){
   a2 <- tibble()
 } 
 
-
 # Merge split fragments back together.
 f <- bind_rows(a2, b2)
-
 
 # Clear out the tmp/ directory.
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), full.names = TRUE)))
 
-
 # Add metadata back to final fragments.
 if (nrow(f) > 0) f <- left_join(f, sampleMetaData, by = 'uniqueSample')
-
 
 # Core module failure catch.
 s <- unique(paste0(f$trial, '~', f$subject, '~', f$sample))
 if(any(! incomingSamples %in% s) & opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
 
-
 # Write out fragments.
 saveRDS(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -leaderSeqGroup, -leaderSeqGroupNum, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.rds'), compress = opt$compressDataFiles)
 readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads, -leaderSeqGroup, -leaderSeqGroupNum, -randomLinkerSeq), file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'stdFragments.tsv.gz'))
 
-
 # Write out anchorReadCluster table.
 saveRDS(anchorReadClusterDecisionTable, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'anchorReadClusterDecisionTable.rds'))
-
 
 updateLog('buildStdFragments completed.')
 

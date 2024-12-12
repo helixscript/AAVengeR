@@ -271,7 +271,7 @@ if(opt$databaseConfigGroup != 'none'){
     x <- tidyr::separate(x, uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~', remove = FALSE)
     
     # By making an entry in the samples table, we mark that this sample replicate has been processed to the fragment
-    # generation stage and should not be processed again untill the record is removed from the samples table.
+    # generation stage and should not be processed again until the record is removed from the samples table.
     
     f <- tmpFile()
     dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, f))

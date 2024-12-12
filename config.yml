@@ -4,15 +4,13 @@
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 mode: integrase                       # (integrase, AAV, transposase, or manual)
 
-core_CPUs: 15
+core_CPUs: 30
 
 outputDir: output
 softwareDir: /home/ubuntu/AAVengeR
 
 databaseConfigFile: /home/ubuntu/.my.cnf
-databaseConfigGroup: none
-
-sequencingRunID: 200101_M03500_0001_000000000-ABCXY
+databaseConfigGroup: AAVengeR
 
 demultiplex_anchorReadsFile: Undetermined_S0_R2_001.fastq.gz
 demultiplex_adriftReadsFile: Undetermined_S0_R1_001.fastq.gz
@@ -132,8 +130,6 @@ buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90
 buildStdFragments_CPUs: 15
 buildStdFragments_inputFile: buildFragments/fragments.rds
 buildStdFragments_outputDir: buildStdFragments
-buildStdFragments_autoPullTrialSamples: FALSE
-buildStdFragments_trialSubjectList: none
 buildStdFragments_randomIDdupReadMult: 3
 buildStdFragments_randomIDdupAbundMult: 2
 buildStdFragments_clusterLeaderSeqs: FALSE

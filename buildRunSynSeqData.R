@@ -161,8 +161,11 @@ f3 <- bind_rows(lapply(split(f3, f3$posid), function(x){
         x
       }))
 
-f3$trial <- 'validation'
-f3$subject <- 'validationSubject'
+tag <- ifelse(opt$mode == 'AAV', 'AAV', 'integrase')
+tag <- paste0(tag, '_seed', opt$seed)
+
+f3$trial <- paste0(tag, '_validation')
+f3$subject <- paste0(tag, '_validationSubject')
 f3$refGenome <- 'hg38'
 f3$leaderSeqHMM <- 'validation.hmm'
 f3$vectorFastaFile <- 'validationVector.fasta'
@@ -248,8 +251,6 @@ if(opt$evalFragAnchorReadSeqs){
 
 p <- '~\\/.my.cnf'
 system(paste0("sed -i -E 's/databaseConfigFile:\\s\\S+/databaseConfigFile: ",  p, "/' ", file.path(opt$outputDir,'config.yml')))
- 
-### system(paste0("sed -i -E 's/core_CPUs:\\s\\S+/core_CPUs: ", parallel::detectCores(), "/' ", file.path(opt$outputDir,'config.yml')))
 
 system(paste0('./aavenger.R ', file.path(opt$outputDir,'config.yml')))
 

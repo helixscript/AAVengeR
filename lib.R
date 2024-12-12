@@ -28,7 +28,7 @@ startModule <- function(args){
 
 optionsSanityCheck <- function(opt){
   userRequired <- c('mode', 'softwareDir', 'outputDir', 'databaseConfigFile', 'databaseConfigGroup',
-                    'sequencingRunID', 'demultiplex_anchorReadsFile', 'demultiplex_adriftReadsFile', 
+                    'demultiplex_anchorReadsFile', 'demultiplex_adriftReadsFile', 
                     'demultiplex_index1ReadsFile', 'demultiplex_sampleDataFile', 'modules')
   
   if(! all(userRequired %in% names(opt))){
@@ -41,12 +41,7 @@ optionsSanityCheck <- function(opt){
     message('Error, the mode parameter must be set to integrase, AAV, transposase, or manual.')
     q(save = 'no', status = 1, runLast = FALSE) 
   }
-  
-  if(tolower(opt$sequencingRunID) == 'none'){
-    message("Error - the sequencingRunID paramter is not allowed to be set to 'none'.")
-    q(save = 'no', status = 1, runLast = FALSE) 
-  }
-  
+    
   # Read in the default values and supplement user configs where appropriate.
   defaultConfig <- yaml::read_yaml(file.path(opt$softwareDir, 'defaults.yml'))
   
@@ -535,11 +530,8 @@ syncReads <- function(...){
 createDBconnection <- function(){
   suppressPackageStartupMessages(library(RMariaDB))
   
-  if(! file.exists('~/.my.cnf')) file.copy(opt$databaseConfigFile, '~/.my.cnf')
-  if(! file.exists('~/.my.cnf')) quitOnErorr('Error - can not find ~/.my.cnf file.')
-  
   tryCatch({
-    dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup)
+    dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup, default.file = opt$databaseConfigFile)
   },
   error=function(cond) {
     quitOnErorr('Error - could not connect to the database.')
@@ -1033,12 +1025,3 @@ blast2rearangements_worker <-  function(b){
   }))
 }
 
-
-intSiteCallerConversions <- function(){
-  r <- list()
-  r[['vector_CART19.fa']][['vector']]   = 'Bushman_CART19_vector.fasta'
-  r[['vector_CART19.fa']][['hmm']]      = 'Bushman_CART19.hmm'
-  r[['vector_CART19.fa']][['startSeq']] = 'GAAAATC'
-  
-  r
-}

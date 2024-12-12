@@ -180,4 +180,6 @@ Made multi-hit salvage remnant independent.
 Added exception to multi-hit clustering in buildStdFragments.
 2.6.0
 Created new anchor read cluster data files -- no longer pushed cluster data into multi-hits.
-
+2.7.0
+Patched nRepObs issue in buildSites.
+Removed database functions that retrieved specific fragments since they conflict with new buildStdFrags clustering filter.
