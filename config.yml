@@ -10,7 +10,7 @@ outputDir: output
 softwareDir: /home/ubuntu/AAVengeR
 
 databaseConfigFile: /home/ubuntu/.my.cnf
-databaseConfigGroup: AAVengeR
+databaseConfigGroup: none
 
 demultiplex_anchorReadsFile: Undetermined_S0_R2_001.fastq.gz
 demultiplex_adriftReadsFile: Undetermined_S0_R1_001.fastq.gz
