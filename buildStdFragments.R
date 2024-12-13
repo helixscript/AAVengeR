@@ -896,6 +896,8 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   }
   
   saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'), compress = opt$compressDataFiles)
+  readr::write_tsv(multiHitClusters, file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.tsv.gz'))
+  
   
   if(opt$databaseConfigGroup != 'none' & nrow(multiHitClusters) > 0){
     multiHitClusters$i <- paste0(multiHitClusters$trial, '~', multiHitClusters$subject, '~', multiHitClusters$sample)
@@ -1027,6 +1029,7 @@ readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads,
 
 # Write out anchorReadCluster table.
 saveRDS(anchorReadClusterDecisionTable, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'anchorReadClusterDecisionTable.rds'))
+readr::write_tsv(anchorReadClusterDecisionTable, file = file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'anchorReadClusterDecisionTable.tsv.gz'))
 
 updateLog('buildStdFragments completed.')
 
