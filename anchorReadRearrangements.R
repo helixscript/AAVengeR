@@ -284,6 +284,8 @@ r <- bind_rows(lapply(split(reads, paste(reads$vectorFastaFile, reads$uniqueSamp
       o <- o[! o$readID %in% readsToRemove,]
     }
     
+    if(nrow(o) == 0) return(tibble())
+    
     # Write out clustered sequences named by the cluster rep sequence read.
     invisible(lapply(split(o, o$rep), function(clust){
       k <- subset(x, readID %in% clust$readID)
@@ -296,6 +298,8 @@ r <- bind_rows(lapply(split(reads, paste(reads$vectorFastaFile, reads$uniqueSamp
     # Remove dummy expected sequence(s).
     o <- o[! grepl('expectedSeq', o$readID),]
     
+    if(nrow(o) == 0) return(tibble())
+    
     expectedSeqReadsIDs <- unique(o[grepl('expectedSeq', o$rep),]$readID)
     expectedSeqReadsNTs <- sum(nchar(subset(reads, readID %in% expectedSeqReadsIDs)$seq))
     
@@ -304,6 +308,8 @@ r <- bind_rows(lapply(split(reads, paste(reads$vectorFastaFile, reads$uniqueSamp
     
     allReadNTs <- sum(nchar(x$seq))
     allReadIDs <- unique(o$readID)
+    
+    if(nrow(o) == 0) return(tibble())
     
     altStructBreaks <- NA 
     
