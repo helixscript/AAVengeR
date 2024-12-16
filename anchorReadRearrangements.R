@@ -56,12 +56,6 @@ reads <- readRDS(file.path(opt$outputDir, opt$anchorReadRearrangements_inputFile
 if(nrow(reads) == 0) quitOnErorr('Error - the input table contained no rows.')
 
 
-# (!) Hot fix.
-# (!) -------------
-reads[grepl('pTBG_HC_VCN20', reads$uniqueSample)]$vectorFastaFile <- 'Sabatino_PMC7855056_heavyChain_plasmid.fasta'
-# (!) -------------
-
-
 # Test for raw reads, vector files, and 500mers in config file.
 if(! all(unique(reads$vectorFastaFile) %in% names(opt$anchorReadRearrangements_expectedSeqs))) quitOnErorr('Error: one or more vector expected sequences are missing from the configuration file.')
 if(! all(sapply(unique(reads$vectorFastaFile), function(x) file.exists(file.path(opt$softwareDir, 'data', 'vectors', x))))) quitOnErorr('Error: one or more vector sequences are missing from the AAVengeR data/vectors folder.')
@@ -161,8 +155,9 @@ reads <- bind_rows(lapply(split(reads, reads$uniqueSample), function(x){
   r
 }))
 
-
 reads$w <- nchar(reads$seq)
+
+# save.image('~/anchorReadRearrangementsSavePoint1.RData')
 
 # Limit reads to those that start with the expected sequences.
 updateLog('Limiting reads to select anchor read start sequences.')
@@ -227,6 +222,10 @@ r <- bind_rows(lapply(split(reads, paste(reads$vectorFastaFile, reads$uniqueSamp
   # Read in anchor reads for this sample.
   d <- DNAStringSet(x$seq)
   names(d) <- x$readID
+  
+  
+  if(grepl('AAV_NHP~240122_Bogus~240122_Bogus', x$uniqueSample[1])) browser()
+  
   
   o <- bind_rows(lapply(c(100, 200, 300, 400), function(w){
     

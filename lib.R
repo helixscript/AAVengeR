@@ -1025,3 +1025,85 @@ blast2rearangements_worker <-  function(b){
   }))
 }
 
+
+
+
+buildRepLeaderSeqTable <- function(xx, collapseReplicates = FALSE){
+  xx$posid2 <- sub('\\.\\d+$', '', xx$posid)
+  leaderSeqReps <- tibble()
+
+  if(collapseReplicates){
+    xx <- group_by(xx, trial, subject, sample, posid2) %>% 
+            mutate(g = cur_group_id(), replicate = '*') %>%
+            ungroup()
+  } else {
+    xx <- group_by(xx, trial, subject, sample, posid2, replicate) %>% 
+          mutate(g = cur_group_id()) %>%
+          ungroup()
+  }
+
+  invisible(lapply(split(xx, xx$g), function(x){
+    x$w <- x$fragEnd - x$fragStart + 1
+  
+    if(n_distinct(x$posid) > 1){
+      # First remnant
+      f <- x[grepl('\\.1$', x$posid),] 
+    
+      repSeq <- group_by(f, repLeaderSeq) %>%
+                summarise(frags = n_distinct(w), reads = sum(reads)) %>% 
+                ungroup() %>%
+                arrange(desc(frags), desc(reads)) %>%
+                dplyr::slice(1) %>%
+                dplyr::pull(repLeaderSeq)
+    
+      leaderSeqReps <<- distinct(bind_rows(leaderSeqReps, 
+                                           tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], 
+                                                  posid = f$posid[1], replicate = f$replicate[1], repLeaderSeq = repSeq)))
+    
+      i <- as.integer(stringr::str_extract(unique(x$posid), '\\d+$'))
+      i <- sort(i[i != 1])
+    
+      invisible(lapply(i, function(n){
+        lowerPosID = paste0(x$posid2[1], '.', n-1)
+        lowerRepSeq <- subset(leaderSeqReps, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & posid == lowerPosID)$repLeaderSeq
+        theseRepSeqs <- unique(subset(x, posid == paste0(x$posid2[1], '.', n))$repLeaderSeq)
+      
+        if(length(theseRepSeqs) > 1){
+          m <- stringdist::stringdistmatrix(lowerRepSeq, theseRepSeqs)
+        
+          candidateReps <-  theseRepSeqs[which(m == max(m))]
+        
+          repSeq <- group_by(subset(x, posid == paste0(x$posid2[1], '.', n) & repLeaderSeq %in% candidateReps), repLeaderSeq) %>%
+                    summarise(frags = n_distinct(w), reads = sum(reads)) %>% 
+                    ungroup() %>%
+                    arrange(desc(frags), desc(reads)) %>%
+                    dplyr::slice(1) %>%
+                    dplyr::pull(repLeaderSeq)
+        } else {
+          repSeq <- theseRepSeqs
+        }
+      
+        leaderSeqReps <<- distinct(bind_rows(leaderSeqReps, tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], 
+                                                                 posid = paste0(x$posid2[1], '.', n), replicate = x$replicate[1], repLeaderSeq = repSeq)))
+      }))
+    } else {
+      # Only one posid in this fragment data chunk.
+      repSeq <- group_by(x, repLeaderSeq) %>%
+                summarise(frags = n_distinct(w), reads = sum(reads)) %>% 
+                ungroup() %>%
+                arrange(desc(frags), desc(reads)) %>%
+                dplyr::slice(1) %>%
+                dplyr::pull(repLeaderSeq)
+    
+                leaderSeqReps <<- distinct(bind_rows(leaderSeqReps, tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], 
+                                                                           posid = x$posid[1], replicate = x$replicate[1], repLeaderSeq = repSeq)))
+    }
+  }))
+
+  xx$posid2 <- NULL
+  xx$g <- NULL
+  
+  leaderSeqReps
+}
+
+

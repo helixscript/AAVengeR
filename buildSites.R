@@ -183,21 +183,13 @@ minRepNum <- min(frags$replicate)
 
 consensusLeaderSeq <- function(x){
   tab <- dplyr::group_by(x, repLeaderSeq) %>% 
-         dplyr::summarise(nWidths = n_distinct(fragWidths), nReads = sum(reads)) %>% 
-         dplyr::ungroup() %>%
-         dplyr::arrange(desc(nWidths), desc(nReads))
-  
-  as.character(tab[1, 'repLeaderSeq'])
-}
-
-consensusLeaderSeq <- function(x){
-  tab <- dplyr::group_by(x, repLeaderSeq) %>% 
     dplyr::summarise(nWidths = n_distinct(fragWidths), nReads = sum(reads)) %>% 
     dplyr::ungroup() %>%
     dplyr::arrange(desc(nWidths), desc(nReads))
   
   as.character(tab[1, 'repLeaderSeq'])
 }
+
 
 consensusAnchorSeq <- function(x){
   tab <- dplyr::group_by(x, anchorReadSeq) %>% 
@@ -227,6 +219,12 @@ frags <- group_by(frags, trial, subject, sample, posid) %>%
   ungroup()
 
 
+# Determine the best repLeaderSeq for each site.
+
+replicateRepLeaderSeqTable <- buildRepLeaderSeqTable(frags, collapseReplicates = FALSE)
+collapsedRepLeaderSeqTable <- buildRepLeaderSeqTable(frags, collapseReplicates = TRUE)
+
+
 sites <- bind_rows(lapply(split(frags, frags$g), function(x){
   
   r <- bind_cols(lapply(minRepNum:maxRepNum, function(r){
@@ -234,19 +232,25 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
          o <- x[x$replicate == r,]
     
          if(nrow(o) >= 1){
+           repLeaderSeq <- subset(replicateRepLeaderSeqTable, trial == o$trial[1] & subject == o$subject[1] & sample == o$sample[1] & posid == o$posid[1] & replicate == o$replicate[1])$repLeaderSeq
+           
            b$rUMIs <- ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(o$rUMI_list)), NA)
            b$fUMIs <- ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(o$fUMI_list)), NA)
            b$sonicLengths <- n_distinct(o$fragWidths)
            b$reads <- sum(o$reads)
-           b$repLeaderSeq <- consensusLeaderSeq(o)
+           b$repLeaderSeq <- repLeaderSeq
          } 
     
          names(b) <- paste0('rep', r, '-', names(b))
          b
        }))
   
+  repLeaderSeq <- subset(collapsedRepLeaderSeqTable, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & posid == x$posid[1] & replicate == '*')$repLeaderSeq
+  message(x$trial[1], ' ', x$subject[1], ' ', x$sample[1], ' ', x$posid[1], ' -- ', repLeaderSeq)
+  
   bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], 
-                   refGenome = x$refGenome[1], posid = x$posid[1],
+                   refGenome = x$refGenome[1], 
+                   posid = x$posid[1],
                    rUMIs = ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(x$rUMI_list)), NA),
                    fUMIs = ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(x$fUMI_list)), NA),
                    anchorReadClusters = ifelse(any(x$anchorReadCluster), TRUE, NA),
@@ -254,7 +258,7 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
                                          sum(r[, grepl('sonicLengths', names(r))], na.rm = TRUE),
                                          n_distinct(x$fragWidths)),
                    reads = sum(x$reads),
-                   repLeaderSeq = consensusLeaderSeq(x),
+                   repLeaderSeq = repLeaderSeq, # subset(leaderSeqReps, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & posid == x$posid[1])$repLeaderSeq,
                    repLeaderSeqClusters = clusterConsensusSeqs(x),
                    nRepsObs = sum(! is.na(unlist(r[, which(grepl('reads', names(r)))]))),
                    anchorReadConsensus = consensusAnchorSeq(x),

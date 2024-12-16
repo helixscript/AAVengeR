@@ -183,3 +183,6 @@ Created new anchor read cluster data files -- no longer pushed cluster data into
 2.7.0
 Patched nRepObs issue in buildSites.
 Removed database functions that retrieved specific fragments since they conflict with new buildStdFrags clustering filter.
+2.8.0
+Added new repLeaderSeq calc function.
+Patched anchorReadRearrangements to catch instances where all reads are removed.
