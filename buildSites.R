@@ -246,7 +246,6 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
        }))
   
   repLeaderSeq <- subset(collapsedRepLeaderSeqTable, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & posid == x$posid[1] & replicate == '*')$repLeaderSeq
-  message(x$trial[1], ' ', x$subject[1], ' ', x$sample[1], ' ', x$posid[1], ' -- ', repLeaderSeq)
   
   bind_cols(tibble(trial = x$trial[1], subject = x$subject[1], sample = x$sample[1], 
                    refGenome = x$refGenome[1], 
