@@ -1,9 +1,0 @@
-Wed Dec 18 16:15:39 2024
-Available CPUs: 16
-
-
-                              id                                reads   CPUs   active       startTime             endTime         done   duration  
--------------------------------------------------------------- ------- ------ -------- -------------------- -------------------- ------ -----------
- integrase_seed1_validation~integrase_seed1_validationSubject   3575     3       NA     12.18.2024  4:14pm   12.18.2024  4:15pm   TRUE   1 minutes 
-
-

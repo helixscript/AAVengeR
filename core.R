@@ -348,7 +348,7 @@ if(length(f) > 0){
   updateLog('Bundling multi-hit data objects.')
   multiHitClusters <- bind_rows(lapply(f, readRDS))
   saveRDS(multiHitClusters, file = file.path(opt$outputDir, 'core', 'multiHitClusters.rds'), compress = opt$compressDataFiles)
-  readr::write_tsv(multiHitClusters,  file.path(opt$outputDir, 'core', 'multiHitClusters.tsv.gz'))
+  readr::write_tsv(multiHitClusters,  file.path(opt$outputDir, 'core', 'multiHitClusters.tsv'))
 }
 
 
@@ -359,7 +359,7 @@ if(length(f) > 0){
   updateLog('Bundling anchorReadClusterTable data objects.')
   anchorReadClusterTable <- bind_rows(lapply(f, readRDS))
   saveRDS(anchorReadClusterTable, file = file.path(opt$outputDir, 'core', 'anchorReadClusterDecisionTable.rds'), compress = opt$compressDataFiles)
-  readr::write_tsv(anchorReadClusterTable, file = file.path(opt$outputDir, 'core', 'anchorReadClusterDecisionTable.tsv.gz'))
+  readr::write_tsv(anchorReadClusterTable, file = file.path(opt$outputDir, 'core', 'anchorReadClusterDecisionTable.tsv'))
 }
 
 
@@ -371,7 +371,7 @@ if(length(f) > 0){
   sites <- bind_rows(lapply(f, readRDS))
   saveRDS(sites, file = file.path(opt$outputDir, 'core', 'sites.rds'), compress = opt$compressDataFiles)
   openxlsx::write.xlsx(sites, file.path(opt$outputDir, 'core', 'sites.xlsx'))
-  readr::write_tsv(sites, file.path(opt$outputDir, 'core', 'sites.tsv.gz'))
+  readr::write_tsv(sites, file.path(opt$outputDir, 'core', 'sites.tsv'))
 } else {
   updateLog('Error -- no integration sites were recovered from any sample replicates.')
   message('Error -- no integration sites were recovered from any sample replicates.')
