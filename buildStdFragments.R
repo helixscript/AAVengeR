@@ -843,6 +843,12 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
                readID = x[1,]$readID)
   }))
   
+ # > head(multiHitNet_replicates )
+ # trial       subject   sample replicate           from             to                                      readID
+ # 1: AAVHelaTopo Camptothecin2 GTSP6317         3 chr13+16282336 chr13+16284897 M03249:3:000000000-LBKHD:1:1101:10022:21976
+ # 2: AAVHelaTopo Camptothecin2 GTSP6317         3 chr13+16282336 chr13+16286263 M03249:3:000000000-LBKHD:1:1101:10022:21976
+ # 3: AAVHelaTopo Camptothecin2 GTSP6317         3 chr13+16282336 chr13+16287626 M03249:3:000000000-LBKHD:1:1101:10022:21976
+  
   if(nrow(multiHitNet_replicates) > 0){
 
     # Create trial/subject/sample grouping indices that will be used to create a splitting vector.
