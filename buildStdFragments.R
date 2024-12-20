@@ -820,12 +820,11 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
  
   # Create a data frame with width data needed by multi-hit calculating worker nodes
   # then export the data to the cluster nodes.
-  multiHitFragWidths  <- mutate(frags_multPosIDs, width = fragEnd - fragStart + 1) %>%
-                         group_by(trial, subject, sample, posid2) %>%
+  multiHitFragData  <- group_by(frags_multPosIDs, trial, subject, sample, posid2) %>%
                          summarise(reads = list(readID), UMIs = list(randomLinkerSeq), .groups = 'drop') %>%
                          distinct()
 
-  clusterExport(cluster, 'multiHitFragWidths')
+  clusterExport(cluster, 'multiHitFragData')
   
   # For each read, create a from -> to data frame and capture the width of the read. 
   multiHitNet_replicates <- rbindlist(lapply(split(frags_multPosIDs, frags_multPosIDs$readID), function(x){
@@ -834,20 +833,13 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
 
     # Create unique to - from permutations.
     node_pairs <- RcppAlgos::comboGeneral(unique(x$posid2), 2)
-    data.table(trial = x[1,]$trial, 
+    
+    data.table(trial   = x[1,]$trial, 
                subject = x[1,]$subject,
-               sample = x[1,]$sample, 
-               replicate = x[1,]$replicate, 
-               from = node_pairs[,1], 
-               to = node_pairs[,2], 
-               readID = x[1,]$readID)
+               sample  = x[1,]$sample, 
+               from    = node_pairs[,1], 
+               to      = node_pairs[,2])
   }))
-  
- # > head(multiHitNet_replicates )
- # trial       subject   sample replicate           from             to                                      readID
- # 1: AAVHelaTopo Camptothecin2 GTSP6317         3 chr13+16282336 chr13+16284897 M03249:3:000000000-LBKHD:1:1101:10022:21976
- # 2: AAVHelaTopo Camptothecin2 GTSP6317         3 chr13+16282336 chr13+16286263 M03249:3:000000000-LBKHD:1:1101:10022:21976
- # 3: AAVHelaTopo Camptothecin2 GTSP6317         3 chr13+16282336 chr13+16287626 M03249:3:000000000-LBKHD:1:1101:10022:21976
   
   if(nrow(multiHitNet_replicates) > 0){
 
@@ -878,13 +870,13 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
         o$clusterID <- paste0('MHC.', 1:nrow(o))
       
         tidyr::unnest(o, clusters) %>%
-        dplyr::left_join(subset(multiHitFragWidths, sample == x2$sample[1]) %>% dplyr::select(posid2, reads, UMIs), by = c('clusters' = 'posid2')) %>%
+        dplyr::left_join(subset(multiHitFragData, trial == x2$trial[1] & subject == x2$subject[1] & sample == x2$sample[1]) %>% dplyr::select(posid2, reads, UMIs), by = c('clusters' = 'posid2')) %>%
         dplyr::group_by(trial, subject, sample, clusterID) %>%
-        dplyr::summarise(nodes = n_distinct(clusters), 
+        dplyr::summarise(nodes   = n_distinct(clusters), 
                          readIDs = list(unique(unlist(reads))), 
-                         reads = n_distinct(unlist(reads)), 
-                         UMIs = n_distinct(unlist(UMIs)), 
-                         posids = list(unique(clusters))) %>%
+                         reads   = n_distinct(unlist(reads)), 
+                         UMIs    = n_distinct(unlist(UMIs)), 
+                         posids  = list(unique(clusters))) %>%
           dplyr::ungroup() %>%
           dplyr::relocate(readIDs, .after = posids)
       }))
@@ -897,7 +889,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
       x
     }))
     
-    rm(z, frags_multPosIDs, multiHitNet_replicates, multiHitFragWidths) 
+    rm(z, frags_multPosIDs, multiHitNet_replicates, multiHitFragData) 
     invisible(gc())
   }
   

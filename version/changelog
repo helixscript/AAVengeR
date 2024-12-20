@@ -186,3 +186,5 @@ Removed database functions that retrieved specific fragments since they conflict
 2.8.0
 Added new repLeaderSeq calc function.
 Patched anchorReadRearrangements to catch instances where all reads are removed.
+2.9.0
+Optimized buildStdFragments multihits and patched a potential issue where the same sample ids was used between subjects.
