@@ -190,3 +190,5 @@ Patched anchorReadRearrangements to catch instances where all reads are removed.
 Optimized buildStdFragments multihits and patched a potential issue where the same sample ids was used between subjects.
 3.0.0
 Production freeze 12/2024
+3.0.1
+Change the way anchorReadSeq flows through the pipeline.

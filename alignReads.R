@@ -226,8 +226,6 @@ anchorReadAlignments <- left_join(anchorReadAlignments, select(reads, readID, an
 
 if(! opt$prepReads_HMMmatchEnd) anchorReadAlignments$leaderSeq <- paste0(anchorReadAlignments$leaderSeq, substr(anchorReadAlignments$anchorReadSeq, 1, anchorReadAlignments$qStart))
 
-anchorReadAlignments <- dplyr::select(anchorReadAlignments, -anchorReadSeq)
-
 
 # Save anchor and adrift read alignments.
 saveRDS(dplyr::distinct(anchorReadAlignments), file.path(opt$outputDir, opt$alignReads_outputDir, 'anchorReadAlignments.rds'), compress = opt$compressDataFiles)  

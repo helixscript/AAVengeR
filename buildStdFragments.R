@@ -605,8 +605,6 @@ if(opt$processAdriftReadLinkerUMIs){
        ungroup() %>%
        as.data.table()
   
-  
-  
   # Use read counts to determine the most likely random fragment boundary.
   # A bit slow due to inplace row updates.
   if(any(f$n > 1)){
@@ -639,67 +637,9 @@ if(opt$processAdriftReadLinkerUMIs){
 frags_uniqPosIDs <- frags_uniqPosIDs[(frags_uniqPosIDs$fragEnd - frags_uniqPosIDs$fragStart) + 1 <= opt$buildStdFragments_maxFragLength,]
 
 
-
 # Anchor read filtering.
 #-------------------------------------------------------------------------------
 
-# Find the nearest source of prepRead files and load them.
-f <- unlist(strsplit(opt$outputDir, '/'))
-f <- unlist(lapply(rev(1:length(f)), function(x) paste0(f[1:x], collapse = '/')))
-
-for(path in f){
-  readsPath <- list.files(path, pattern = 'reads.rds', recursive = TRUE, full.names = TRUE)
-  readsPath <- readsPath[grepl('prepReads', readsPath)]
-  if(length(readsPath) > 0){
-    updateLog(paste0('Reading in prep read data from: ', readsPath))
-    reads <- bind_rows(lapply(readsPath, readRDS))
-    break
-  }
-}
-
-reads <- select(reads, readID, anchorReadSeq)
-reads <- subset(reads, readID %in% frags_uniqPosIDs$readID)
-
-# Find the nearest source of anchor alignments and load them.
-for(path in f){
-  alignmentPath <- list.files(path, pattern = 'anchorReadAlignments.rds', recursive = TRUE, full.names = TRUE)
-  alignmentPath <- alignmentPath[grepl('alignReads', alignmentPath)]
-  if(length(alignmentPath) > 0){
-    updateLog(paste0('Reading in alignment data from: ', alignmentPath))
-    alignments <- bind_rows(lapply(alignmentPath, readRDS))
-    break
-  }
-}
-
-alignments <- select(alignments, readID, strand, qStart)
-alignments <- subset(alignments, readID %in% frags_uniqPosIDs$readID)
-
-# Need to find the most appropriate alignment.
-z <- group_by(alignments, readID, strand, qStart) %>%
-       summarise(n = n()) %>%
-     ungroup() %>%
-     group_by(readID, strand) %>%
-      slice_max(n, with_ties = FALSE) %>%
-     ungroup() %>%
-     mutate(key = paste0(readID, ':', strand)) %>%
-     select(-n, -readID, -strand)
-     
-updateLog(paste0('Length of unique fragment list before updating with read info: ', nrow(frags_uniqPosIDs)))
-
-# Add full length anchor read sequences.
-frags_uniqPosIDs <- left_join(frags_uniqPosIDs, reads, by = 'readID')
-
-# Create a join key and join qStart values.
-frags_uniqPosIDs$key <- paste0(frags_uniqPosIDs$readID, ':', frags_uniqPosIDs$strand)
-frags_uniqPosIDs <- left_join(frags_uniqPosIDs, z, by = 'key')
-
-# Truncate anchor read sequences.
-frags_uniqPosIDs$anchorReadSeq <- substr(frags_uniqPosIDs$anchorReadSeq, (frags_uniqPosIDs$qStart + 1), (opt$buildStdFragments_fragEvalAnchorReadTestLen + frags_uniqPosIDs$qStart))
-frags_uniqPosIDs <- select(frags_uniqPosIDs, -key, -qStart)
-
-updateLog(paste0('Length of unique fragment list after updating with read info: ', nrow(frags_uniqPosIDs)))
-
-rm(reads, alignments)
 
 frags_uniqPosIDs$anchorReadCluster <- FALSE
 anchorReadClusterDecisionTable <- tibble()
