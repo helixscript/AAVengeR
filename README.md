@@ -85,7 +85,7 @@ modules:
   - anchorReadStartSeqs
 ```
 
-The anchorReadStartSeqs has different settings including the Kmers or 'windows' that should be calculated.
+The anchorReadStartSeqs module has different settings including the which Kmers or 'windows' should be calculated.
 For example, in R:
 
 ```
