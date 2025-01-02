@@ -98,3 +98,17 @@ subset(o, sample == 'GSTP5877' & window == 100)
  Sabatino_AAV_NHP GSTP5877 GSTP5877    100        941   0.001808791 TTCCTACACAAAAAACCAACACACAGATCTCTAGAGCTCCGATCTTTTATTGCGGCCGCTCAGTACAGATCCTGGGCCTCACAGCCCAGCACCTCCATCC
  Sabatino_AAV_NHP GSTP5877 GSTP5877    100        929   0.001785725 TTCCTACGCAAAAAACCAACACACAGATCTCTAGAGCTCTGATCTTTTATTGCGGCCGCTCAGTACAGATCCTGGGCCTCACAGCCCAGCACCTCCATCC
 ```
+
+The anchorReadRearranagment module works as follows:
+
+1. Demultiplexed R1 and R2 reads are read-in and adapter sequences are removed.
+
+2. Overlapping fragments where R1 and R2 overlap by at least 20 NT are built. By default, only overlapping reads are kept. Overlapped reads provide longer, higher quality reads into the interior of vector bodies.
+
+3. For each vector, the possible inward paths are defined in the configuration file. For each sample, overlapped read sequences must start with the 12 NTs from one possible inward path.
+
+4. In order to protect against calling PCR rearrangements with gDNA as vector rearrangements, the last 12 NTs of overlapped reads must align to its corresponding vector-plasmid sequence otherwise they are removed. This typically removes ~3 - 5% of read pairs.
+
+5. Remaining overlapped reads are clustered with CD-HIT at 90% sequencing ID. CD-HIT is a greedy clustering algorithm that starts with the longest sequences. For each vector, the expected, 500 NT inward sequences found in the configuration file are injected into the clustering and essentially remove non-rearranged forms by collating them into the first cluster.
+
+6. The number of CD-HIT clusters, after removing the clusters associated with expected sequences, is reported as the number of rearranged forms along with the percentage of total reads associated with those forms.  
