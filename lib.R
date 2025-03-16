@@ -9,6 +9,7 @@ startModule <- function(args){
   set.seed(1)
   configFile <- args[1]
   if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
+
   opt <- yaml::read_yaml(configFile)
   
   if(length(args) == 2){
@@ -64,7 +65,7 @@ optionsSanityCheck <- function(opt){
   a <- a[a != 'core_CPUs']
   
   # Do not allow any non-core module exceed the number of system cores.
-  # Set their values to core_CPUs value if requested except for cases when the congfig
+  # Set their values to core_CPUs value if requested except for cases when the config
   # file is written by the core module since it balances the CPUs based on read counts.
   
   if(length(a) > 0){
@@ -115,9 +116,7 @@ ppNum <- function(n) format(n, big.mark = ",", scientific = FALSE, trim = TRUE)
 
 createOuputDir <- function(){
   if(! dir.exists(opt$outputDir)){
-    invisible(sapply(readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt')), message))
-    
-    dir.create(file.path(opt$outputDir))
+    dir.create(file.path(opt$outputDir), showWarnings = FALSE)
     
     if(! dir.exists(opt$outputDir)){
       message('Error: Can not create the output directory.')
@@ -236,14 +235,14 @@ tmpFile <- function(){ paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0
 # The core module would become stuck in a perpetual loop if the done files did not appear after a failure.
 
 core_createFauxFragDoneFiles <- function(){
-  if(! dir.exists(file.path(opt$outputDir, 'buildFragments'))) dir.create(file.path(opt$outputDir,'buildFragments'))
+  if(! dir.exists(file.path(opt$outputDir, 'buildFragments'))) dir.create(file.path(opt$outputDir,'buildFragments'), showWarnings = FALSE)
   write(date(), file = file.path(opt$outputDir, 'buildFragments', 'fragments.done'))
   write(date(), file = file.path(opt$outputDir, 'buildFragments', 'xxx'))
 }
 
 
 core_createFauxSiteDoneFiles <- function(){
-  if(! dir.exists(file.path(opt$outputDir, 'buildSites'))) dir.create(file.path(opt$outputDir, 'buildSites'))
+  if(! dir.exists(file.path(opt$outputDir, 'buildSites'))) dir.create(file.path(opt$outputDir, 'buildSites'), showWarnings = FALSE)
   write(date(), file = file.path(opt$outputDir,  'buildSites', 'sites.done'))
   write(date(), file = file.path(opt$outputDir,  'buildSites', 'xxx'))
 }
@@ -377,7 +376,7 @@ demultiplex <- function(x){
   if(opt$demultiplex_correctGolayIndexReads){
 
     tmpDir <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp', tmpFile())
-    dir.create(tmpDir)
+    dir.create(tmpDir, showWarnings = FALSE)
     
     index1Reads.org <- index1Reads
     index1Reads <- golayCorrection(index1Reads, tmpDirPath = tmpDir)
@@ -498,7 +497,7 @@ reconstructDBtable <- function(o, tmpDirPath){
            f <- tmpFile()
            writeBin(unserialize(y$data[[1]]), file.path(tmpDirPath, paste0(f, '.xz')))
            system(paste0('unxz ', file.path(tmpDirPath, paste0(f, '.xz'))))
-           d <- readr::read_tsv(file.path(tmpDirPath, f))
+           d <- readr::read_tsv(file.path(tmpDirPath, f), show_col_types = FALSE)
            invisible(file.remove(file.path(tmpDirPath, f)))
            d
          }))
@@ -544,7 +543,7 @@ uploadSitesToDB <- function(sites){
   
   updateLog('Writing sites to the database.')
 
-  if(! dir.exists(file.path(opt$outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, 'tmp'))
+  if(! dir.exists(file.path(opt$outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, 'tmp'), showWarnings = FALSE)
   
   conn <- createDBconnection()
   
@@ -585,7 +584,7 @@ uploadSitesToDB <- function(sites){
 
 loadSamples <- function(){
   
-  samples <- readr::read_tsv(opt$demultiplex_sampleDataFile, col_types = readr::cols(), comment = "#")
+  samples <- readr::read_tsv(opt$demultiplex_sampleDataFile, show_col_types = FALSE, comment = "#")
   
   if(nrow(samples) == 0){
     updateLog('Error - no lines of information was read from the sample configuration file.')

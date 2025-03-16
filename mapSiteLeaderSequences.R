@@ -21,9 +21,9 @@ opt <- startModule(args)
 
 
 createOuputDir()
-if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir))) dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir))
-if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))) dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'))
-if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp'))
+if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir))) dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir), showWarnings = FALSE)
+if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))) dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'), showWarnings = FALSE)
+if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp'), showWarnings = FALSE)
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'tmp'), full.names = TRUE)))
 
 # Start log.
@@ -112,7 +112,7 @@ m <- rbindlist(lapply(split(sites, sites$vector), function(x){
           
          # Add query lengths to the blastn alignments.
          d <- tibble(qname = names(o), qlen = width(o))
-         b <- left_join(b, d, by = 'qname')
+         b <- left_join(b, d, by = 'qname', relationship = 'many-to-many')
     
          # Limit alignments based on parameters in the configuration file.
          dplyr::filter(b, pident >= opt$mapSiteLeaderSequences_minAlignmentPercentID, alignmentLength >= opt$mapSiteLeaderSequences_minAlignmentLength)
@@ -126,7 +126,7 @@ m <- rbindlist(lapply(split(sites, sites$vector), function(x){
   o$n <- ntile(1:nrow(o), opt$prepReads_CPUs)
   
   # Bind the CPU splitting vector.
-  b <- left_join(b, o, by = c('i' = 'i2'))
+  b <- left_join(b, o, by = c('i' = 'i2'), relationship = 'many-to-many')
   
   # Pass alignment chunks to rearrangement function.
   
@@ -145,7 +145,7 @@ invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSeque
 sites <- bind_rows(lapply(split(sites, sites$vector), function(x){
       m2 <- subset(m, vector == x$vector[1])
       m2 <- m2[! duplicated(m2$leaderSeq),]
-      left_join(x, select(m2, leaderSeq, repLeaderSeqMap), by = c('repLeaderSeq' = 'leaderSeq'))
+      left_join(x, select(m2, leaderSeq, repLeaderSeqMap), by = c('repLeaderSeq' = 'leaderSeq'), relationship = 'many-to-many')
 }))
 
 sites <- dplyr::relocate(sites, repLeaderSeqMap, .after = opt$mapSiteLeaderSequences_addAfter)

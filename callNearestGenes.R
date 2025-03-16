@@ -18,7 +18,7 @@ source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
 opt <- startModule(args)
 
 createOuputDir()
-dir.create(file.path(opt$outputDir, opt$callNearestGenes_outputDir))
+dir.create(file.path(opt$outputDir, opt$callNearestGenes_outputDir), showWarnings = FALSE)
 
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$callNearestGenes_outputDir, 'log')
@@ -116,9 +116,9 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
           
           if(tolower(opt$callNearestGenes_columnPrefix) != 'none'){
             names(n) <- paste0(opt$callNearestGenes_columnPrefix, names(n))
-            x <- left_join(x, n, by = c('posid2' = paste0(opt$callNearestGenes_columnPrefix, 'posid2'))) %>% select(-posid2)
+            x <- left_join(x, n, by = c('posid2' = paste0(opt$callNearestGenes_columnPrefix, 'posid2')), relationship = 'many-to-many') %>% select(-posid2)
           } else {
-            x <- left_join(x, n, by = 'posid2') %>% select(-posid2)
+            x <- left_join(x, n, by = 'posid2', relationship = 'many-to-many') %>% select(-posid2)
           }
           
           dplyr::relocate(x, names(n)[! grepl('posid', names(n))], .after = opt$callNearestGenes_addAfter)

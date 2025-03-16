@@ -192,3 +192,14 @@ Optimized buildStdFragments multihits and patched a potential issue where the sa
 Production freeze 12/2024
 3.0.1
 Change the way anchorReadSeq flows through the pipeline.
+3.0.2
+Added a number of flags to quiet warnings such as those thrown when trying to create a directory when it already exists.
+Added many-to-many relationship flags to left_join() calls to quiet warnings.
+Updated when AAVegneR logo is presented when calling aavengeR.
+Added new version of anchorReadRearrangements.R
+Created a tools folder for scripts that are now fully developed into modules. 
+Added a script that plots results from anchorReadRearrangements.R to tools folder. 
+Incorporated scripts from https://github.com/helixscript/buildSynReadData
+Added tests folder
+Added integrase and AAV test data sets including truth file.
+Added patch to prepReads.R to handle data sets where all reads are eliminated due to filtering.

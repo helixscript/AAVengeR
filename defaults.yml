@@ -1,5 +1,5 @@
 
-remoteDataURL: http://174.129.238.44/export/AAVengeR/data
+remoteDataURL: http://bushmanlab.org/data/AAVengeR/genomePackages
 
 system_minMemThreshold: 80
 system_minMemWaitTime: 1200

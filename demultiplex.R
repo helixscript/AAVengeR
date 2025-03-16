@@ -24,11 +24,11 @@ opt <- startModule(args)
 
 
 createOuputDir()
-if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir))
-if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp')))  dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'))
-if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))
+if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir), showWarnings = FALSE)
+if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp')))  dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), showWarnings = FALSE)
+if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'), showWarnings = FALSE)
 
-if(previousSampleDatabaseCheck(readr::read_tsv(opt$demultiplex_sampleDataFile, col_types = readr::cols()) %>% distinct())) q(save = 'no', status = 1, runLast = FALSE) 
+if(previousSampleDatabaseCheck(readr::read_tsv(opt$demultiplex_sampleDataFile, show_col_types = FALSE) %>% distinct())) q(save = 'no', status = 1, runLast = FALSE) 
 
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$demultiplex_outputDir, 'log')
@@ -347,7 +347,7 @@ if(opt$demultiplex_quickAlignFilter){
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'), ' -o ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl')))
     
-    p <- readr::read_tsv(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'), col_names = FALSE)
+    p <- readr::read_tsv(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'), show_col_types = FALSE, col_names = FALSE)
     p$X12 <- ifelse(p$X9 == '-', p$X11 - p$X13, p$X12)
     p$X13 <- ifelse(p$X9 == '-', p$X11 - p$X12, p$X13)
     
@@ -390,7 +390,7 @@ if(opt$demultiplex_quickAlignFilter){
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
     
     updateLog('Reading psl table.')
-    p <- readr::read_tsv(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'), col_names = FALSE)
+    p <- readr::read_tsv(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'), show_col_types = FALSE, col_names = FALSE)
     invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
     
     updateLog('Rearranging psl table columns and rewriting.')
@@ -496,7 +496,7 @@ if(opt$demultiplex_requirePostUmiLinker){
 if(file.exists(opt$demultiplex_replicateMergingInstructions)){
   updateLog('Found replicate merging instruction file.')
   
-  f <- readr::read_tsv(opt$demultiplex_replicateMergingInstructions)
+  f <- readr::read_tsv(opt$demultiplex_replicateMergingInstructions, show_col_types = FALSE)
   names(f) <- c('uniqueSample', 'uniqueSample2')
   
   if(any(f$uniqueSample %in% reads$uniqueSample)){

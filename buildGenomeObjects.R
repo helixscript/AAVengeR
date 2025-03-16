@@ -19,11 +19,11 @@ opt <- startModule(args)
 logFile <- paste0(opts$refGenomeName, '_buildGenomeObjects.log')
 write(date(), logFile, append = FALSE)
 
-dir.create(opts$outputDir)
-dir.create(file.path(opts$outputDir, 'genomeAnnotations'))
-dir.create(file.path(opts$outputDir, 'referenceGenomes'))
-dir.create(file.path(opts$outputDir, 'referenceGenomes', 'blat'))
-dir.create(file.path(opts$outputDir, 'referenceGenomes', 'bwa2'))
+dir.create(opts$outputDir, showWarnings = FALSE)
+dir.create(file.path(opts$outputDir, 'genomeAnnotations'), showWarnings = FALSE)
+dir.create(file.path(opts$outputDir, 'referenceGenomes'), showWarnings = FALSE)
+dir.create(file.path(opts$outputDir, 'referenceGenomes', 'blat'), showWarnings = FALSE)
+dir.create(file.path(opts$outputDir, 'referenceGenomes', 'bwa2'), showWarnings = FALSE)
 
 # Download genome data from UCSC.
 write(paste0(date(), ' Downloading genome data.'), logFile, append = TRUE)
@@ -36,14 +36,14 @@ invisible(file.remove(paste0(opts$outputDir, '/', tmpFile)))
 o <- o[names(o) %in% c(paste0('chr', 1:100), paste0('chr', as.roman(1:100)), 'chrY', 'chrM')]
 
 # Run RepeatMasker.
-dir.create(paste0(opts$outputDir, '/repeatMasker'))
+dir.create(paste0(opts$outputDir, '/repeatMasker'), showWarnings = FALSE)
 
 n <- 1
 invisible(lapply(split(o, names(o)), function(x){
   write(paste0(date(), ' Starting RepeatMasker for chromosome ', n, '/', n_distinct(names(o)), ' length: ', width(x)), logFile, append = TRUE)
   n <<- n+1
   tmpFile <- paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = '')
-  dir.create(paste0(opts$outputDir, '/repeatMasker/', tmpFile))
+  dir.create(paste0(opts$outputDir, '/repeatMasker/', tmpFile), showWarnings = FALSE)
   writeXStringSet(x, paste0(opts$outputDir, '/repeatMasker/', tmpFile, '/seq.fasta'))
   system(paste0(opts$repeatMaskerPath, ' -s -pa ', opts$CPUs, ' -e rmblast -species "', 
                 opts$repeatMaskerSpecies, '" -dir ', paste0(opts$outputDir, '/repeatMasker/', tmpFile), ' ', 
@@ -144,7 +144,7 @@ if('xenoRefSeqGeneAnnotations_URL' %in% names(opts)){
   invisible(file.remove(paste0(opts$outputDir, '/', tmpFile, '.gz')))
 }
 
-dir.create(file.path(opts$outputDir, 'data'))
+dir.create(file.path(opts$outputDir, 'data'), showWarnings = FALSE)
 
 system(paste('mv', file.path(opts$outputDir, 'genomeAnnotations'), file.path(opts$outputDir, 'data')))
 system(paste('mv', file.path(opts$outputDir, 'referenceGenomes'), file.path(opts$outputDir, 'data')))

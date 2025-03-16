@@ -1,0 +1,44 @@
+Fri Mar 14 20:25:31 2025
+Available CPUs: 80
+
+
+           id              reads   CPUs   active       startTime             endTime         done   duration  
+------------------------- ------- ------ -------- -------------------- -------------------- ------ -----------
+ test~subjectA~sample1~1    743     10      NA     03.14.2025  8:05pm   03.14.2025  8:10pm   TRUE   5 minutes 
+ test~subjectA~sample1~2    376     6       NA     03.14.2025  8:11pm   03.14.2025  8:15pm   TRUE   4 minutes 
+ test~subjectA~sample1~3    378     6       NA     03.14.2025  8:11pm   03.14.2025  8:16pm   TRUE   4 minutes 
+ test~subjectA~sample1~4    376     6       NA     03.14.2025  8:11pm   03.14.2025  8:16pm   TRUE   4 minutes 
+ test~subjectA~sample2~1    739     10      NA     03.14.2025  8:05pm   03.14.2025  8:10pm   TRUE   5 minutes 
+ test~subjectA~sample2~2    383     7       NA     03.14.2025  8:10pm   03.14.2025  8:15pm   TRUE   4 minutes 
+ test~subjectA~sample2~3    370     6       NA     03.14.2025  8:11pm   03.14.2025  8:16pm   TRUE   4 minutes 
+ test~subjectA~sample2~4    372     6       NA     03.14.2025  8:12pm   03.14.2025  8:17pm   TRUE   5 minutes 
+ test~subjectA~sample3~1    761     10      NA     03.14.2025  8:05pm   03.14.2025  8:11pm   TRUE   5 minutes 
+ test~subjectA~sample3~2    377     6       NA     03.14.2025  8:15pm   03.14.2025  8:20pm   TRUE   5 minutes 
+ test~subjectA~sample3~3    384     7       NA     03.14.2025  8:11pm   03.14.2025  8:15pm   TRUE   4 minutes 
+ test~subjectA~sample3~4    382     7       NA     03.14.2025  8:11pm   03.14.2025  8:15pm   TRUE   4 minutes 
+ test~subjectB~sample1~1    762     10      NA     03.14.2025  8:05pm   03.14.2025  8:11pm   TRUE   6 minutes 
+ test~subjectB~sample1~2    384     7       NA     03.14.2025  8:11pm   03.14.2025  8:18pm   TRUE   6 minutes 
+ test~subjectB~sample1~3    386     7       NA     03.14.2025  8:11pm   03.14.2025  8:17pm   TRUE   5 minutes 
+ test~subjectB~sample1~4    376     6       NA     03.14.2025  8:15pm   03.14.2025  8:21pm   TRUE   5 minutes 
+ test~subjectB~sample2~1    750     10      NA     03.14.2025  8:05pm   03.14.2025  8:11pm   TRUE   5 minutes 
+ test~subjectB~sample2~2    373     6       NA     03.14.2025  8:15pm   03.14.2025  8:20pm   TRUE   4 minutes 
+ test~subjectB~sample2~3    380     6       NA     03.14.2025  8:15pm   03.14.2025  8:20pm   TRUE   4 minutes 
+ test~subjectB~sample2~4    381     6       NA     03.14.2025  8:16pm   03.14.2025  8:20pm   TRUE   4 minutes 
+ test~subjectB~sample3~1    752     10      NA     03.14.2025  8:05pm   03.14.2025  8:11pm   TRUE   5 minutes 
+ test~subjectB~sample3~2    370     6       NA     03.14.2025  8:16pm   03.14.2025  8:20pm   TRUE   4 minutes 
+ test~subjectB~sample3~3    381     6       NA     03.14.2025  8:16pm   03.14.2025  8:20pm   TRUE   4 minutes 
+ test~subjectB~sample3~4    374     6       NA     03.14.2025  8:16pm   03.14.2025  8:20pm   TRUE   4 minutes 
+ test~subjectC~sample1~1    739     10      NA     03.14.2025  8:05pm   03.14.2025  8:11pm   TRUE   5 minutes 
+ test~subjectC~sample1~2    359     6       NA     03.14.2025  8:16pm   03.14.2025  8:21pm   TRUE   5 minutes 
+ test~subjectC~sample1~3    379     6       NA     03.14.2025  8:16pm   03.14.2025  8:21pm   TRUE   5 minutes 
+ test~subjectC~sample1~4    370     6       NA     03.14.2025  8:17pm   03.14.2025  8:21pm   TRUE   4 minutes 
+ test~subjectC~sample2~1    737     10      NA     03.14.2025  8:05pm   03.14.2025  8:11pm   TRUE   5 minutes 
+ test~subjectC~sample2~2    376     6       NA     03.14.2025  8:17pm   03.14.2025  8:21pm   TRUE   4 minutes 
+ test~subjectC~sample2~3    380     6       NA     03.14.2025  8:18pm   03.14.2025  8:22pm   TRUE   3 minutes 
+ test~subjectC~sample2~4    373     6       NA     03.14.2025  8:20pm   03.14.2025  8:23pm   TRUE   3 minutes 
+ test~subjectC~sample3~1    739     10      NA     03.14.2025  8:10pm   03.14.2025  8:15pm   TRUE   4 minutes 
+ test~subjectC~sample3~2    375     2       NA     03.14.2025  8:20pm   03.14.2025  8:25pm   TRUE   5 minutes 
+ test~subjectC~sample3~3    377     3       NA     03.14.2025  8:20pm   03.14.2025  8:25pm   TRUE   4 minutes 
+ test~subjectC~sample3~4    381     3       NA     03.14.2025  8:20pm   03.14.2025  8:24pm   TRUE   4 minutes 
+
+

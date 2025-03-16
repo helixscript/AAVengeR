@@ -23,10 +23,10 @@ opt <- startModule(args)
 
 
 createOuputDir()
-if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir))
-if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'tmp'))
-if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'))
-if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'))
+if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir), showWarnings = FALSE)
+if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'tmp'), showWarnings = FALSE)
+if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat1'), showWarnings = FALSE)
+if(! dir.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'))) dir.create(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'), showWarnings = FALSE)
 
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$alignReads_outputDir, 'log')

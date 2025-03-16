@@ -25,8 +25,8 @@ source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
 opt <- startModule(args)
 
 createOuputDir()
-dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
-dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'))
+dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir), showWarnings = FALSE)
+dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), showWarnings = FALSE)
 
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log')
@@ -60,7 +60,7 @@ if(tolower(opt$databaseConfigGroup) != 'none') dbConn <- createDBconnection()
 updateLog('Reading in fragment file(s).')
 
 frags <- distinct(readRDS(file.path(opt$outputDir, opt$buildStdFragments_inputFile)))
-  
+
 # Make sure fragments were retrieved.
 if(nrow(frags) == 0) quitOnErorr('Error -- no fragments were loaded or retrieved.')
 
@@ -124,8 +124,6 @@ if(opt$buildStdFragments_clusterLeaderSeqs){
 } else {
   frags$leaderSeqGroupNum <- 1
 }
-
-
 
 # Build fragment ids.
 # IDs are read level containing both random IDs and remnant IDs.
@@ -209,7 +207,6 @@ if(opt$buildStdFragments_standardizeIntegrationPositions){
 }
 
 
-  
 # Standardize break  positions if requested (recommended)
 # -------------------------------------------------------------------------------------------------------
 
@@ -375,7 +372,6 @@ if(nrow(frags_multPosIDs) > 0){
 } 
 
 
-
 # Correct for instances where a read maps to more than fragment but all fragments 
 # have the same integration position. These are instances of fuzzy break points 
 # and here we select the shortest fragments lengths.
@@ -510,6 +506,7 @@ if(opt$buildStdFragments_clusterLeaderSeqs){
 frags_uniqPosIDs$posid <- paste0(frags_uniqPosIDs$posid2, '.', frags_uniqPosIDs$leaderSeqGroupNum)
 
 frags_uniqPosIDs$posid2 <- NULL
+
 
 # Assign updated remnant seq group numbers and update position ids.
 frags_uniqPosIDs$leaderSeqGroup <- paste0(frags_uniqPosIDs$trialSubject, '~', frags_uniqPosIDs$leaderSeqGroupNum)
@@ -868,6 +865,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
 
 updateLog(paste0('Multi-hit table rows:', nrow(multiHitClusters)))
 
+
 # Remove randomLinkerSeq from fragIDs.
 # If you include the UMIs in the fragID, frags will be split into many smaller pieces.
 
@@ -948,6 +946,7 @@ if(nrow(a) > 0){
 
 # Merge split fragments back together.
 f <- bind_rows(a2, b2)
+
 
 # Clear out the tmp/ directory.
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), full.names = TRUE)))

@@ -34,7 +34,7 @@ core_applyCoreCPUsToAllModules: TRUE
 
 # Demultiplex module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-demultiplex_CPUs: 20
+demultiplex_CPUs: 15
 demultiplex_outputDir: demultiplex
 demultiplex_replicateMergingInstructions: none
 demultiplex_level: unique                          # (all, unique, or clustered)
@@ -195,6 +195,9 @@ callNearestGenes_boundaries:
   macFas5:
     TUs:   macFas5.humanXenoRef.TUs.rds
     exons: macFas5.humanXenoRef.exons.rds
+  chlSab2:
+    TUs:   chlSab2.humanXenoRef.TUs.rds
+    exons: chlSab2.humanXenoRef.exons.rds
 
 
 # mapSiteLeaderSequences module.
@@ -212,15 +215,15 @@ mapSiteLeaderSequences_maxMissingTailNTs: 5
 # predictPCRartifacts module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 predictPCRartifacts_CPUs: 15
-predictPCRartifacts_inputFile: callNearestGenes/sites.rds
+predictPCRartifacts_inputFile: annotateRepeats/sites.rds
 predictPCRartifacts_outputDir: predictPCRartifacts
-predictPCRartifacts_adjacentSeqLength: 14
-predictPCRartifacts_minReportHalfMatches: 5
-predictPCRartifacts_minReportMatches: 10
-predictPCRartifacts_maxAlnGaps: 1
+predictPCRartifacts_adjacentSeqLength: 20
+predictPCRartifacts_minReportHalfMatches: 7
+predictPCRartifacts_minReportMatches: 15
 predictPCRartifacts_wordSize: 5
-predictPCRartifacts_gapOpeningPenalty: 10
-predictPCRartifacts_gapExtensionPenalty: 5
+predictPCRartifacts_gapOpeningPenalty: 3
+predictPCRartifacts_gapExtensionPenalty: 2
+predictPCRartifacts_minMeltingTemp: 50
 predictPCRartifacts_addAfter: posid
 
 
@@ -255,30 +258,30 @@ anchorReadStartSeqs_inputFile: demultiplex/reads.rds
 anchorReadStartSeqs_windows: "10,50,100,200"
 anchorReadStartSeqs_nStartSeqs: 5
 
-
 # anchorReadRearrangements module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-anchorReadRearrangements_CPUs: 15
-anchorReadRearrangements_useHardWindows: FALSE
-anchorReadRearrangements_outputDir: anchorReadRearrangements
+anchorReadRearrangements_CPUs: 90
+anchorReadRearrangements_outputDir: anchorReadRearrangements_env
 anchorReadRearrangements_inputFile: demultiplex/reads.rds
+anchorReadRearrangements_calcReplicateLevelStats: TRUE
+anchorReadRearrangements_calcSampleLevelStats: TRUE
+anchorReadRearrangements_minAnchorReadLength: 200
+anchorReadRearrangements_minAdriftReadLength: 100
 anchorReadRearrangements_vectorLeaderSeqFilterLength: 12
-anchorReadRearrangements_vectorLeaderSeqFilterMaxMismatch: 1
-anchorReadRearrangements_qualtrim_events: 2
-anchorReadRearrangements_qualtrim_code: '5'
-anchorReadRearrangements_qualtrim_halfWidth: 5
+anchorReadRearrangements_vectorLeaderSeqFilterMaxMismatch: 2
 anchorReadRearrangements_minReadOverlapNTs: 20
 anchorReadRearrangements_maxReadOverlapPval: 0.001
-anchorReadRearrangements_anchorReadCutPos: 200
-anchorReadRearrangements_requireReadPairOverlap: TRUE
 anchorReadRearrangements_minReadsPerAltStruct: 2
-anchorReadRearrangements_cutAdaptErrorRate: 0.15
+anchorReadRearrangements_readEndAlignmentTestLength: 12
+anchorReadRearrangements_readEndAlignmentTestMinMatch: 10
+anchorReadRearrangements_seeds: '1,2,3'
+anchorReadRearrangements_rarifactionLevels: '0,10000,20000,30000'
+anchorReadRearrangements_windows: '300'
+anchorReadRearrangements_windowsTypes: soft
+anchorReadRearrangements_clusterParams: -c 0.90 -d 0 -aS 0.93 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -5 -gap-ext -1
 anchorReadRearrangements_minAlignmentLength: 10
 anchorReadRearrangements_minAlignmentPercentID: 90
 anchorReadRearrangements_maxMissingTailNTs: 11
-anchorReadRearrangements_readEndAlignmentTestLength: 12
-anchorReadRearrangements_readEndAlignmentTestMinMatch: 11
-anchorReadRearrangements_clusterParams: -c 0.90 -d 0 -aS 0.93 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -5 -gap-ext -1
 anchorReadRearrangements_expectedSeqs:
   Sabatino_PMC7855056_singleChain_plasmid.fasta:
     - TTCCTTGTAGTTAATGATTAACCCGCCATGCTACTTATCTACGTAGCCATGCTCTAGACCCCTAAAATGGGCAAACATTGCAAGCAGCAAACAGCAAACACACAGCCCTCCCTGCCTGCTGACCTTGGAGCTGGGGCAGAGGTCAGAGACCTCTCTGGGCCCATGCCACCTCCAACATCCACTCGACCCCTTGGAATTTCGGTGGAGAGGAGCAGAGGTTGTCCTGGCGTGGTTTAGGTAGTGTGAGAGGGGAATGACTCCTTTCGGTAAGTGCAGTGGAAGCTGTACACTGCCCAGGCAAAGCGTCCGGGCAGCGTAGGCGGGCGACTCAGATCCCAGCCAGTGGACTTAGCCCCTGTTTGCTCCTCCGATAACTGGGGTGACCTTGGTTAATATTCACCAGCAGCCTCCCCCGTTGCCCCTCTGGATCCACTGCTTAAATACGGACGAGGACAGGGCCCTGTCTCCTCAGCTTCAGGCACCACCACTGACCTGGGACA
@@ -304,3 +307,6 @@ anchorReadRearrangements_expectedSeqs:
   CCVC-TTRm-Nathwani-hFVIII-QQ_plasmid.fasta:
     - TTCCTACGCGTGTCTGTCTGCACATTTCGTAGAGCGAGTGTTCCGATACTCTAATCTCCCTAGGCAAGGTTCATATTGACTTAGGTTACTTATTCTCCTTTTGTTGACTAAGTCAATAATCAGAATCAGCAGGTTTGGAGTCAGCTTGGCAGGGATCAGCAGCCTGGGTTGGAAGGAGGGGGTATAAAAGCCCCTTCACCAGGAGAAGCCGTCACACAGATCCACAAGCTCCTGCTAGCAGGTAAGTGCCGTGTGTGGTTCCCGCGGGCCTGGCCTCTTTACGGGTTATGGCCCTTGCGTGCCTTGAATTACTGACACTGACATCCACTTTTTCTTTTTCTCCACAGGTTTAAACGCCACCATGCAGATTGAGCTGAGCACCTGCTTCTTCCTGTGCCTGCTGAGGTTCTGCTTCTCTGCCACCAGGAGATACTACCTGGGGGCTGTGGAGCTGAGCTGGGACTACATGCAGTCTGACCTGGGGGAGCTGCCTGTGGAT
     - TTCCTACACAAAAAACCAACACACAGATCTCTAGAGCTCTGATCTTTTATTGCGGCCGCTCAGTACAGGTCCTGGGCCTCACAGCCCAGCACCTCCATCCTCAGGGCAATCTGGTGCACCCAGCTCTGGGGGTGAATCCTCAGGTATCTGGTCAGCAGGGGGGGGTCCAGGCTGTTCACCACAGGGGTGAAGCTGTCCTGGTTGCCCTGGAACACCTTCACCTTGCCATTCTGGAAGAACAGGGTCCACTGGTGGCCATCCTGGCTGCTGCTGATCAGGAACTCCTTCACATACATGCTGGTCAGCAGGCTCTTCACCCCCTGGGTGGTCACCCCAGTCACCTTCATGGTCTTCTGGAAGTCCACCTGCAGCCACTCCTTGGGGTTGTTGACCTGGGGCCTCCAGGCATTGCTCCTGCCCTGCAGGTGCAGCCTGGCCTTGCTGGGGCTCCAGGTGGCAAACATGTTGGTGAAGTAGCTGCTGGCAGTGATCTGGGCATC
+  pTR-UF11-plasmid.fasta:
+    - TTCCTCAGATCTGAATTCGGTACCTAGTTATTAATAGTAATCAATTACGGGGTCATTAGTTCATAGCCCATATATGGAGTTCCGCGTTACATAACTTACGGTAAATGGCCCGCCTGGCTGACCGCCCAACGACCCCCGCCCATTGACGTCAATAATGACGTATGTTCCCATAGTAACGCCAATAGGGACTTTCCATTGACGTCAATGGGTGGAGTATTTACGGTAAACTGCCCACTTGGCAGTACATCAAGTGTATCATATGCCAAGTACGCCCCCTATTGACGTCAATGACGGTAAATGGCCCGCCTGGCATTATGCCCAGTACATGACCTTATGGGACTTTCCTACTTGGCAGTACATCTACGTATTAGTCATCGCTATTACCATGGTCGAGGTGAGCCCCACGTTCTGCTTCACTCTCCCCATCTCCCCCCCCCTCCCCACCCCCAATTTTGTATTTATTTATTTTTTAATTATTTTGTGCAGCGATGGGGGCGGGG
+    - TTCCTCAGATCTCTCCCCAGCATGCCTGCTATTGTCTTCCCAATCCTCCCCCTTGCTGTCCTGCCCCACCCCACCCCCCAGAATAGAATGACACCTACTCAGACAATGCGATGCAATTTCCTCATTTTATTAGGAAAGGACAGTGGGAGTGGCACCTTCCAGGGTCAAGGAAGGCACGGGGGAGGGGCAAACAACAGATGGCTGGCAACTAGAAGGCACAGTCGAGGCTGATCAGCGAGCTCTAGTCGACGGATCCCCTCAGAAGAACTCGTCAAGAAGGCGATAGAAGGCGATGCGCTGCGAATCGGGAGCGGCGATACCGTAAAGCACGAGGAAGCGGTCAGCCCATTCGCCGCCAAGCTCTTCAGCAATATCACGGGTAGCCAACGCTATGTCCTGATAGCGGTCCGCCACACCCAGCCGGCCACAGTCGATGAATCCAGAAAAGCGGCCATTTTCCACCATGATATTCGGCAAGCAGGCATCGCCATGGGTCACGA

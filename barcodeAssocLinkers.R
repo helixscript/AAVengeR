@@ -16,9 +16,9 @@ if(length(args) == 0) stop('Expected at least one command line argument')
 source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
 opt <- startModule(args)
 
-if(! dir.exists(file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir))) dir.create(file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir))
+if(! dir.exists(file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir))) dir.create(file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir), showWarnings = FALSE)
 
-s <- readr::read_tsv(opt$barcodeAssocLinkers_sampleDataFile)
+s <- readr::read_tsv(opt$barcodeAssocLinkers_sampleDataFile, show_col_types = FALSE)
 
 s$indexLinker <- paste0(s$index1Seq, substr(s$adriftReadLinkerSeq, 1, opt$barcodeAssocLinkers_adriftReadUniqueLinkerLength)) 
 

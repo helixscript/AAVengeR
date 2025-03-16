@@ -26,9 +26,9 @@ opt <- startModule(args)
 
 
 createOuputDir()
-if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir))) dir.create(file.path(opt$outputDir, opt$prepReads_outputDir))
-if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))) dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))
-if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'))
+if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir))) dir.create(file.path(opt$outputDir, opt$prepReads_outputDir), showWarnings = FALSE)
+if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'))) dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'dbs'), showWarnings = FALSE)
+if(! dir.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'), showWarnings = FALSE)
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$prepReads_outputDir, 'tmp'), full.names = TRUE)))
 
 # Start log.
@@ -104,7 +104,6 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
              # Add back trimmed anchor read sequences.
              o <- subset(y, readID %in% names(t))
              
-             # JKE
              if(nrow(o) == 0) return(data.table())
              
              trimmed <- data.table(readID = names(t), anchorReadSeq2 = as.character(t))
@@ -114,7 +113,6 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
              o$adriftReadSeq2 <- substr(o$adriftReadSeq, o$adriftLinkerSeqEnd+1, nchar(o$adriftReadSeq))
              o <- o[nchar(o$adriftReadSeq2) >= opt$prepReads_minAdriftReadLength,]
              
-             # JKE
              if(nrow(o) == 0) return(data.table())
 
              data.table(dplyr::select(o, -adriftReadTrimSeq, -adriftLinkerSeqEnd))
@@ -273,8 +271,8 @@ if(! 'leaderSeqHMM' %in% names(reads)){
            }))
       
       if(nrow(r) > 0){
-        return(distinct(left_join(r, select(x, readID, i), by = c('qname' = 'readID')) %>%
-                        left_join(select(x, readID, i), by = 'i') %>% 
+        return(distinct(left_join(r, select(x, readID, i), by = c('qname' = 'readID'), relationship = 'many-to-many') %>%
+                        left_join(select(x, readID, i), by = 'i', relationship = 'many-to-many') %>% 
                         dplyr::select(-qname, -i) %>% 
                          dplyr::rename(qname = readID) %>%
                         dplyr::relocate(qname, .before = sseqid)))
@@ -293,7 +291,7 @@ if(! 'leaderSeqHMM' %in% names(reads)){
     o <- tibble(i2 = 1:n_distinct(vectorHits2$i))
     o$n <- ntile(1:nrow(o), opt$prepReads_CPUs)
 
-    vectorHits2 <- left_join(vectorHits2, o, by = c('i' = 'i2'))
+    vectorHits2 <- left_join(vectorHits2, o, by = c('i' = 'i2'), relationship = 'many-to-many')
     
     if(! opt$prepReads_buildReadMaps_blastReconstruction){
       
@@ -307,6 +305,9 @@ if(! 'leaderSeqHMM' %in% names(reads)){
       
     } else {
       o <- rbindlist(parLapply(cluster, split(vectorHits2, vectorHits2$n), blast2rearangements_worker))
+
+      if(nrow(o) == 0) quitOnErorr('Error - no reads rearrangements could be built.')
+
       m <- data.table(id = o$qname, leaderMapping.qStart = 1, leaderMapping.qEnd = o$end, leaderSeqMap = NA)
     }
     

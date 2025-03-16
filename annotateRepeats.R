@@ -20,7 +20,7 @@ source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
 opt <- startModule(args)
 
 createOuputDir()
-dir.create(file.path(opt$outputDir, opt$annotateRepeats_outputDir))
+dir.create(file.path(opt$outputDir, opt$annotateRepeats_outputDir), showWarnings = FALSE)
 
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$annotateRepeats_outputDir, 'log')
@@ -95,7 +95,7 @@ sites <- bind_rows(lapply(unique(sites$refGenome), function(x){
        }))
   
   if(nrow(r) > 0){
-   return(left_join(s, select(r, posid, repeat_name, repeat_class), by = 'posid'))
+   return(left_join(s, select(r, posid, repeat_name, repeat_class), by = 'posid', relationship = 'many-to-many'))
   } else {
     return(s)
   }
@@ -121,7 +121,7 @@ if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiH
   
   o <- readRDS(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))
   
-  o <- left_join(o, distinct(select(sites, sample, refGenome)), by = 'sample')
+  o <- left_join(o, distinct(select(sites, sample, refGenome)), by = 'sample', relationship = 'many-to-many')
   
   o <- bind_rows(lapply(unique(o$refGenome), function(x){
     r <- readr::read_tsv(file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x, '.repeatTable.gz')))

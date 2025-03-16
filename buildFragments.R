@@ -22,8 +22,8 @@ source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
 opt <- startModule(args)
 
 createOuputDir()
-if(! dir.exists(file.path(opt$outputDir, opt$buildFragments_outputDir)))  dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir))
-if(! dir.exists(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp')))  dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'))
+if(! dir.exists(file.path(opt$outputDir, opt$buildFragments_outputDir)))  dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir), showWarnings = FALSE)
+if(! dir.exists(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp')))  dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, 'tmp'), showWarnings = FALSE)
 
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$buildFragments_outputDir, 'log')
@@ -279,9 +279,9 @@ if(opt$databaseConfigGroup != 'none'){
     # generation stage and should not be processed again until the record is removed from the samples table.
     
     f <- tmpFile()
-    dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, f))
+    dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, f), showWarnings = FALSE)
     invisible(file.copy(list.files(opt$softwareDir, pattern = '*.R', full.names = TRUE), file.path(opt$outputDir, opt$buildFragments_outputDir, f)))
-    dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'version'))
+    dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'version'), showWarnings = FALSE)
     invisible(file.copy(list.files(file.path(opt$softwareDir, 'version'), full.names = TRUE), file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'version'), recursive = TRUE))
     invisible(file.copy(opt$configFile, file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'userConfigFile.yml')))
     if('demultiplex_sampleDataFile' %in% names(opt)){

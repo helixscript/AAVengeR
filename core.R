@@ -22,10 +22,10 @@ opt <- startModule(args)
 
 # Create directories and start logging.
 createOuputDir()
-dir.create(file.path(opt$outputDir, 'core'))
-dir.create(file.path(opt$outputDir, 'core', 'demultiplex'))
-dir.create(file.path(opt$outputDir, 'core', 'replicate_analyses'))
-dir.create(file.path(opt$outputDir, 'core', 'subject_analyses')) 
+dir.create(file.path(opt$outputDir, 'core'), showWarnings = FALSE)
+dir.create(file.path(opt$outputDir, 'core', 'demultiplex'), showWarnings = FALSE)
+dir.create(file.path(opt$outputDir, 'core', 'replicate_analyses'), showWarnings = FALSE)
+dir.create(file.path(opt$outputDir, 'core', 'subject_analyses'), showWarnings = FALSE) 
 
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, 'core', 'log')
@@ -188,7 +188,7 @@ while(! all(jobTable$done == TRUE)){
   o$core_createFauxFragDoneFiles <- TRUE
   
   # Create the output directory for this replicate and save a copy of the replicate reads within it.
-  dir.create(o$outputDir)
+  dir.create(o$outputDir, showWarnings = FALSE)
   saveRDS(subset(reads, uniqueSample == tab$id), file.path(o$outputDir, paste0(tab$id, '.CORE_TMP.rds')), compress = opt$compressDataFiles)
   
   # Update configuration to point to the subset of replicate reads.
@@ -302,7 +302,7 @@ while(! all(jobTable$done == TRUE)){
   o$core_createFauxSiteDoneFiles <- TRUE
   
   # Create the output directory for this replicate and save a copy of the replicate reads within it.
-  dir.create(o$outputDir)
+  dir.create(o$outputDir, showWarnings = FALSE)
   
   saveRDS(subset(frags, trialSubject == tab$id), file.path(o$outputDir, paste0(tab$id, '.CORE_TMP.rds')), compress = opt$compressDataFiles)
   

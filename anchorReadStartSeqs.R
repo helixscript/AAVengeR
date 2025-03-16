@@ -14,7 +14,7 @@ if(length(args) == 0) stop('Expected at least one command line argument')
 source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
 opt <- startModule(args)
 
-dir.create(file.path(opt$outputDir, opt$anchorReadStartSeqs_outputDir))
+dir.create(file.path(opt$outputDir, opt$anchorReadStartSeqs_outputDir), showWarnings = FALSE)
 
 reads <- tidyr::separate(readRDS(file.path(opt$outputDir, opt$anchorReadStartSeqs_inputFile)), 
                          uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~')
