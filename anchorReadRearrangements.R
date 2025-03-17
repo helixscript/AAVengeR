@@ -237,8 +237,11 @@ buildSeqModel <- function(seq, db, id, tmpDir){
       b$alignmentLength <- b$qend - b$qstart + 1
       b$strand <- ifelse(b$sstart > b$send, '-', '+')
       b <- dplyr::filter(b, pident >= opt$anchorReadRearrangements_minAlignmentPercentID, alignmentLength >= opt$anchorReadRearrangements_minAlignmentLength)
-      b$qlen <- nchar(seq)
-      altStructSchema <- blast2rearangements(b, opt$anchorReadRearrangements_maxMissingTailNTs, opt$anchorReadRearrangements_minAlignmentLength)$rearrangement
+      
+      if(nrow(b) > 0){
+        b$qlen <- nchar(seq)
+        altStructSchema <- blast2rearangements(b, opt$anchorReadRearrangements_maxMissingTailNTs, opt$anchorReadRearrangements_minAlignmentLength)$rearrangement
+      }
     } 
   }
   
@@ -380,6 +383,9 @@ worker <- function(x){
                                   db = file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', db),
                                   id = f,
                                   tmpDir = file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'))
+          ## message('f1')
+          ## browser()
+          
           write_tsv(rtab, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'clusterSequences', paste0(x$uniqueSample[1], '_', windowType, '_', rarifactionLevel, '_',  w, '_', seed)))
         }
         
@@ -388,16 +394,27 @@ worker <- function(x){
         # Remove dummy expected sequence(s).
         o <- o[! grepl('expectedSeq', o$readID),]
         
-        expectedSeqReadsIDs   <- unique(o[grepl('expectedSeq', o$rep),]$readID)
-        unexpectedSeqReadsIDs <- unique(o[! grepl('expectedSeq', o$rep),]$readID)
-        
-        expectedStructReadIDs   <- unique(o[grepl('expectedSeq', o$rep),]$readID) 
-        unExpectedStructReadIDs <- unique(o[! grepl('expectedSeq', o$rep),]$readID)
-        
-        altStructNum <- n_distinct(o[! grepl('expectedSeq', o$rep),]$rep)
-        
-        expectedStructReadNum   <- ifelse(length(expectedStructReadIDs) == 0, 0, n_distinct(expectedStructReadIDs))
-        unExpectedStructReadNum <- ifelse(length(unExpectedStructReadIDs) == 0, 0, n_distinct(unExpectedStructReadIDs))
+        if(nrow(o) > 0){
+          expectedSeqReadsIDs   <- unique(o[grepl('expectedSeq', o$rep),]$readID)
+          unexpectedSeqReadsIDs <- unique(o[! grepl('expectedSeq', o$rep),]$readID)
+          
+          expectedStructReadIDs   <- unique(o[grepl('expectedSeq', o$rep),]$readID) 
+          unExpectedStructReadIDs <- unique(o[! grepl('expectedSeq', o$rep),]$readID)
+          
+          altStructNum <- n_distinct(o[! grepl('expectedSeq', o$rep),]$rep)
+          
+          expectedStructReadNum   <- ifelse(length(expectedStructReadIDs) == 0, 0, n_distinct(expectedStructReadIDs))
+          unExpectedStructReadNum <- ifelse(length(unExpectedStructReadIDs) == 0, 0, n_distinct(unExpectedStructReadIDs))
+        } else {
+          expectedSeqReadsIDs   <- NA
+          unexpectedSeqReadsIDs <- NA
+          expectedStructReadIDs <- NA
+          unExpectedStructReadIDs <- NA
+          altStructNum <- NA
+          
+          expectedStructReadNum <- NA
+          unExpectedStructReadNum <- NA
+        }
         
         data.table(sampleReplicate          = x$uniqueSample[1], 
                    sample                   = x$sample[1],
@@ -429,7 +446,13 @@ reads$sample <- sub('~\\d+$', '', reads$uniqueSample)
 
 if(opt$anchorReadRearrangements_calcReplicateLevelStats){
   updateLog('Calculating rearrangements for sample replicates.')
+  save.image('~/image1.RData')
+  
   r.replicates <- rbindlist(parLapply(cluster, split(reads, paste(reads$vectorFastaFile, reads$uniqueSample)), worker))
+
+  # r.replicates <- rbindlist(lapply(split(reads, paste(reads$vectorFastaFile, reads$uniqueSample)), worker))
+  
+  
   r.replicates$altStructsPerKB <- (r.replicates$altStructs / (r.replicates$window * r.replicates$vectorPaths))*1000
   r.replicates$sample <- NULL
   
@@ -442,6 +465,7 @@ if(opt$anchorReadRearrangements_calcReplicateLevelStats){
 
   updateLog('Writing outputs.')
   saveRDS(r.replicates, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result_replicates.rds'))
+  r.replicates.altStructs <- dplyr::rename(r.replicates.altStructs, repReadID = Var1, count = Freq)
   saveRDS(r.replicates.altStructs, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result_replicates_altStructs.rds'))
 }
 
@@ -461,6 +485,7 @@ if(opt$anchorReadRearrangements_calcSampleLevelStats){
   
   updateLog('Writing outputs.')
   saveRDS(r.samples, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result_samples.rds'))
+  r.samples.altStructs <- dplyr::rename(r.samples.altStructs, repReadID = Var1, count = Freq)
   saveRDS(r.samples.altStructs, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'result_samples_altStructs.rds'))
 }
 
