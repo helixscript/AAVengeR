@@ -203,3 +203,7 @@ Incorporated scripts from https://github.com/helixscript/buildSynReadData
 Added tests folder
 Added integrase and AAV test data sets including truth file.
 Added patch to prepReads.R to handle data sets where all reads are eliminated due to filtering.
+3.0.3
+Cleaned up vector file archive.
+Added HMMs.
+Added database schema dump file.

@@ -969,4 +969,4 @@ updateLog('buildStdFragments completed.')
 
 if(opt$databaseConfigGroup != 'none') RMariaDB::dbDisconnect(dbConn)
 
-q(save = 'no', status = 0, runLast = FALSE) 
+q(save = 'no', status = 0, runLast = FALSE)
