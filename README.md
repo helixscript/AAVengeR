@@ -39,14 +39,14 @@ The AAVengeR pipeline is written in both R and Python and requires several softw
 %> docker load < aavenger_docker_v3.tar
 ```
   
-The Docker container expects you to 'bind' a file directory containing all the files needed for the run (AAVengeR, FASTQs, and configuration files) to the container at run time. Within the container, the directory will be bound to '/data'. 
-For example, if AAVengeR and your data files are all located in your home directory '/home/aavenger_user', these parameters would bind your home directory to the container when it starts:
+The Docker container expects you to 'bind' a file directory containing all the files needed for the run (AAVengeR, FASTQs, and configuration files) to the container at run time. Within the container, the directory will be bound to */data*. 
+For example, if AAVengeR and your data files are all located in your home directory */home/aavenger_user*, these parameters would bind your home directory to the container when it starts:
   
 ```
 --mount type=bind,source=/home/aavenger_user,target=/data
 ```
   
-The container needs to know the locations of AAVengeR and configuration file. These paths are provided in the command to start the container. Importantly, these paths, and the paths included in your AAVengeR configuration file, need to be from the container's perspective. For example, if you installed AAVengeR at '/home/aavenger_user/AAVengeR' and bound '/home/aavenger_user' to the container's '/data' directory, the path to AAVengeR would be '/data/AAVengeR'. Likewise, in your configuration files, if the path to your I1 reads is normally '/home/aavenger_user/myRun/I1.fastq.gz', this should be written from the container's perspective, '/data/myRun/I1.fatsq.gz'. Putting it all together: 
+The container needs to know the location of AAVengeR and its configuration file. These paths are provided in the command to start the container. **Importantly, these paths, and the paths included in your AAVengeR configuration file, need to be written from the container's perspective**. For example, if you installed AAVengeR at */home/aavenger_user/AAVengeR* and bound */home/aavenger_user* to the container's */data* directory, the path to AAVengeR would be */data/AAVengeR*. Likewise, in your configuration files, if the path to your R1 FASTQ file is normally */home/aavenger_user/myRun/R1.fastq.gz*, this should be written from the container's perspective, */data/myRun/R1.fastq.gz*. Putting it all together: 
 
 ```
 %> docker run --rm --mount type=bind,source=/home/aavenger_user,target=/data -e AAVENGER_DIR=/data/AAVengeR -e AAVENGER_CONFIG_PATH=/data/myRun/config.yml aavenger_docker_v3
