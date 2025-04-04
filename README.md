@@ -1,4 +1,6 @@
-# Installation
+# Quick Start
+
+Clone this repository and install one or more precompiled genomes. 
 
 ```
 %> git clone https://github.com/helixscript/AAVengeR
@@ -20,95 +22,35 @@
 %> ./aavenger.R --install.genome sacCer3
 %> ./aavenger.R --install.genome hg38
 ```
-# Installation testing
 
-```
-# Build one of the provided test data set configurations.
-%> ./buildRunSynSeqData.R data/configFiles/buildSynSeqData_hg38_integrase_100_sites_set1.yml
-
-%> cat data/tests/hg38_integrase_100_sites_set1/result.tsv
-      exp	     nSites	 set	percentUniqueRecovery	percentTotalRecovery	unexpectedSites	leaderSeqDist.meanleaderSeqDist.sd
-   integrase	       100	  1	         90.0%	              99.0%	               0             	0	             0
-```
+AAVengeR requires two configuration files. The [first configuration file](config.yml) contains the list of modules to run, module specific processing parameters, paths to resources, and the path to the second configuration file which defines sample specific parameters. The [sample configuration file](sampleData.tsv) contains sample specific information such as barcode sequences for demultiplexing, linker sequences, and reference genome against which reads should be aligned. Typically, only parameters near the top of the configuration file need to be changed such as those pointing to sequencing data, the sample configuration file, module chain, and the name of the output directory.  
   
-# Usage
-
-AAVengeR requires two configuration files. The [first configuration file](config.yml) contains the list of modules to run, module specific processing parameters, paths to resources, and the path to the second configuration file which defines sample specific parameters. The [sample configuration file](sampleData.tsv) contains sample specific information such as barcode sequences for demultiplexing, linker sequences, and reference genome against which reads should be aligned. 
+AAVengeR pushes data through a series of modules defined in the 'modules' section of the configuration. There core modules are: demultiplex, prepReads, alignReads, buildFragments, buildStdFragments and buildSites. Rather than chaining these modules together in the 'modules' section, it is often more advantageous to simply call the 'core' module. This module calls the six core modules and automatically allocates CPUs to each sample depending on the number of demultiplexed reads. When using the core module, progress can be tracked through three key log files. The first log file, assuming your output directory is named 'output', would be 'output/core/demultiplex/log'. This file is updated in real time detailing the progress of the demultiplex module. Once the demultiplexing module finishes, 'output/core/replicateJobTable' will be created and show each sample replicate, the number of CPUs assigned to it, and its position and status in the queue. Finally, once replicate level analyses are complete, the 'output/cores/subjectJobTable' log will be created and report the progress of subject level analyses after which integration sites will be written to 'output/core'.
+  
+When both configuration files are ready, the pipeline is launched with this command:
   
 ```
-aavenger.R config.yml
+%> ./aavenger.R config.yml
 ```
 
-# Advanced analyses
-
-**Vector rearrangements**
-
-AAVengeR is typically used with data sets where sequencing data captures portions of LTR / ITR sequences followed by genomic junctures and flanking genomic DNA. AAVengeR, via its anchorReadRearrangement module, can estimate the percentage of sequencing 
-reads associated with rearranged vector forms when sequencing reads face inward rather than outward. To run an inward analysis, first, update the default configuration file with the values shown below.
-```
-mode: manual
-
-demultiplex_anchorReadsFile: Undetermined_S0_R2_001.fastq.gz    # Change to match your data
-demultiplex_adriftReadsFile: Undetermined_S0_R1_001.fastq.gz    # Change to match your data
-demultiplex_index1ReadsFile: Undetermined_S0_I1_001.fastq.gz    # Change to match your data
-demultiplex_sampleDataFile:  sampleData.tsv                     # Change to match your data
-
-modules:
-  - demultiplex
-  - anchorReadRearrangements
-
-demultiplex_level: all
-demultiplexs_CPUs: 15                  # Change to match your system
-anchorReadRearrangements_CPUs: 15      # Change to match your system
-```
-In your sampleData file, it is important not to include the optional *anchorReadStartSeq* column.
-
-Next, for each vector file defined in your sampleData file, the possible expected inward sequences need to be provided. Each vector may have more than one possible inward sequence if PCR primers can sequence inward from both ends of a vector 
-or if samples were transfected with more than one vector. The length of these expected sequences should be at least as long as the sum of your sequencing cycles (R1 + R2). Below is an example of how to add your expected sequences to the
-anchorReadRearrangement module.
-```
-anchorReadRearrangements_expectedSeqs:
-  Sabatino_PMC7855056_lightChain_plasmid.fasta:
-    - TTCCTTGTAGTTAATGATTAACCCGCCATGCTACTTATCTACGTAGCCATGCTCTAGGAAGATCCAGGTTAATTTTTAAAAAGCAGTCAAAAGTCCAAGTGGCCCTTGGCAGCATTTACTCTCTCTGTTTGCTCTGGTTAATAATCTCAGGAGCACAAACATTCCAGATCCAGGTTAATTTTTAAAAAGCAGTCAAAAGTCCAAGTGGCCCTTGGCAGCATTTACTCTCTCTGTTTGCTCTGGTTAATAATCTCAGGAGCACAAACATTCCAGATCCGGCGCGCCAGGGCTGGAAGCTACCTTTGACATCATTTCCTCTGCGAATGCATGTATAATTTCTACAGAACCTATTAGAAAGGATCACCCAGCCTCTGCTTTTGTACAACTTTCCCTTAAAAAACTGCCAATTCCACTGCTGTTTGGCCCAATAGTGAGAACTTTTTCCTGCTGCCTCTTGGTGCTTTTGCCTATGGCCCCTATTCTGCCTGCTGAAGACACTC
-    - TTCCTTGTAGTTAATGATTAACCCGCCATGCTACTTATCTACGTAGCCATGCTCTAGGAAGATCCTTATCGATTTTACCACATTTGTAGAGGTTTTACTTGCTTTAAAAAACCTCCCACATCTCCCCCTGAACCTGAAACATAAAATGAATGCAATTGTTGTTGTTAACTTGTTTATTGCAGCTTATAATGGTTACAAATAAAGCAATAGCATCACAAATTTCACAAATAAAGCATTTTTTTCACTGCATTCTAGTTGTGGTTTGTCCAAACTCATCAATGTATCTTATCATGTCTGCTCGAAGCGGCCGCTCTAGATCAGGCGGGCTGCTGGGTGTCGCAGCCCAGGACCTCCAGCCTCAGGGCGATGTGGTGCGCCCAGCTCTGCGGGTGCAGGCGCACGTAGCGAGCCACCAGCGGGGGTTCGAGACGGTTCCGCACAGGCGTGGAGGAGTCCCGGTTTCCCTGGAAGACCTTGACTTTGCCATTCTGAAGAAACAG
-  Sabatino_PMC7855056_heavyChain_plasmid.fasta:
-    - TTCCTTGTAGTTAATGATTAACCCGCCATGCTACTTATCTACGTAGCCATGCTCTAGGAAGATCCAGGTTAATTTTTAAAAAGCAGTCAAAAGTCCAAGTGGCCCTTGGCAGCATTTACTCTCTCTGTTTGCTCTGGTTAATAATCTCAGGAGCACAAACATTCCAGATCCAGGTTAATTTTTAAAAAGCAGTCAAAAGTCCAAGTGGCCCTTGGCAGCATTTACTCTCTCTGTTTGCTCTGGTTAATAATCTCAGGAGCACAAACATTCCAGATCCGGCGCGCCAGGGCTGGAAGCTACCTTTGACATCATTTCCTCTGCGAATGCATGTATAATTTCTACAGAACCTATTAGAAAGGATCACCCAGCCTCTGCTTTTGTACAACTTTCCCTTAAAAAACTGCCAATTCCACTGCTGTTTGGCCCAATAGTGAGAACTTTTTCCTGCTGCCTCTTGGTGCTTTTGCCTATGGCCCCTATTCTGCCTGCTGAAGACACTC
-    - TTCCTTGTAGTTAATGATTAACCCGCCATGCTACTTATCTACGTAGCCATGCTCTAGGAAGATCCTTATCGATTTTACCACATTTGTAGAGGTTTTACTTGCTTTAAAAAACCTCCCACATCTCCCCCTGAACCTGAAACATAAAATGAATGCAATTGTTGTTGTTAACTTGTTTATTGCAGCTTATAATGGTTACAAATAAAGCAATAGCATCACAAATTTCACAAATAAAGCATTTTTTTCACTGCATTCTAGTTGTGGTTTGTCCAAACTCATCAATGTATCTTATCATGTCTGCTCGAAGCGGCCGCTCAGCCCTTGTTTCTTTCTATTGCTCCACGTGAATGGTCATCGGCTCTATCTGTGGCCTCTCGGAGATCAGATAAGAACAGTCCACGTGGAGTAGGATTCTGTCCCAACAGCATCAACAAATCACTAGAGGAGACACTTTGTGCTTTAATCAGCTGTGTTCTTTCTCCAGATTGAAGGTCAATCTTCTC
-```
-
-It is important that these inward sequences match your experimental data as closely as possible. AAVengeR includes a tool for calculating the most common Kmers found in the output of its demultiplex module. The anchorReadStartSeq module can be 
-run immediately after the demultiplex module and its output can be useful for checking your expected inward sequences before starting the anchorReadRearrangement module.
+The AAVengeR pipeline is written in both R and Python and requires several software libraries and third party tools to run. In order to simplify its installation and standardize its behavior, a [precompiled Docker image](http://bushmanlab.org/data/AAVengeR/docker/aavenger_docker_v3.tar) is available and recommended. 
 
 ```
-modules:
-  - demultiplex
-  - anchorReadStartSeqs
+%> docker load < aavenger_docker_v3.tar
+```
+  
+The Docker container expects you to 'bind' a file directory containing all the files needed for the run (AAVengeR, FASTQs, and configuration files) to the container at run time. Within the container, the directory will be bound to '/data'. 
+For example, if AAVengeR and your data files are all located in your home directory '/home/aavenger_user', these parameters would bind your home directory to the container when it starts:
+  
+```
+--mount type=bind,source=/home/aavenger_user,target=/data
+```
+  
+The container needs to know the locations of AAVengeR and configuration file. These paths are provided in the command to start the container. Importantly, these paths, and the paths included in your AAVengeR configuration file, need to be from the container's perspective. For example, if you installed AAVengeR at '/home/aavenger_user/AAVengeR' and bound '/home/aavenger_user' to the container's '/data' directory, the path to AAVengeR would be '/data/AAVengeR'. Likewise, in your configuration files, if the path to your I1 reads is normally '/home/aavenger_user/myRun/I1.fastq.gz', this should be written from the container's perspective, '/data/myRun/I1.fatsq.gz'. Putting it all together: 
+
+```
+%> docker run --rm --mount type=bind,source=/home/aavenger_user,target=/data -e AAVENGER_DIR=/data/AAVengeR -e AAVENGER_CONFIG_PATH=/data/myRun/config.yml aavenger_docker_v3
 ```
 
-The anchorReadStartSeqs module has different settings including the which Kmers or 'windows' should be calculated.
-For example, in R:
+The pipeline can take a couple of hours to run depending on how many CPUs are allocated to each module. It is reccomended that Docker is called from within a screen session.
 
-```
-o <- readRDS('output/anchorReadStartSeqs/result.rds')
-subset(o, sample == 'GSTP5877' & window == 100)
- trial            subject  sample      window  count    freq        seq
- Sabatino_AAV_NHP GSTP5877 GSTP5877    100     163202   0.313707022 TTCCTACACAAAAAACCAACACACAGATCTCTAGAGCTCTGATCTTTTATTGCGGCCGCTCAGTACAGATCCTGGGCCTCACAGCCCAGCACCTCCATCC
- Sabatino_AAV_NHP GSTP5877 GSTP5877    100     137422   0.264152684 TTCCTACGCGTGTCTGTCTGCACATTTCGTAGAGCGAGTGTTCCGATACTCTAATCTCCCTAGGCAAGGTTCATATTGACTTAGGTTACTTATTCTCCTT
- Sabatino_AAV_NHP GSTP5877 GSTP5877    100       1713   0.003292730 TTCCTACACAAAAACCAACACACAGATCTCTAGAGCTCTGATCTTTTATTGCGGCCGCTCAGTACAGATCCTGGGCCTCACAGCCCAGCACCTCCATCCT
- Sabatino_AAV_NHP GSTP5877 GSTP5877    100        941   0.001808791 TTCCTACACAAAAAACCAACACACAGATCTCTAGAGCTCCGATCTTTTATTGCGGCCGCTCAGTACAGATCCTGGGCCTCACAGCCCAGCACCTCCATCC
- Sabatino_AAV_NHP GSTP5877 GSTP5877    100        929   0.001785725 TTCCTACGCAAAAAACCAACACACAGATCTCTAGAGCTCTGATCTTTTATTGCGGCCGCTCAGTACAGATCCTGGGCCTCACAGCCCAGCACCTCCATCC
-```
-
-The anchorReadRearranagment module works as follows:
-
-1. Demultiplexed R1 and R2 reads are read-in and adapter sequences are removed.
-
-2. Overlapping fragments where R1 and R2 overlap by at least 20 NT are built. By default, only overlapping reads are kept. Overlapped reads provide longer, higher quality reads into the interior of vector bodies.
-
-3. For each vector, the possible inward paths are defined in the configuration file. For each sample, overlapped read sequences must start with the 12 NTs from one possible inward path.
-
-4. In order to protect against calling PCR rearrangements with gDNA as vector rearrangements, the last 12 NTs of overlapped reads must align to its corresponding vector-plasmid sequence otherwise they are removed. This typically removes ~3 - 5% of read pairs.
-
-5. Remaining overlapped reads are clustered with CD-HIT at 90% sequencing ID. CD-HIT is a greedy clustering algorithm that starts with the longest sequences. For each vector, the expected, 500 NT inward sequences found in the configuration file are injected into the clustering and essentially remove non-rearranged forms by collating them into the first cluster.
-
-6. The number of CD-HIT clusters, after removing the clusters associated with expected sequences, is reported as the number of rearranged forms along with the percentage of total reads associated with those forms.  
