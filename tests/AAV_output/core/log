@@ -7,60 +7,60 @@
                                    __/ |            
                                   |___/             
    
-version: 3.0.2
+version: 3.0.3
 
-03.14.2025  8:03pm	Starting core module.
-03.14.2025  8:03pm	This module will call the following modules:
-03.14.2025  8:03pm	demultiplex, prepReads, alignReads, buildFragments, buildStdFragments, and buildSites.
-03.14.2025  8:03pm	Running the demultiplex module.
-03.14.2025  8:05pm	Demultiplex completed.
-03.14.2025  8:05pm	16,895 reads demultiplexed across 36 sample replicates.
-03.14.2025  8:05pm	Starting replicate level jobs.
-03.14.2025  8:05pm	Starting test~subjectA~sample1~1.
-03.14.2025  8:05pm	Starting test~subjectA~sample2~1.
-03.14.2025  8:05pm	Starting test~subjectA~sample3~1.
-03.14.2025  8:05pm	Starting test~subjectB~sample1~1.
-03.14.2025  8:05pm	Starting test~subjectB~sample2~1.
-03.14.2025  8:05pm	Starting test~subjectB~sample3~1.
-03.14.2025  8:05pm	Starting test~subjectC~sample1~1.
-03.14.2025  8:05pm	Starting test~subjectC~sample2~1.
-03.14.2025  8:10pm	Starting test~subjectC~sample3~1.
-03.14.2025  8:10pm	Starting test~subjectA~sample2~2.
-03.14.2025  8:11pm	Starting test~subjectA~sample3~3.
-03.14.2025  8:11pm	Starting test~subjectA~sample3~4.
-03.14.2025  8:11pm	Starting test~subjectB~sample1~2.
-03.14.2025  8:11pm	Starting test~subjectB~sample1~3.
-03.14.2025  8:11pm	Starting test~subjectA~sample1~2.
-03.14.2025  8:11pm	Starting test~subjectA~sample1~3.
-03.14.2025  8:11pm	Starting test~subjectA~sample1~4.
-03.14.2025  8:11pm	Starting test~subjectA~sample2~3.
-03.14.2025  8:12pm	Starting test~subjectA~sample2~4.
-03.14.2025  8:15pm	Starting test~subjectA~sample3~2.
-03.14.2025  8:15pm	Starting test~subjectB~sample1~4.
-03.14.2025  8:15pm	Starting test~subjectB~sample2~2.
-03.14.2025  8:15pm	Starting test~subjectB~sample2~3.
-03.14.2025  8:16pm	Starting test~subjectB~sample2~4.
-03.14.2025  8:16pm	Starting test~subjectB~sample3~2.
-03.14.2025  8:16pm	Starting test~subjectB~sample3~3.
-03.14.2025  8:16pm	Starting test~subjectB~sample3~4.
-03.14.2025  8:16pm	Starting test~subjectC~sample1~2.
-03.14.2025  8:16pm	Starting test~subjectC~sample1~3.
-03.14.2025  8:17pm	Starting test~subjectC~sample1~4.
-03.14.2025  8:17pm	Starting test~subjectC~sample2~2.
-03.14.2025  8:18pm	Starting test~subjectC~sample2~3.
-03.14.2025  8:20pm	Starting test~subjectC~sample2~4.
-03.14.2025  8:20pm	Starting test~subjectC~sample3~2.
-03.14.2025  8:20pm	Starting test~subjectC~sample3~3.
-03.14.2025  8:20pm	Starting test~subjectC~sample3~4.
-03.14.2025  8:25pm	Replicate level jobs completed.
-03.14.2025  8:25pm	Bundling together replicate level fragment records.
-03.14.2025  8:25pm	Setting max. process CPU limit to 26 CPUs for subject level jobs.
-03.14.2025  8:25pm	Starting subject level jobs.
-03.14.2025  8:25pm	Starting test~subjectA.
-03.14.2025  8:25pm	Starting test~subjectB.
-03.14.2025  8:25pm	Starting test~subjectC.
-03.14.2025  8:26pm	Subject level jobs completed.
-03.14.2025  8:26pm	Bundling multi-hit data objects.
-03.14.2025  8:26pm	Bundling anchorReadClusterTable data objects.
-03.14.2025  8:26pm	Bundling integration site data objects.
-03.14.2025  8:26pm	Core module completed.
+04.03.2025  9:35pm	Starting core module.
+04.03.2025  9:35pm	This module will call the following modules:
+04.03.2025  9:35pm	demultiplex, prepReads, alignReads, buildFragments, buildStdFragments, and buildSites.
+04.03.2025  9:35pm	Running the demultiplex module.
+04.03.2025  9:36pm	Demultiplex completed.
+04.03.2025  9:36pm	16,895 reads demultiplexed across 36 sample replicates.
+04.03.2025  9:36pm	Starting replicate level jobs.
+04.03.2025  9:36pm	Starting test~subjectA~sample1~1.
+04.03.2025  9:36pm	Starting test~subjectA~sample2~1.
+04.03.2025  9:36pm	Starting test~subjectA~sample2~2.
+04.03.2025  9:37pm	Starting test~subjectA~sample3~1.
+04.03.2025  9:37pm	Starting test~subjectA~sample3~3.
+04.03.2025  9:37pm	Starting test~subjectA~sample3~4.
+04.03.2025  9:37pm	Starting test~subjectB~sample1~1.
+04.03.2025  9:37pm	Starting test~subjectB~sample1~2.
+04.03.2025  9:37pm	Starting test~subjectB~sample1~3.
+04.03.2025  9:37pm	Starting test~subjectB~sample2~1.
+04.03.2025  9:37pm	Starting test~subjectB~sample2~4.
+04.03.2025  9:37pm	Starting test~subjectB~sample3~1.
+04.03.2025  9:37pm	Starting test~subjectC~sample1~1.
+04.03.2025  9:37pm	Starting test~subjectC~sample2~1.
+04.03.2025  9:37pm	Starting test~subjectC~sample3~1.
+04.03.2025  9:38pm	Starting test~subjectA~sample1~2.
+04.03.2025  9:38pm	Starting test~subjectA~sample1~3.
+04.03.2025  9:38pm	Starting test~subjectA~sample1~4.
+04.03.2025  9:38pm	Starting test~subjectA~sample2~3.
+04.03.2025  9:38pm	Starting test~subjectA~sample2~4.
+04.03.2025  9:38pm	Starting test~subjectA~sample3~2.
+04.03.2025  9:38pm	Starting test~subjectB~sample1~4.
+04.03.2025  9:38pm	Starting test~subjectB~sample2~2.
+04.03.2025  9:38pm	Starting test~subjectB~sample2~3.
+04.03.2025  9:38pm	Starting test~subjectB~sample3~2.
+04.03.2025  9:38pm	Starting test~subjectB~sample3~3.
+04.03.2025  9:38pm	Starting test~subjectB~sample3~4.
+04.03.2025  9:39pm	Starting test~subjectC~sample1~2.
+04.03.2025  9:39pm	Starting test~subjectC~sample1~3.
+04.03.2025  9:39pm	Starting test~subjectC~sample1~4.
+04.03.2025  9:39pm	Starting test~subjectC~sample2~2.
+04.03.2025  9:39pm	Starting test~subjectC~sample2~3.
+04.03.2025  9:39pm	Starting test~subjectC~sample2~4.
+04.03.2025  9:39pm	Starting test~subjectC~sample3~2.
+04.03.2025  9:39pm	Starting test~subjectC~sample3~3.
+04.03.2025  9:39pm	Starting test~subjectC~sample3~4.
+04.03.2025  9:48pm	Replicate level jobs completed.
+04.03.2025  9:48pm	Bundling together replicate level fragment records.
+04.03.2025  9:48pm	Setting max. process CPU limit to 16 CPUs for subject level jobs.
+04.03.2025  9:48pm	Starting subject level jobs.
+04.03.2025  9:48pm	Starting test~subjectA.
+04.03.2025  9:48pm	Starting test~subjectB.
+04.03.2025  9:48pm	Starting test~subjectC.
+04.03.2025  9:50pm	Subject level jobs completed.
+04.03.2025  9:50pm	Bundling multi-hit data objects.
+04.03.2025  9:50pm	Bundling anchorReadClusterTable data objects.
+04.03.2025  9:50pm	Bundling integration site data objects.
+04.03.2025  9:50pm	Core module completed.

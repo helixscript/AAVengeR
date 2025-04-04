@@ -1,0 +1,232 @@
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 3.0.3
+
+04.03.2025  9:48pm	Reading in fragment file(s).
+04.03.2025  9:48pm	Categorizing leader sequences.
+04.03.2025  9:48pm	Standardizing integration positions within subjects.
+04.03.2025  9:49pm	53.07% integration positions shifted for 17440 fragments.
+04.03.2025  9:49pm	Standardizing break positions.
+04.03.2025  9:49pm	Standardizing break positions within replicates.
+04.03.2025  9:50pm	64.87% break points shifted for 8478 fragments.
+04.03.2025  9:50pm	Updating positions and fragment ids.
+04.03.2025  9:50pm	Idenitfying uniquely called postions.
+04.03.2025  9:50pm	95.35% of fragment reads mapped uniquely to the genome.
+04.03.2025  9:50pm	Resolving multi-hit reads.
+04.03.2025  9:50pm	Salvaging 96 reads from multiHits, (4 positions).
+04.03.2025  9:50pm	   0.74% of multihit reads recovered because one potential site was in the unabiguous site list.
+04.03.2025  9:50pm	Correcting fuzzy break points.
+04.03.2025  9:50pm	Reevaluating leader sequence classification after standardization.
+04.03.2025  9:50pm	Analyzing sample sample1 for anchor read start sequence clusters.
+04.03.2025  9:50pm	65 clusters found.
+04.03.2025  9:50pm	Analyzing cluster number: 1, reads in cluster: 33, test seq consensus: TTTTAAGTAACCCCCTAATGTTGTACAGTT
+04.03.2025  9:50pm	Analyzing cluster number: 2, reads in cluster: 33, test seq consensus: AGGCATTGTTCAAAATATATTCTTAAAACG
+04.03.2025  9:50pm	Analyzing cluster number: 3, reads in cluster: 32, test seq consensus: TATACACCGTGGAATGCTATGCAGCCATAA
+04.03.2025  9:50pm	Analyzing cluster number: 4, reads in cluster: 23, test seq consensus: CAGGGTCTCAGTGTGTGACCCAGGCTGGAG
+04.03.2025  9:50pm	Analyzing cluster number: 5, reads in cluster: 11, test seq consensus: AGGGTCTCAGTGTGTGACCCAGGCTGGAGT
+04.03.2025  9:50pm	Analyzing cluster number: 6, reads in cluster: 35, test seq consensus: TGCTGTTGTCCTTGGGGGTCTGAGACTTCT
+04.03.2025  9:50pm	Analyzing cluster number: 7, reads in cluster: 1, test seq consensus: GGCTGTGCTGTTGTCCTTGGGGGTCTGAGA
+04.03.2025  9:50pm	Analyzing cluster number: 8, reads in cluster: 35, test seq consensus: GGAAACTAATGTCAGCATTTAAAGAGAAGT
+04.03.2025  9:50pm	Analyzing cluster number: 9, reads in cluster: 30, test seq consensus: TTAAGATTTATCTATATTGTTGCATATAAA
+04.03.2025  9:50pm	Analyzing cluster number: 10, reads in cluster: 33, test seq consensus: GGTGGGGTCTCCAGTCTCTGCAGCTACTAG
+04.03.2025  9:50pm	Analyzing cluster number: 11, reads in cluster: 30, test seq consensus: GTTATGTGACCTTAGACAAATTTCCTAACT
+04.03.2025  9:50pm	Analyzing cluster number: 12, reads in cluster: 31, test seq consensus: GGAATTCAAATCAAATAAAAATAAAGGCCA
+04.03.2025  9:50pm	Analyzing cluster number: 13, reads in cluster: 35, test seq consensus: AAATGACTTCATCTAATTTTTTCATGTGTA
+04.03.2025  9:50pm	Analyzing cluster number: 14, reads in cluster: 31, test seq consensus: TATTATTTTTCCTTTTTTTTTTTTTTTTGG
+04.03.2025  9:50pm	Analyzing cluster number: 15, reads in cluster: 36, test seq consensus: GGTATTAAATGTGAAGGACTGACTCAGAAT
+04.03.2025  9:50pm	Analyzing cluster number: 16, reads in cluster: 25, test seq consensus: AGTAGATTGCAGGAACACCTGGAGAGAACT
+04.03.2025  9:50pm	Analyzing cluster number: 17, reads in cluster: 10, test seq consensus: GGAAGTAGATTGCAGGAACACCTGGAGAGA
+04.03.2025  9:50pm	Analyzing cluster number: 18, reads in cluster: 31, test seq consensus: ATTCACTCTGTCACCCAGGCTGAAGTGCAA
+04.03.2025  9:50pm	Analyzing cluster number: 19, reads in cluster: 25, test seq consensus: AAATACAGAGAATACCACAAAGATACTCCT
+04.03.2025  9:50pm	Analyzing cluster number: 20, reads in cluster: 9, test seq consensus: ACAGAGAATACCACAAAGATACTCCTCGAG
+04.03.2025  9:50pm	Analyzing cluster number: 21, reads in cluster: 30, test seq consensus: GTTCTCTGGTTCTCTGAACCACAGCAAGTG
+04.03.2025  9:50pm	Analyzing cluster number: 22, reads in cluster: 35, test seq consensus: ATGGCTTCAAGGAACCAAAAGCAAAAAGGC
+04.03.2025  9:50pm	Analyzing cluster number: 23, reads in cluster: 9, test seq consensus: ATAACATACTACTTGGTTCAGTTGTAAATA
+04.03.2025  9:50pm	Analyzing cluster number: 24, reads in cluster: 26, test seq consensus: AACATAACATACTACTTGGTTCAGTTGTAA
+04.03.2025  9:50pm	Analyzing cluster number: 25, reads in cluster: 35, test seq consensus: TAAACAGACATTGCTGGTCTGAGGTGGGGC
+04.03.2025  9:50pm	Analyzing cluster number: 26, reads in cluster: 33, test seq consensus: AACTAATAATTGATGGCTTCTACTGAAAGA
+04.03.2025  9:50pm	Analyzing cluster number: 27, reads in cluster: 33, test seq consensus: TTTTTTTTCCTGAATAATTTCTATCTGTGG
+04.03.2025  9:50pm	Analyzing cluster number: 28, reads in cluster: 11, test seq consensus: AGGCGGTAGGATCACCTGAGGTCAGGAGTT
+04.03.2025  9:50pm	Analyzing cluster number: 29, reads in cluster: 31, test seq consensus: AAACGCTCTTTTTGTGGAATCTGCAAGTGG
+04.03.2025  9:50pm	Analyzing cluster number: 30, reads in cluster: 34, test seq consensus: TACTTAAGTGGTTTGCCATCTACCAGAGGT
+04.03.2025  9:50pm	Analyzing cluster number: 31, reads in cluster: 34, test seq consensus: GGCTAAATCTAGAAACACATGAGAATACAT
+04.03.2025  9:50pm	Analyzing cluster number: 32, reads in cluster: 28, test seq consensus: TTCAAGCTGGCATTCCCCTATGGCAATTTT
+04.03.2025  9:50pm	Analyzing cluster number: 33, reads in cluster: 12, test seq consensus: AGTTTCAAGCTGGCATTCCCCTATGGCAAT
+04.03.2025  9:50pm	Analyzing cluster number: 34, reads in cluster: 35, test seq consensus: TGAATTTGGGGATTTAGTTTTCAACACATG
+04.03.2025  9:50pm	Analyzing cluster number: 35, reads in cluster: 29, test seq consensus: AAATATAAAAATTAGCCAGGCATGGTGGCG
+04.03.2025  9:50pm	Analyzing cluster number: 36, reads in cluster: 32, test seq consensus: TCTCCTGCCTCAGCCTCCCAAGTAGCTGGG
+04.03.2025  9:50pm	Analyzing cluster number: 37, reads in cluster: 29, test seq consensus: AAGATAGTGTCAAGACGGAAGTGTCAGGCC
+04.03.2025  9:50pm	Analyzing cluster number: 38, reads in cluster: 1, test seq consensus: GTCAAGATAGTGTCAAGACGGAAGTGTCAG
+04.03.2025  9:50pm	Analyzing cluster number: 39, reads in cluster: 35, test seq consensus: GAGAGGATCAGGAAAAAATAACTAATGGGT
+04.03.2025  9:50pm	Analyzing cluster number: 40, reads in cluster: 32, test seq consensus: GGGGAGGAGGCCTTTACTTTGAAACCACAT
+04.03.2025  9:50pm	Analyzing cluster number: 41, reads in cluster: 22, test seq consensus: TAATTTTTGTAATTTTAGTAGAGATGGGGT
+04.03.2025  9:50pm	Analyzing cluster number: 42, reads in cluster: 10, test seq consensus: AATTTTTGTAATTTTAGTAGAGATGGGGTT
+04.03.2025  9:50pm	Analyzing cluster number: 43, reads in cluster: 35, test seq consensus: AATCAATAGCTGGTAGGTTAGTTAGAAAAA
+04.03.2025  9:50pm	Analyzing cluster number: 44, reads in cluster: 31, test seq consensus: TCTCCCATGACCTACATCAAAGAATAAGTA
+04.03.2025  9:50pm	Analyzing cluster number: 45, reads in cluster: 34, test seq consensus: AGAAATTCTTGTTAGACTTGCCACCATTAC
+04.03.2025  9:50pm	Analyzing cluster number: 46, reads in cluster: 24, test seq consensus: ATGAAGAATGTTGGGCTCATTTCTCTGAGG
+04.03.2025  9:50pm	Analyzing cluster number: 47, reads in cluster: 9, test seq consensus: TGAAGAATGTTGGGCTCATTTCTCTGAGGC
+04.03.2025  9:50pm	Analyzing cluster number: 48, reads in cluster: 35, test seq consensus: CAAGTACCATGTTTTTATGCCTGTTTTAAT
+04.03.2025  9:50pm	Analyzing cluster number: 49, reads in cluster: 33, test seq consensus: ATACAGGAGGGTTTATGAAAAGTGAAAAGC
+04.03.2025  9:50pm	Analyzing cluster number: 50, reads in cluster: 32, test seq consensus: AAACCACAGTGTCTCCTTACCTCCAAATAA
+04.03.2025  9:50pm	Analyzing cluster number: 51, reads in cluster: 26, test seq consensus: TTCTAATTACCACTGCTTGACACAGTACTT
+04.03.2025  9:50pm	Analyzing cluster number: 52, reads in cluster: 9, test seq consensus: CTGTTCTAATTACCACTGCTTGACACAGTA
+04.03.2025  9:50pm	Analyzing cluster number: 53, reads in cluster: 31, test seq consensus: GCTCTCTACAGTGACACTGCACCTTGCAAG
+04.03.2025  9:50pm	Analyzing cluster number: 54, reads in cluster: 35, test seq consensus: TCTGCCTGTGGCCTTTTTTTGTTGTTGTTG
+04.03.2025  9:50pm	Analyzing cluster number: 55, reads in cluster: 30, test seq consensus: CTCAGCTCCAGATGACCACCATACAACAAC
+04.03.2025  9:50pm	Analyzing cluster number: 56, reads in cluster: 35, test seq consensus: TTCTGTCGCTTGGTGGGAAGGAACATCAAA
+04.03.2025  9:50pm	Analyzing cluster number: 57, reads in cluster: 30, test seq consensus: GTTCTGGATAAATATGAAAGCAAAGAGGCC
+04.03.2025  9:50pm	Analyzing cluster number: 58, reads in cluster: 27, test seq consensus: GTCTCTTAACAAAATAAAAAACAAACAAAA
+04.03.2025  9:50pm	Analyzing cluster number: 59, reads in cluster: 11, test seq consensus: CTGTCTCTTAACAAAATAAAAAACAAACAA
+04.03.2025  9:50pm	Analyzing cluster number: 60, reads in cluster: 32, test seq consensus: ATCCAAATGCCATTTCTTAAATAGTTTAGT
+04.03.2025  9:50pm	Analyzing cluster number: 61, reads in cluster: 23, test seq consensus: GCCACTGCACCCAGCCCGAGTTTCTTTTAA
+04.03.2025  9:50pm	Analyzing cluster number: 62, reads in cluster: 8, test seq consensus: GTGAGCCACTGCACCCAGCCCGAGTTTCTT
+04.03.2025  9:50pm	Analyzing cluster number: 63, reads in cluster: 37, test seq consensus: ATGATCTTTGCAGAAATCTTTGTTTTGTTA
+04.03.2025  9:50pm	Analyzing cluster number: 64, reads in cluster: 36, test seq consensus: TGGTACGACCGTTGTTCCTTCTTTTTTTCA
+04.03.2025  9:50pm	Analyzing cluster number: 65, reads in cluster: 34, test seq consensus: CATTTTTAAGACCAAGTGCTATTTTAGCAT
+04.03.2025  9:50pm	Analyzing sample sample2 for anchor read start sequence clusters.
+04.03.2025  9:50pm	63 clusters found.
+04.03.2025  9:50pm	Analyzing cluster number: 1, reads in cluster: 31, test seq consensus: GGAATCTTCTCGTTACAGGATGACCCCAAT
+04.03.2025  9:50pm	Analyzing cluster number: 2, reads in cluster: 35, test seq consensus: TAGAGTCATTCAGATAGGAAATTAATAGTA
+04.03.2025  9:50pm	Analyzing cluster number: 3, reads in cluster: 33, test seq consensus: CACACATAATAGTATGCACATTACATACAT
+04.03.2025  9:50pm	Analyzing cluster number: 4, reads in cluster: 34, test seq consensus: GAGTCAGGTCTTTCTTTCCAAATTGAGAAG
+04.03.2025  9:50pm	Analyzing cluster number: 5, reads in cluster: 36, test seq consensus: ACTGGTTTTGCTGCATTCCATGAGCTTGGT
+04.03.2025  9:50pm	Analyzing cluster number: 6, reads in cluster: 37, test seq consensus: CTGTTCAACCTCTCCCTCTATTTGTTAACT
+04.03.2025  9:50pm	Analyzing cluster number: 7, reads in cluster: 34, test seq consensus: GTGTCCATGTGATCTCATTGTTCAATTCCC
+04.03.2025  9:50pm	Analyzing cluster number: 8, reads in cluster: 25, test seq consensus: CAGATAATCCAACTAAGCAACAAAGTATGA
+04.03.2025  9:50pm	Analyzing cluster number: 9, reads in cluster: 10, test seq consensus: ATAATCCAACTAAGCAACAAAGTATGAAGA
+04.03.2025  9:50pm	Analyzing cluster number: 10, reads in cluster: 32, test seq consensus: TGCTTCTCCTTTGCCTTCTGCCATGATTGT
+04.03.2025  9:50pm	Analyzing cluster number: 11, reads in cluster: 34, test seq consensus: GGTATTTTTAAAAATCCAATCATCCGCTGA
+04.03.2025  9:50pm	Analyzing cluster number: 12, reads in cluster: 35, test seq consensus: AATCTCGGCTCACCACAGCCTCCGCCTCCC
+04.03.2025  9:50pm	Analyzing cluster number: 13, reads in cluster: 24, test seq consensus: AGAACTTATCCCTACTTGAAATTCATGGGT
+04.03.2025  9:50pm	Analyzing cluster number: 14, reads in cluster: 6, test seq consensus: ACTTATCCCTACTTGAAATTCATGGGTAGA
+04.03.2025  9:50pm	Analyzing cluster number: 15, reads in cluster: 37, test seq consensus: GCAAATATTTTCTGCCATTCTGTGAGTTTT
+04.03.2025  9:50pm	Analyzing cluster number: 16, reads in cluster: 36, test seq consensus: CAACTATTGTACAGTAGGTTGCCAATATTT
+04.03.2025  9:50pm	Analyzing cluster number: 17, reads in cluster: 39, test seq consensus: TAATTTTTCCAAATATATATTTATATACTT
+04.03.2025  9:50pm	Analyzing cluster number: 18, reads in cluster: 31, test seq consensus: AGGTGTAAGTTAATATTTATCAAACAGAAT
+04.03.2025  9:50pm	Analyzing cluster number: 19, reads in cluster: 23, test seq consensus: GGTGCTCAGAACCGAGTAAAAGGGACCCCG
+04.03.2025  9:50pm	Analyzing cluster number: 20, reads in cluster: 9, test seq consensus: AGGGTGCTCAGAACCGAGTAAAAGGGACCC
+04.03.2025  9:50pm	Analyzing cluster number: 21, reads in cluster: 26, test seq consensus: TGGAGAACTTTTATGTCTAGCTAGAGGATT
+04.03.2025  9:50pm	Analyzing cluster number: 22, reads in cluster: 10, test seq consensus: CTTGGAGAACTTTTATGTCTAGCTAGAGGA
+04.03.2025  9:50pm	Analyzing cluster number: 23, reads in cluster: 32, test seq consensus: AAGCTGAATTCTCATTCTGCCACTTACTGT
+04.03.2025  9:50pm	Analyzing cluster number: 24, reads in cluster: 31, test seq consensus: GCATTTCATCCAACAACCACAGAAAACACA
+04.03.2025  9:50pm	Analyzing cluster number: 25, reads in cluster: 34, test seq consensus: GGAATGGGAACATCATCCTAAAGACTAACA
+04.03.2025  9:50pm	Analyzing cluster number: 26, reads in cluster: 32, test seq consensus: CACAACATCCTTGGGAAGTTAGTGGCTTTC
+04.03.2025  9:50pm	Analyzing cluster number: 27, reads in cluster: 33, test seq consensus: CTAGGATCAGAGCCCAATCTAAATGAAGAG
+04.03.2025  9:50pm	Analyzing cluster number: 28, reads in cluster: 36, test seq consensus: TCTCATCAGTATCCATAAATCTCTTCTGAC
+04.03.2025  9:50pm	Analyzing cluster number: 29, reads in cluster: 33, test seq consensus: GACTGCTATCGGGTGAAGCAGATAGCAAGA
+04.03.2025  9:50pm	Analyzing cluster number: 30, reads in cluster: 32, test seq consensus: TCTTTTAAAGGCCAATGGTACACAGTATAA
+04.03.2025  9:50pm	Analyzing cluster number: 31, reads in cluster: 32, test seq consensus: TGGGACTGAGTCAGGACTCAGCACAGGTGT
+04.03.2025  9:50pm	Analyzing cluster number: 32, reads in cluster: 36, test seq consensus: GTGTTGCTGCTTTATAGCAAGTATGGGCTA
+04.03.2025  9:50pm	Analyzing cluster number: 33, reads in cluster: 39, test seq consensus: CATGAGCAACATCATCAGCAGACACTGAGA
+04.03.2025  9:50pm	Analyzing cluster number: 34, reads in cluster: 41, test seq consensus: CTGCACTCCAGCCTGGGCTAAAGAGCAAGA
+04.03.2025  9:50pm	Analyzing cluster number: 35, reads in cluster: 29, test seq consensus: CCTGCCTCAGCTTCCCGAGCAGCTGGGACT
+04.03.2025  9:50pm	Analyzing cluster number: 36, reads in cluster: 33, test seq consensus: AAGCAGGAGGAGGAACACCTGGAGGCCTGC
+04.03.2025  9:50pm	Analyzing cluster number: 37, reads in cluster: 35, test seq consensus: CCCATGGATATTAAATACAATATCACAGGA
+04.03.2025  9:50pm	Analyzing cluster number: 38, reads in cluster: 33, test seq consensus: CATAGCATAAGATTCTCTGATTATAGAATA
+04.03.2025  9:50pm	Analyzing cluster number: 39, reads in cluster: 31, test seq consensus: CCATCTCACACCCAGTACATAGGACCCGAC
+04.03.2025  9:50pm	Analyzing cluster number: 40, reads in cluster: 31, test seq consensus: GCCCCTGAGGGAGCCCTTTAAACACAGCCT
+04.03.2025  9:50pm	Analyzing cluster number: 41, reads in cluster: 23, test seq consensus: CCTTTTTGCAGTCTAGGATACTGAGGTTCA
+04.03.2025  9:50pm	Analyzing cluster number: 42, reads in cluster: 9, test seq consensus: TCCCTTTTTGCAGTCTAGGATACTGAGGTT
+04.03.2025  9:50pm	Analyzing cluster number: 43, reads in cluster: 37, test seq consensus: AGTTCTCTGGGGACACCAATCAGGTGTCCT
+04.03.2025  9:50pm	Analyzing cluster number: 44, reads in cluster: 32, test seq consensus: GTCTTTGCTATTGTGAATAGTTCTGCTATG
+04.03.2025  9:50pm	Analyzing cluster number: 45, reads in cluster: 26, test seq consensus: GGTGTTATTTTTACTTGTTTACATACAGGA
+04.03.2025  9:50pm	Analyzing cluster number: 46, reads in cluster: 6, test seq consensus: GTTATTTTTACTTGTTTACATACAGGAAAT
+04.03.2025  9:50pm	Analyzing cluster number: 47, reads in cluster: 34, test seq consensus: TCAGAAGGTGGTAAATTTAGCTTGCAAGCA
+04.03.2025  9:50pm	Analyzing cluster number: 48, reads in cluster: 32, test seq consensus: GCAGTAACTATGATTTTTATGTCATTTCCC
+04.03.2025  9:50pm	Analyzing cluster number: 49, reads in cluster: 33, test seq consensus: TAGTCAGTCCTCAACACTCTAAAAAAAGCC
+04.03.2025  9:50pm	Analyzing cluster number: 50, reads in cluster: 32, test seq consensus: AAATACATAAATAAATAAAACCCAGAAAAT
+04.03.2025  9:50pm	Analyzing cluster number: 51, reads in cluster: 36, test seq consensus: CAATAAAAAAATCCCAGTTATGAGTCATTT
+04.03.2025  9:50pm	Analyzing cluster number: 52, reads in cluster: 8, test seq consensus: GTCCAGTGGGAGAGCATATGGAAAGTCTAC
+04.03.2025  9:50pm	Analyzing cluster number: 53, reads in cluster: 24, test seq consensus: CAGTGGGAGAGCATATGGAAAGTCTACATA
+04.03.2025  9:50pm	Analyzing cluster number: 54, reads in cluster: 28, test seq consensus: GGATGTGGGGTACAAATTTTTGCGTTTTAT
+04.03.2025  9:50pm	Analyzing cluster number: 55, reads in cluster: 33, test seq consensus: TTTTTCATAAATAATTCAAGTCACTACTAT
+04.03.2025  9:50pm	Analyzing cluster number: 56, reads in cluster: 32, test seq consensus: AAACTTCTGAAGAAATGGAACAAGGTGGAG
+04.03.2025  9:50pm	Analyzing cluster number: 57, reads in cluster: 1, test seq consensus: CAAGAAACTTCTGAAGAAATGGAACAAGGT
+04.03.2025  9:50pm	Analyzing cluster number: 58, reads in cluster: 30, test seq consensus: TCAGTGAGCAGATCTTTTTATTAAGCACCC
+04.03.2025  9:50pm	Analyzing cluster number: 59, reads in cluster: 31, test seq consensus: GCAATGAAATGAATAAACCTAACTGTGCAT
+04.03.2025  9:50pm	Analyzing cluster number: 60, reads in cluster: 29, test seq consensus: ACAAGCTCCTAAGCTCAAAGCAGACTGTGT
+04.03.2025  9:50pm	Analyzing cluster number: 61, reads in cluster: 30, test seq consensus: TATTTTGTTTTCTATCTGTCCTCTTAACTC
+04.03.2025  9:50pm	Analyzing cluster number: 62, reads in cluster: 34, test seq consensus: AATAATACTTGACCCATAAGTTCCACTGGA
+04.03.2025  9:50pm	Analyzing cluster number: 63, reads in cluster: 34, test seq consensus: GGTAGGCTGAGGTGGGCGGATCACAAGGTC
+04.03.2025  9:50pm	Analyzing sample sample3 for anchor read start sequence clusters.
+04.03.2025  9:50pm	67 clusters found.
+04.03.2025  9:50pm	Analyzing cluster number: 1, reads in cluster: 32, test seq consensus: TTTGAGAGAGCTTAGAAAAAGCACATAAAA
+04.03.2025  9:50pm	Analyzing cluster number: 2, reads in cluster: 34, test seq consensus: GTCTCAAAAAAAAGAAAAGGGAACAAGAAA
+04.03.2025  9:50pm	Analyzing cluster number: 3, reads in cluster: 39, test seq consensus: AGAAGTACAAAATGTTATTAGTAATTATAT
+04.03.2025  9:50pm	Analyzing cluster number: 4, reads in cluster: 24, test seq consensus: GCACTTTACAAATTTAACATCCACTACTGA
+04.03.2025  9:50pm	Analyzing cluster number: 5, reads in cluster: 9, test seq consensus: CTTTACAAATTTAACATCCACTACTGATGA
+04.03.2025  9:50pm	Analyzing cluster number: 6, reads in cluster: 27, test seq consensus: TTTTGTTCTGGAACAAAAAAAACTTTTTTA
+04.03.2025  9:50pm	Analyzing cluster number: 7, reads in cluster: 11, test seq consensus: CTTTTTGTTCTGGAACAAAAAAAACTTTTT
+04.03.2025  9:50pm	Analyzing cluster number: 8, reads in cluster: 29, test seq consensus: GAGGGCTCTGTTCTGTTCCATTGGTCTATA
+04.03.2025  9:50pm	Analyzing cluster number: 9, reads in cluster: 32, test seq consensus: TTAACAGTTAAAATTCGCTCATTTAATGAG
+04.03.2025  9:50pm	Analyzing cluster number: 10, reads in cluster: 39, test seq consensus: AAGAGTGCATAAAAGAATGTTGTCCAAGTT
+04.03.2025  9:50pm	Analyzing cluster number: 11, reads in cluster: 31, test seq consensus: CCCACGAGAGCTGTGTGCCCTGACTTCCTA
+04.03.2025  9:50pm	Analyzing cluster number: 12, reads in cluster: 32, test seq consensus: ACCTGCCCAAGGACAGTCTGAGCTCAGACA
+04.03.2025  9:50pm	Analyzing cluster number: 13, reads in cluster: 32, test seq consensus: GGGAAATAGATGTTCTCAATTTTTTTCAAA
+04.03.2025  9:50pm	Analyzing cluster number: 14, reads in cluster: 27, test seq consensus: TAAAGGGTATTCAAATAGGAAGAGAGGAAG
+04.03.2025  9:50pm	Analyzing cluster number: 15, reads in cluster: 9, test seq consensus: ATAAAGGGTATTCAAATAGGAAGAGAGGAA
+04.03.2025  9:50pm	Analyzing cluster number: 16, reads in cluster: 37, test seq consensus: GCATAATACAGATGGTCCATCATCTGATAG
+04.03.2025  9:50pm	Analyzing cluster number: 17, reads in cluster: 32, test seq consensus: GATTTGGGCCAGGCATGGTGGCTCACAACT
+04.03.2025  9:50pm	Analyzing cluster number: 18, reads in cluster: 34, test seq consensus: TTGTCAGGTGTGAGGAGGAAAACTCCACCT
+04.03.2025  9:50pm	Analyzing cluster number: 19, reads in cluster: 32, test seq consensus: AGATGTCAGGGGAGGTCTGTCAGGGGACTT
+04.03.2025  9:50pm	Analyzing cluster number: 20, reads in cluster: 32, test seq consensus: ATAGGCGTGAGGCACCATGCCCAGCCTCAT
+04.03.2025  9:50pm	Analyzing cluster number: 21, reads in cluster: 35, test seq consensus: CTCCTCAGGACTTCAACACACCCACCCAGC
+04.03.2025  9:50pm	Analyzing cluster number: 22, reads in cluster: 32, test seq consensus: CTCAGCCTCCTGAGTAACCAGGATTACAGG
+04.03.2025  9:50pm	Analyzing cluster number: 23, reads in cluster: 30, test seq consensus: GTTGCTTTGTGCAATCTCAGGATTTGGTGC
+04.03.2025  9:50pm	Analyzing cluster number: 24, reads in cluster: 37, test seq consensus: GAGCTCATTAAATATGTAAGTAACCCAATA
+04.03.2025  9:50pm	Analyzing cluster number: 25, reads in cluster: 35, test seq consensus: TTATAGAGTGTTATTGGAAAAAGAAAAGTG
+04.03.2025  9:50pm	Analyzing cluster number: 26, reads in cluster: 26, test seq consensus: AACTAGAATTATTGATCAAATAAAAGGAAG
+04.03.2025  9:50pm	Analyzing cluster number: 27, reads in cluster: 8, test seq consensus: CTAAACTAGAATTATTGATCAAATAAAAGG
+04.03.2025  9:50pm	Analyzing cluster number: 28, reads in cluster: 33, test seq consensus: CACTGCAACCTCCGCCTCCTGGGTTCAAAC
+04.03.2025  9:50pm	Analyzing cluster number: 29, reads in cluster: 32, test seq consensus: AGGAATGCTTTGAATGCTCAGGTCTGTCCT
+04.03.2025  9:50pm	Analyzing cluster number: 30, reads in cluster: 1, test seq consensus: GAATGCTTTGAATGCTCAGGTCTGTCCTCA
+04.03.2025  9:50pm	Analyzing cluster number: 31, reads in cluster: 33, test seq consensus: CCTCCCGAGTAGCTGGGACTACAGGCACCC
+04.03.2025  9:50pm	Analyzing cluster number: 32, reads in cluster: 1, test seq consensus: CAGCCTCCCGAGTAGCTGGGACTACAGGCA
+04.03.2025  9:50pm	Analyzing cluster number: 33, reads in cluster: 37, test seq consensus: CATGTTGCCCAGGCTGGAAAAATTTTTATC
+04.03.2025  9:50pm	Analyzing cluster number: 34, reads in cluster: 37, test seq consensus: GAGGGGAGTGGGGGAGACACAGTGAGACTG
+04.03.2025  9:50pm	Analyzing cluster number: 35, reads in cluster: 40, test seq consensus: TCAAAATTACTTAATACCCTTTTCTCTCTT
+04.03.2025  9:50pm	Analyzing cluster number: 36, reads in cluster: 26, test seq consensus: AAATTTACAAGAAAAAAAACAAACAACCTA
+04.03.2025  9:50pm	Analyzing cluster number: 37, reads in cluster: 7, test seq consensus: AATTTACAAGAAAAAAAACAAACAACCTAA
+04.03.2025  9:50pm	Analyzing cluster number: 38, reads in cluster: 32, test seq consensus: GTCGATTAAAGCTATGAACAAAATACCTCA
+04.03.2025  9:50pm	Analyzing cluster number: 39, reads in cluster: 21, test seq consensus: GTGGATGAAAGTGGCACAACCTGCCCTGAG
+04.03.2025  9:50pm	Analyzing cluster number: 40, reads in cluster: 10, test seq consensus: CTGGTGGATGAAAGTGGCACAACCTGCCCT
+04.03.2025  9:50pm	Analyzing cluster number: 41, reads in cluster: 38, test seq consensus: GACTGTTGTATCATTTCATATTAAGTATAT
+04.03.2025  9:50pm	Analyzing cluster number: 42, reads in cluster: 37, test seq consensus: TCTACTGGGAGGTTTCTCCCAGTTAGGCTA
+04.03.2025  9:50pm	Analyzing cluster number: 43, reads in cluster: 34, test seq consensus: TTAAGAAAATGTGGCACATATACACCATGG
+04.03.2025  9:50pm	Analyzing cluster number: 44, reads in cluster: 37, test seq consensus: GCACACTGGGAGACTGAGGCGGGTGGATCA
+04.03.2025  9:50pm	Analyzing cluster number: 45, reads in cluster: 32, test seq consensus: CAATGTCTAAGAACTCTTCGCCAAGCTCTA
+04.03.2025  9:50pm	Analyzing cluster number: 46, reads in cluster: 37, test seq consensus: CTCTGCTGCTCGGTGGTGCCATCATAGCTC
+04.03.2025  9:50pm	Analyzing cluster number: 47, reads in cluster: 40, test seq consensus: TCTTCATTATTTCCTTTCTTCTACTCATTT
+04.03.2025  9:50pm	Analyzing cluster number: 48, reads in cluster: 34, test seq consensus: ACCCTCTCATGGAACAGTCACCCAGCAATG
+04.03.2025  9:50pm	Analyzing cluster number: 49, reads in cluster: 30, test seq consensus: GGGGCTTAGCACCTGGGCCAGCGGCTGCGG
+04.03.2025  9:50pm	Analyzing cluster number: 50, reads in cluster: 32, test seq consensus: AAAAAGTGGGGAGAGGATATGAACAGACAC
+04.03.2025  9:50pm	Analyzing cluster number: 51, reads in cluster: 2, test seq consensus: ATCAAAAAGTGGGGAGAGGATATGAACAGA
+04.03.2025  9:50pm	Analyzing cluster number: 52, reads in cluster: 33, test seq consensus: CCCTTACCCAGGAGTTTTGTGTCACCATTT
+04.03.2025  9:50pm	Analyzing cluster number: 53, reads in cluster: 1, test seq consensus: TGCCCCTTACCCAGGAGTTTTGTGTCACCA
+04.03.2025  9:50pm	Analyzing cluster number: 54, reads in cluster: 35, test seq consensus: AAGAACTCTGACAGGAGATAAGCTAGTAAA
+04.03.2025  9:50pm	Analyzing cluster number: 55, reads in cluster: 32, test seq consensus: TGACATCCATTATCAACTACATTTTCTCCG
+04.03.2025  9:50pm	Analyzing cluster number: 56, reads in cluster: 37, test seq consensus: TCAATGCAGATGTTCTATATTTAACCACTC
+04.03.2025  9:50pm	Analyzing cluster number: 57, reads in cluster: 33, test seq consensus: GAATATTAGAAGTTATTTCTTGCTTTTTTT
+04.03.2025  9:50pm	Analyzing cluster number: 58, reads in cluster: 37, test seq consensus: GTCTGTTATGTTTGTTATAGTTATATTGGC
+04.03.2025  9:50pm	Analyzing cluster number: 59, reads in cluster: 31, test seq consensus: TCAAAAGGACAAGGAAGCAGGGAGGGGTGA
+04.03.2025  9:50pm	Analyzing cluster number: 60, reads in cluster: 32, test seq consensus: TTGGTTTGGCCCCAGTGCTCTTGGGAATCT
+04.03.2025  9:50pm	Analyzing cluster number: 61, reads in cluster: 30, test seq consensus: TTGCTGGCCTTGCCAACTGAAGGCAAATTG
+04.03.2025  9:50pm	Analyzing cluster number: 62, reads in cluster: 27, test seq consensus: CAAGTCTGATCTAGCACAATACCTGACGCA
+04.03.2025  9:50pm	Analyzing cluster number: 63, reads in cluster: 35, test seq consensus: TGAGTTAATTCCAAGAAGCTACTGTGTATG
+04.03.2025  9:50pm	Analyzing cluster number: 64, reads in cluster: 26, test seq consensus: ATCTGTCGTTTCTGCTCCCCAACGTGGCAT
+04.03.2025  9:50pm	Analyzing cluster number: 65, reads in cluster: 7, test seq consensus: TCATCTGTCGTTTCTGCTCCCCAACGTGGC
+04.03.2025  9:50pm	Analyzing cluster number: 66, reads in cluster: 25, test seq consensus: AACTTCCAAAACAGAAATAACTAAGTATGT
+04.03.2025  9:50pm	Analyzing cluster number: 67, reads in cluster: 10, test seq consensus: ACTTCCAAAACAGAAATAACTAAGTATGTA
+04.03.2025  9:50pm	Removing 0 reads due to not being the first choice.
+04.03.2025  9:50pm	Building mulit-hit networks.
+04.03.2025  9:50pm	Multi-hit table rows:5
+04.03.2025  9:50pm	Bundling fragment reads into fragment records.
+04.03.2025  9:50pm	buildStdFragments completed.

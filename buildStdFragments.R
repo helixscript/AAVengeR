@@ -25,8 +25,8 @@ source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
 opt <- startModule(args)
 
 createOuputDir()
-dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir), showWarnings = FALSE)
-dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), showWarnings = FALSE)
+dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
+dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'))
 
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log')
@@ -49,7 +49,7 @@ cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, 'opt')
 
-if(tolower(opt$databaseConfigGroup) != 'none') dbConn <- createDBconnection()
+if(tolower(opt$database_configGroup) != 'none') dbConn <- createDBconnection()
 
 
 # Load fragment data from database or local file depending on configuration file.
@@ -60,7 +60,7 @@ if(tolower(opt$databaseConfigGroup) != 'none') dbConn <- createDBconnection()
 updateLog('Reading in fragment file(s).')
 
 frags <- distinct(readRDS(file.path(opt$outputDir, opt$buildStdFragments_inputFile)))
-
+  
 # Make sure fragments were retrieved.
 if(nrow(frags) == 0) quitOnErorr('Error -- no fragments were loaded or retrieved.')
 
@@ -77,6 +77,7 @@ frags <- data.table(tidyr::separate(frags, uniqueSample, c('trial', 'subject', '
 frags$trialSubject <- paste0(frags$trial, '~', frags$subject)
 frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 
+frags <- arrange(frags, readID)
 
 
 # Categorize ITR/LTR remnant sequences.
@@ -125,6 +126,8 @@ if(opt$buildStdFragments_clusterLeaderSeqs){
   frags$leaderSeqGroupNum <- 1
 }
 
+
+
 # Build fragment ids.
 # IDs are read level containing both random IDs and remnant IDs.
 # eg. mpPHH_AAV_deJong:pExp4_9883:GTSP5468:1:chr3:-:50217300:50217439:37:AAAAAAAAAAAA
@@ -139,6 +142,8 @@ frags$leaderSeqGroup <- paste0(frags$trial, '~', frags$subject, '~', frags$leade
 
 frags <- tidyr::unite(frags, fragID, trial, subject, sample, replicate, chromosome, 
                       strand, fragStart, fragEnd, leaderSeqGroupNum, randomLinkerSeq, sep = ':', remove = FALSE)
+
+frags <- arrange(frags, readID)
 
 
 
@@ -205,6 +210,8 @@ if(opt$buildStdFragments_standardizeIntegrationPositions){
   rm(f, g, g2)
   frags <- dplyr::select(frags, -z)
 }
+
+frags <- arrange(frags, readID)
 
 
 # Standardize break  positions if requested (recommended)
@@ -289,6 +296,9 @@ if(opt$buildStdFragments_standardizeBreakPositions){
   rm(f, g, g2)
 }
 
+frags <- arrange(frags, readID)
+
+
 
 # Determine which read level fragment records map to multiple position ids.
 #-------------------------------------------------------------------------------
@@ -372,6 +382,7 @@ if(nrow(frags_multPosIDs) > 0){
 } 
 
 
+
 # Correct for instances where a read maps to more than fragment but all fragments 
 # have the same integration position. These are instances of fuzzy break points 
 # and here we select the shortest fragments lengths.
@@ -403,6 +414,7 @@ if(length(z) > 0){
   invisible(gc())
 }
 
+frags_uniqPosIDs <- arrange(frags_uniqPosIDs, readID)
 
 
 # Evaluate position ids on the sample level and assign new remnant group ids.
@@ -507,9 +519,10 @@ frags_uniqPosIDs$posid <- paste0(frags_uniqPosIDs$posid2, '.', frags_uniqPosIDs$
 
 frags_uniqPosIDs$posid2 <- NULL
 
-
 # Assign updated remnant seq group numbers and update position ids.
 frags_uniqPosIDs$leaderSeqGroup <- paste0(frags_uniqPosIDs$trialSubject, '~', frags_uniqPosIDs$leaderSeqGroupNum)
+
+frags_uniqPosIDs <- arrange(frags_uniqPosIDs, readID)
 
 if(opt$processAdriftReadLinkerUMIs){
   
@@ -633,6 +646,9 @@ if(opt$processAdriftReadLinkerUMIs){
 # Apply second max fragment length filter.
 frags_uniqPosIDs <- frags_uniqPosIDs[(frags_uniqPosIDs$fragEnd - frags_uniqPosIDs$fragStart) + 1 <= opt$buildStdFragments_maxFragLength,]
 
+frags_uniqPosIDs <- arrange(frags_uniqPosIDs, readID)
+
+
 
 # Anchor read filtering.
 #-------------------------------------------------------------------------------
@@ -746,6 +762,8 @@ if(opt$buildStdFragments_evalFragAnchorReadSeqs){
   frags_uniqPosIDs <- select(frags_uniqPosIDs, -fragClusterGroup, -posid2, -remove)
 }
 
+frags_uniqPosIDs <- arrange(frags_uniqPosIDs, readID)
+
 
 # Build multi-hit clusters if requested.
 # ------------------------------------------------------------------------------
@@ -832,7 +850,7 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
   
   saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'), compress = opt$compressDataFiles)
   
-  if(opt$databaseConfigGroup != 'none' & nrow(multiHitClusters) > 0){
+  if(opt$database_configGroup != 'none' & nrow(multiHitClusters) > 0){
     multiHitClusters$i <- paste0(multiHitClusters$trial, '~', multiHitClusters$subject, '~', multiHitClusters$sample)
 
     o <- select(sampleMetaData, uniqueSample, refGenome) %>% mutate(i = sub('~\\d+$', '', uniqueSample)) %>% select(-uniqueSample) %>% distinct()
@@ -865,7 +883,6 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
 
 updateLog(paste0('Multi-hit table rows:', nrow(multiHitClusters)))
 
-
 # Remove randomLinkerSeq from fragIDs.
 # If you include the UMIs in the fragID, frags will be split into many smaller pieces.
 
@@ -875,6 +892,8 @@ frags_uniqPosIDs <- tidyr::unite(frags_uniqPosIDs, fragID, trial, subject, sampl
 # Count the number of reads associated with each fragment.
 # fragments with more than one read, i > 1, need additional processing.
 frags <- group_by(data.frame(frags_uniqPosIDs), fragID) %>% mutate(i = n()) %>% ungroup()
+
+frags <- arrange(frags, readID)
 
 a <- subset(frags, i == 1)   
 b <- subset(frags, i > 1)    
@@ -920,9 +939,9 @@ if(nrow(b) > 0){
          
          x$reads <- totalReads
          
-         x$readIDs   <- list(readList)
-         x$rUMI_list <- list(rUmiList)
-         x$fUMI_list <- list(fUmiList)
+         x$readIDs   <- list(sort(readList))
+         x$rUMI_list <- list(sort(rUmiList))
+         x$fUMI_list <- list(sort(fUmiList))
     
          x
        }))
@@ -934,9 +953,9 @@ if(nrow(a) > 0){
   a2 <- dplyr::group_by(a, fragID) %>%
         dplyr::mutate(reads = nDuplicateReads+1, 
                       repLeaderSeq = leaderSeq[1],
-                      readIDs = list(readID),
-                      rUMI_list = list(randomLinkerSeq),
-                      fUMI_list = list(filterUMIs(randomLinkerSeq))) %>%
+                      readIDs = list(sort(readID)),
+                      rUMI_list = list(sort(randomLinkerSeq)),
+                      fUMI_list = list(sort(filterUMIs(randomLinkerSeq)))) %>%
         dplyr::slice(1) %>%
         dplyr::ungroup() %>%
         dplyr::filter(reads >= opt$buildStdFragments_minReadsPerFrag)
@@ -967,6 +986,6 @@ saveRDS(anchorReadClusterDecisionTable, file.path(opt$outputDir, opt$buildStdFra
 
 updateLog('buildStdFragments completed.')
 
-if(opt$databaseConfigGroup != 'none') RMariaDB::dbDisconnect(dbConn)
+if(opt$database_configGroup != 'none') RMariaDB::dbDisconnect(dbConn)
 
-q(save = 'no', status = 0, runLast = FALSE)
+q(save = 'no', status = 0, runLast = FALSE) 

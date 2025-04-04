@@ -30,8 +30,7 @@ write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'versi
 
 quitOnErorr <- function(msg){
   updateLog(msg)
-  message(msg)
-  message(paste0('See log for more details: ', opt$defaultLogFile))
+  updateLog(paste0('See log for more details: ', opt$defaultLogFile))
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
@@ -63,7 +62,7 @@ invisible(lapply(unique(sites$refGenome), function(x){
 
 sites <- bind_rows(lapply(unique(sites$refGenome), function(x){
   updateLog(paste0('Loading annotation table: ', file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x, '.repeatTable.gz'))))
-  r <- readr::read_tsv(file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x, '.repeatTable.gz')))
+  r <- readr::read_tsv(file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x, '.repeatTable.gz')), show_col_types = FALSE)
   
   r$strand <- sub('C', '-', r$strand)
   r <- subset(r, strand %in% c('+', '-'))
@@ -106,7 +105,7 @@ sites <- dplyr::relocate(sites, repeat_name, repeat_class, .after = opt$annotate
 
 sites <- arrange(sites, desc(sonicLengths))
 
-if(opt$databaseConfigGroup != 'none'){
+if(opt$database_configGroup != 'none'){
   suppressPackageStartupMessages(library(RMariaDB))
   uploadSitesToDB(sites)
 }
@@ -124,7 +123,7 @@ if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiH
   o <- left_join(o, distinct(select(sites, sample, refGenome)), by = 'sample', relationship = 'many-to-many')
   
   o <- bind_rows(lapply(unique(o$refGenome), function(x){
-    r <- readr::read_tsv(file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x, '.repeatTable.gz')))
+    r <- readr::read_tsv(file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x, '.repeatTable.gz')), show_col_types = FALSE)
     r$strand <- sub('C', '-', r$strand)
     r <- subset(r, strand %in% c('+', '-'))
     g <- makeGRangesFromDataFrame(select(r, query_seq, query_start, query_end, strand, repeat_name, repeat_class), 

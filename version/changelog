@@ -207,3 +207,8 @@ Added patch to prepReads.R to handle data sets where all reads are eliminated du
 Cleaned up vector file archive.
 Added HMMs.
 Added database schema dump file.
+3.0.4
+Patched buildStdFragments.R so that results are always the same regardles of how many CPUs are used. 
+Added additional flags to different modules, eg. show_col_types = FALSE, to silence them.
+Changed config file database keys.
+Added new sample database key for future development.

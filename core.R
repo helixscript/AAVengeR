@@ -35,8 +35,7 @@ write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'versi
 
 quitOnErorr <- function(msg){
   updateLog(msg)
-  message(msg)
-  message(paste0('See log for more details: ', opt$defaultLogFile))
+  updateLog(paste0('See log for more details: ', opt$defaultLogFile))
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
@@ -94,9 +93,23 @@ if(nrow(reads) > 0){
 }
 
 
+distribute_integer <- function(total, n) {
+  base_value <- total %/% n
+  remainder <- total %% n
+  
+  distribution <- rep(base_value, n)
+  if (remainder > 0) {
+    distribution[1:remainder] <- distribution[1:remainder] + 1
+  }
+  
+  return(distribution)
+}
+
+
 jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.txt'){
   f <- list.files(file.path(opt$outputDir, 'core'), pattern = searchPattern, full = TRUE, recursive = TRUE)
   
+  # Mark completed jobs, return CPUs.
   if(length(f) > 0){
     invisible(sapply(f, function(x){
       o <- unlist(strsplit(x, '/'))
@@ -108,6 +121,7 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
       jobTable[jobTable$id == id,]$endTime    <<- as.character(lubridate::now()) 
       jobTable[jobTable$id == id,]$duration   <<- paste0(as.integer(as.character(difftime(lubridate::now(), lubridate::ymd_hms(jobTable[jobTable$id == o[length(o)-2],]$startTime), units="mins"))), ' minutes')
       
+      # Return the CPUs used for this completed job.
       CPUs_used <<- CPUs_used - jobTable[jobTable$id == id,]$CPUs
       invisible(suppressWarnings(file.remove(f)))
     }))
@@ -115,20 +129,24 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
   
   # Redefine CPUs.
   o <- jobTable[jobTable$done == FALSE & jobTable$active == FALSE,]
+   
+  free_CPUs <- opt$core_CPUs - CPUs_used
   
-  # End game CPU assignments.
-  if(nrow(o) > 0 & nrow(o) <= 3){
-    # a <- floor((1 / nrow(o)) * opt$core_CPUs) - 1
-    a <- floor((1 / nrow(o)) * (opt$core_CPUs - CPUs_used))
-    
-    a[a < 1] <- 1
-    
-    a[a > opt$core_processMaxCPUs] <- opt$core_processMaxCPUs
-    
-    o$CPUs <- a
-    
-    jobTable[match(o$id, jobTable$id),]$CPUs <<- o$CPUs
-  }
+  if(nrow(o) > 0 & free_CPUs > 0){
+     previously_allocated_CPUs <- sum(o$CPUs)
+  
+     # message('Free CPUs: ', free_CPUs, ' allocated CPUs: ', previously_allocated_CPUs)
+   
+     if(previously_allocated_CPUs < free_CPUs){
+       # More CPUs can be allocated to jobs.
+       additional_CPUs <- free_CPUs - previously_allocated_CPUs
+
+       # message('   Boosting with ', additional_CPUs, ' CPUs')
+       o <- arrange(o, desc(reads))
+       o$CPUs <- o$CPUs + distribute_integer(additional_CPUs, nrow(o))
+       jobTable[match(o$id, jobTable$id),]$CPUs <<- o$CPUs
+     }
+   }
   
   dspJobTable <- jobTable
   dspJobTable$startTime <- dspJobTable$startTimeDsp;  dspJobTable$startTimeDsp <- NULL
@@ -136,7 +154,7 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
   
   tab <- pandoc.table.return(arrange(dspJobTable, desc(done), desc(active)), style = "simple", split.tables = Inf, plain.ascii = TRUE)
   
-  write(c(date(), paste0('Available CPUs: ', (opt$core_CPUs - CPUs_used)), tab), file = file.path(opt$outputDir, 'core', outputFileName), append = FALSE)
+  write(c(date(), paste0('Available CPUs: ', free_CPUs), tab), file = file.path(opt$outputDir, 'core', outputFileName), append = FALSE)
 }
 
 # Build a jobs table for prepReads, alignReads, and buildFragments.
@@ -144,12 +162,7 @@ jobTable <- data.frame(table(reads$uniqueSample)) %>%
             dplyr::rename(id = Var1) %>%
             dplyr::rename(reads = Freq)
 
-a <- ceiling((jobTable$reads / max(jobTable$reads)) * (opt$core_CPUs * (opt$core_processMaxPercentCPU / 100)))
-
-a[a < 1] <- 1
-a[a > opt$core_processMaxCPUs] <- opt$core_processMaxCPUs
-
-jobTable$CPUs         <- a
+jobTable$CPUs         <- ifelse(ceiling(jobTable$reads / opt$core_readsPerCPU) > ceiling(opt$core_CPUs*opt$core_maxPercentCPUsPerJob), ceiling(opt$core_CPUs*opt$core_maxPercentCPUsPerJob), ceiling(jobTable$reads / opt$core_readsPerCPU))
 jobTable$active       <- FALSE
 jobTable$startTime    <- NA
 jobTable$endTime      <- NA
@@ -168,9 +181,13 @@ updateLog('Starting replicate level jobs.')
 # Run prepReads, alignReads, and buildFragments.
 while(! all(jobTable$done == TRUE)){
   
+  # Determine the number of free CPUs.
   CPUs_available <- opt$core_CPUs - CPUs_used
+  
+  # Select a single job requiring the most CPUs that can be done now.
   tab <- jobTable[jobTable$CPUs <= CPUs_available & jobTable$active == FALSE & jobTable$done == FALSE,] %>% dplyr::slice_max(CPUs, with_ties = FALSE)
   
+  # If no jobs can be started now, search for completed jobs then loop.
   if(nrow(tab) == 0){
     jobStatus(searchPattern = 'fragments.done', outputFileName = 'replicateJobTable')
     Sys.sleep(5)
@@ -212,12 +229,15 @@ while(! all(jobTable$done == TRUE)){
   system(paste('chmod 755', file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'run.sh')))
   system(file.path(opt$outputDir, 'core', 'replicate_analyses', tab$id, 'run.sh'), wait = FALSE)
   
+  # Record the number of CPUs used.
   CPUs_used <- CPUs_used + tab$CPUs
   
+  # Update Job table.
   jobTable[which(jobTable$id == tab$id),]$active <- TRUE
   jobTable[which(jobTable$id == tab$id),]$startTimeDsp <- base::format(Sys.time(), "%m.%d.%Y %l:%M%P")
   jobTable[which(jobTable$id == tab$id),]$startTime <- as.character(lubridate::now())
   
+  # Search for completed jobs.
   jobStatus(searchPattern = 'fragments.done', outputFileName = 'replicateJobTable')
   Sys.sleep(5)
 }
@@ -242,8 +262,6 @@ updateLog(paste0('Setting max. process CPU limit to ',opt$core_maxCPUsPerProcess
 
 opt$core_maxPercentCPUs <- floor((opt$core_maxCPUsPerProcess / opt$core_CPUs) * 100)
 
-
-
 # Create a subject level to-do table.
 jobTable <- tibble(u = unique(frags$uniqueSample))
 jobTable$id <- sapply(jobTable$u, function(x) paste0(unlist(strsplit(x, '~'))[1:2], collapse = '~'))
@@ -258,13 +276,7 @@ jobTable <- group_by(distinct(frags), id) %>%
   ungroup() %>% 
   arrange(desc(reads))
 
-# Let the process with the greatest number of reads have 25% of all cores, scale other processes. 
-a <- ceiling((jobTable$reads / max(jobTable$reads)) * (opt$core_CPUs * (opt$core_processMaxPercentCPU / 100)))
-
-a[a < 1] <- 1
-a[a > opt$core_processMaxCPUs] <- opt$core_processMaxCPUs
-
-jobTable$CPUs         <- a
+jobTable$CPUs         <- ifelse(ceiling(jobTable$reads / opt$core_readsPerCPU) > ceiling(opt$core_CPUs*opt$core_maxPercentCPUsPerJob), ceiling(opt$core_CPUs*opt$core_maxPercentCPUsPerJob), ceiling(jobTable$reads / opt$core_readsPerCPU))
 jobTable$active       <- FALSE
 jobTable$startTime    <- NA
 jobTable$endTime      <- NA
@@ -283,9 +295,13 @@ CPUs_used <- 0
 
 while(! all(jobTable$done == TRUE)){
   
+  # Determine how many CPUs are available to start jobs.
   CPUs_available <- opt$core_CPUs - CPUs_used
+  
+  # Select the job requiring the most CPUs that can be started now.
   tab <- jobTable[jobTable$CPUs <= CPUs_available & jobTable$active == FALSE & jobTable$done == FALSE,] %>% dplyr::slice_max(CPUs, with_ties = FALSE)
   
+  # If no job can be started, look for completed jobs the loop again.
   if(nrow(tab) == 0){
     jobStatus(searchPattern = 'sites.done', outputFileName = 'subjectJobTable')
     Sys.sleep(5)

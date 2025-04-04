@@ -9,8 +9,9 @@ core_CPUs: 30
 outputDir: output
 softwareDir: /home/ubuntu/AAVengeR
 
-databaseConfigFile: /home/ubuntu/.my.cnf
-databaseConfigGroup: none
+database_configFile: /home/ubuntu/.my.cnf
+database_configGroup: none
+database_samplesConfigGroup: none
 
 demultiplex_anchorReadsFile: Undetermined_S0_R2_001.fastq.gz
 demultiplex_adriftReadsFile: Undetermined_S0_R1_001.fastq.gz

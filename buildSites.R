@@ -31,8 +31,7 @@ write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'versi
 quitOnErorr <- function(msg){
   if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
   updateLog(msg)
-  message(msg)
-  message(paste0('See log for more details: ', opt$defaultLogFile))
+  updateLog(paste0('See log for more details: ', opt$defaultLogFile))
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
@@ -287,7 +286,7 @@ openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$buildSites_outputDir, '
 readr::write_tsv(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.tsv.gz'))
 write(date(), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.done'))
 
-if(tolower(opt$databaseConfigGroup) != 'none') uploadSitesToDB(sites)
+if(tolower(opt$database_configGroup) != 'none') uploadSitesToDB(sites)
 
 updateLog('buildSites completed.')
 

@@ -1,26 +1,25 @@
+Rscript: /usr/bin/Rscript
+compressDataFiles: FALSE
+processAdriftReadLinkerUMIs: FALSE
 
 remoteDataURL: http://bushmanlab.org/data/AAVengeR/genomePackages
 
 system_minMemThreshold: 80
 system_minMemWaitTime: 1200
 system_minMemSleepTime: 10
-core_createFauxFragDoneFiles: FALSE
-core_createFauxSiteDoneFiles: FALSE
-buildStdFragments_minRemnantLengthToGroup: 12
-core_processMaxPercentCPU: 15
-core_processMaxCPUs: 10
+
 calledFromCore: FALSE
 
 core_CPUs: 15
-databaseConfigFile: /home/ubuntu/.my.cnf
-databaseConfigGroup: none
-sequencingRunID: xxx
-
-Rscript: /usr/bin/Rscript
-compressDataFiles: FALSE
-processAdriftReadLinkerUMIs: FALSE
+core_readsPerCPU: 10000
+core_maxPercentCPUsPerJob: 0.10
+core_createFauxFragDoneFiles: FALSE
+core_createFauxSiteDoneFiles: FALSE
 core_keepIntermediateFiles: FALSE
 core_applyCoreCPUsToAllModules: TRUE
+
+databaseConfigFile: /home/ubuntu/.my.cnf
+databaseConfigGroup: none
 
 demultiplex_CPUs: 15
 demultiplex_outputDir: demultiplex
@@ -107,6 +106,7 @@ buildStdFragments_outputDir: buildStdFragments
 buildStdFragments_randomIDdupReadMult: 3
 buildStdFragments_randomIDdupAbundMult: 2
 buildStdFragments_clusterLeaderSeqs: TRUE
+buildStdFragments_minRemnantLengthToGroup: 12
 buildStdFragments_standardizeIntegrationPositions: TRUE
 buildStdFragments_standardizeBreakPositions: TRUE
 buildStdFragments_standardizeBreakPositionsWithin: replicates

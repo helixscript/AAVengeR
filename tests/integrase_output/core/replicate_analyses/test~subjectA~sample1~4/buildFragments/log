@@ -1,0 +1,18 @@
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 3.0.3
+
+04.03.2025  6:35pm	Reading in anchor and adrift read alignments.
+04.03.2025  6:35pm	Preparing alignment data for fragment generation.
+04.03.2025  6:35pm	Building initial fragments.
+04.03.2025  6:35pm	Building rational fragments from alignment data.
+04.03.2025  6:35pm	1/1: 9069 anchorRead alignments, 15724 adriftRead_alignments.
+04.03.2025  6:36pm	Fragment generation complete.
+04.03.2025  6:36pm	buildFragments completed.

@@ -34,8 +34,7 @@ write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'versi
 quitOnErorr <- function(msg){
   if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
   updateLog(msg)
-  message(msg)
-  message(paste0('See log for more details: ', opt$defaultLogFile))
+  updateLog(paste0('See log for more details: ', opt$defaultLogFile))
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
@@ -265,7 +264,7 @@ frags$qStart <- NULL
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.rds'), compress = opt$compressDataFiles)
 write(date(), file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.done'))
 
-if(opt$databaseConfigGroup != 'none'){
+if(opt$database_configGroup != 'none'){
   suppressPackageStartupMessages(library(RMariaDB))
   
   updateLog('Writing fragment data to the database.')
@@ -285,12 +284,13 @@ if(opt$databaseConfigGroup != 'none'){
     invisible(file.copy(list.files(file.path(opt$softwareDir, 'version'), full.names = TRUE), file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'version'), recursive = TRUE))
     invisible(file.copy(opt$configFile, file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'userConfigFile.yml')))
     if('demultiplex_sampleDataFile' %in% names(opt)){
-      tab <- readr::read_tsv(opt$demultiplex_sampleDataFile)
+      tab <- readr::read_tsv(opt$demultiplex_sampleDataFile, show_col_types = FALSE)
       readr::write_tsv(subset(tab, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & replicate == x$replicate[1]), 
                        file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'userSampleDataFile.tsv'))
     }
     
-    system(paste('tar cf', file.path(opt$outputDir, opt$buildFragments_outputDir, paste0(f, '.tar')), file.path(opt$outputDir, opt$buildFragments_outputDir, f)))
+    system(paste('tar cf', file.path(opt$outputDir, opt$buildFragments_outputDir, paste0(f, '.tar')), 
+                 file.path(opt$outputDir, opt$buildFragments_outputDir, f), '2>/dev/null'))
     system(paste0('xz --best ', file.path(opt$outputDir, opt$buildFragments_outputDir, paste0(f, '.tar'))))
     
     fp <- file.path(opt$outputDir, opt$buildFragments_outputDir, paste0(f, '.tar.xz'))

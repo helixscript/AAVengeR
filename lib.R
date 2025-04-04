@@ -28,7 +28,7 @@ startModule <- function(args){
 
 
 optionsSanityCheck <- function(opt){
-  userRequired <- c('mode', 'softwareDir', 'outputDir', 'databaseConfigFile', 'databaseConfigGroup',
+  userRequired <- c('mode', 'softwareDir', 'outputDir', 'database_configFile', 'database_configGroup',
                     'demultiplex_anchorReadsFile', 'demultiplex_adriftReadsFile', 
                     'demultiplex_index1ReadsFile', 'demultiplex_sampleDataFile', 'modules')
   
@@ -127,7 +127,7 @@ createOuputDir <- function(){
 
 
 previousSampleDatabaseCheck <- function(samples){
-  if(tolower(opt$databaseConfigGroup) != 'none'){
+  if(tolower(opt$database_configGroup) != 'none'){
       conn <- createDBconnection()
       
       r <- bind_rows(lapply(split(samples, 1:nrow(samples)), function(x){
@@ -530,7 +530,7 @@ createDBconnection <- function(){
   suppressPackageStartupMessages(library(RMariaDB))
   
   tryCatch({
-    dbConnect(RMariaDB::MariaDB(), group = opt$databaseConfigGroup, default.file = opt$databaseConfigFile)
+    dbConnect(RMariaDB::MariaDB(), group = opt$database_configGroup, default.file = opt$database_configFile)
   },
   error=function(cond) {
     quitOnErorr('Error - could not connect to the database.')

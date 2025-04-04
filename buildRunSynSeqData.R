@@ -250,7 +250,7 @@ if(opt$evalFragAnchorReadSeqs){
 }
 
 p <- '~\\/.my.cnf'
-system(paste0("sed -i -E 's/databaseConfigFile:\\s\\S+/databaseConfigFile: ",  p, "/' ", file.path(opt$outputDir,'config.yml')))
+system(paste0("sed -i -E 's/database_configFile:\\s\\S+/database_configFile: ",  p, "/' ", file.path(opt$outputDir,'config.yml')))
 
 system(paste0('./aavenger.R ', file.path(opt$outputDir,'config.yml')))
 

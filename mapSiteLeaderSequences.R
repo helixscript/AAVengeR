@@ -150,7 +150,7 @@ sites <- bind_rows(lapply(split(sites, sites$vector), function(x){
 
 sites <- dplyr::relocate(sites, repLeaderSeqMap, .after = opt$mapSiteLeaderSequences_addAfter)
 
-if(tolower(opt$databaseConfigGroup) != 'none'){
+if(tolower(opt$database_configGroup) != 'none'){
   suppressPackageStartupMessages(library(RMariaDB))
   uploadSitesToDB(sites)
 }

@@ -1,0 +1,25 @@
+                __      __                   _____  
+     /\        /\ \    / /                  |  __ \ 
+    /  \      /  \ \  / /__ _ __   __ _  ___| |__) |
+   / /\ \    / /\ \ \/ / _ \ '_ \ / _` |/ _ \  _  / 
+  / ____ \  / ____ \  /  __/ | | | (_| |  __/ | \ \ 
+ /_/    \_\/_/    \_\/ \___|_| |_|\__, |\___|_|  \_\
+                                   __/ |            
+                                  |___/             
+   
+version: 3.0.3
+
+04.03.2025  6:33pm	Reading sample data.
+04.03.2025  6:33pm	Reading in demultiplexed reads.
+04.03.2025  6:33pm	Trimming anchor read over-reading.
+04.03.2025  6:33pm	Aligning ends of anchor reads to vector sequences.
+04.03.2025  6:33pm	No reads aligned to the vector.
+04.03.2025  6:33pm	0.00% unique reads removed because they aligned to the vector.
+04.03.2025  6:33pm	Using leader sequence HMM to define mappings.
+04.03.2025  6:33pm	Leader sequences determined for 100.00% of unqiue read pairs.
+04.03.2025  6:33pm	Removing indentified leader sequences from anchor reads.
+04.03.2025  6:33pm	0.00% of reads removed because they were less than 30 NTs after trimming.
+04.03.2025  6:33pm	Creating adrift read over-reading trim sequences.
+04.03.2025  6:33pm	Triming adrift read over-reading.
+04.03.2025  6:33pm	0.00% of reads removed because their trimmed lengths were less than 30 NTs.
+04.03.2025  6:33pm	prepReads completed.

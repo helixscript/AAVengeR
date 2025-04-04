@@ -40,19 +40,22 @@ write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'versi
 quitOnErorr <- function(msg){
   if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
   updateLog(msg)
-  message(msg)
-  message(paste0('See log for more details: ', opt$defaultLogFile))
+  updateLog(paste0('See log for more details: ', opt$defaultLogFile))
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
 updateLog('Reading sample data.')
 samples <- loadSamples()
 
+updateLog('Samples read.')
+
 if(tolower(opt$prepReads_additionalAnchorReadOverReadingSeqs) != 'none'){
   opt$prepReads_additionalAnchorReadOverReadingSeqs <- paste0(' -a ', paste0(unlist(strsplit(opt$prepReads_additionalAnchorReadOverReadingSeqs, ',')), collapse = ' -a '))
 } else{
   opt$prepReads_additionalAnchorReadOverReadingSeqs = ''
 }
+
+updateLog('Starting cluster.')
 
 cluster <- makeCluster(opt$prepReads_CPUs)
 clusterSetRNGStream(cluster, 1)

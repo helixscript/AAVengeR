@@ -1,11 +1,11 @@
-Fri Mar 14 20:26:27 2025
-Available CPUs: 80
+Thu Apr  3 21:50:19 2025
+Available CPUs: 50
 
 
       id         reads   CPUs   active       startTime             endTime         done   duration  
 --------------- ------- ------ -------- -------------------- -------------------- ------ -----------
- test~subjectA   5613     10      NA     03.14.2025  8:25pm   03.14.2025  8:26pm   TRUE   0 minutes 
- test~subjectB   5597     10      NA     03.14.2025  8:25pm   03.14.2025  8:26pm   TRUE   0 minutes 
- test~subjectC   5563     10      NA     03.14.2025  8:25pm   03.14.2025  8:26pm   TRUE   0 minutes 
+ test~subjectA   5613     1       NA     04.03.2025  9:48pm   04.03.2025  9:50pm   TRUE   1 minutes 
+ test~subjectB   5597     25      NA     04.03.2025  9:48pm   04.03.2025  9:49pm   TRUE   0 minutes 
+ test~subjectC   5563     24      NA     04.03.2025  9:48pm   04.03.2025  9:49pm   TRUE   0 minutes 
 
 

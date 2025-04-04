@@ -28,8 +28,7 @@ write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'versi
 
 quitOnErorr <- function(msg){
   updateLog(msg)
-  message(msg)
-  message(paste0('See log for more details: ', opt$defaultLogFile))
+  updateLog(paste0('See log for more details: ', opt$defaultLogFile))
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
@@ -126,7 +125,7 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
 
 sites <- arrange(sites, desc(sonicLengths))
 
-if(tolower(opt$databaseConfigGroup) != 'none'){
+if(tolower(opt$database_configGroup) != 'none'){
   suppressPackageStartupMessages(library(RMariaDB))
   uploadSitesToDB(sites)
 }
