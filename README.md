@@ -84,6 +84,65 @@ In addition to this sequence information, the sample configuration file needs in
  &nbsp; &nbsp; (mode: AAV) &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; **AAV**: sample is an AAV integration sample.<br>
  &nbsp; &nbsp; (mode: manual) &nbsp; &nbsp; &nbsp; &nbsp;**none**: place holder for other analyses.<br>  
 
- .
+# Working with HMMs
+Anchor reads containing the ends of vector LTR sequences are recognized using vector specific HMMs. HMMs are used because them are particularly adept at recognizing mismatches and minor indels that can occur due to natural variation and sequencing error.  Vector HMMs are created with the HMMER software package for each vector used in your analysis. To create a vector HMM, first create a FASTA file for the expected vector sequence you expect to observe in your R2 read sequences. This will be the expected sequence observed before transitioning into genomic DNA, eg.
+```
+>mySeq
+GAAAATCTCTAGCA
+```
 
+Next, use HMMER to create a HMM with this FASTA file.
+```
+%> hmmbuild mySeq.hmm mySeq.fasta
+```
+Now that we created an HMM, we need to determine how to score it. Next create a FASTA file containing minor variations in your sequence to see how it affects the HMM score. For example, here we create a file name *mySeqTests.fasta* and make minor changes which we would still consider valid hits.
+``` 
+>mySeq
+GAAAATCTCTAGCA
+>mySeq_1SNP
+GAAGATCTCTAGCA
+>mySeq_2SNPs
+GAAGATCTCAAGCA
+>mySeq_1del
+GAAAATTCTAGCA
+>mySeq_1del_1ins
+GAAATCTCTGAGCA
+```
+Once we create a couple of minor variations in our target sequence, we evaluate the variations with our HMM.
+```
+hmmsearch --max --domtblout mySeqTests.domTbl mySeq.hmm mySeqTests.fasta
+```
+
+```
+#                                                                            --- full sequence --- -------------- this domain -------------   hmm coord   ali coord   env coord
+# target name        accession   tlen query name           accession   qlen   E-value  score  bias   #  of  c-Evalue  i-Evalue  score  bias  from    to  from    to  from    to  acc description of target
+#------------------- ---------- ----- -------------------- ---------- ----- --------- ------ ----- --- --- --------- --------- ------ ----- ----- ----- ----- ----- ----- ----- ---- ---------------------
+mySeq                -             14 mySeq                -             14     6e-05    9.5   0.0   1   1     6e-05     6e-05    9.5   0.0     1    14     1    14     1    14 0.90 -
+mySeq_1SNP           -             14 mySeq                -             14   0.00035    7.7   0.0   1   1   0.00035   0.00035    7.7   0.0     1    14     1    14     1    14 0.87 -
+mySeq_2SNPs          -             14 mySeq                -             14    0.0022    5.8   0.0   1   1    0.0021    0.0021    5.9   0.0     1    14     1    14     1    14 0.84 -
+mySeq_1del           -             13 mySeq                -             14    0.0051    5.0   0.0   1   1     0.005     0.005    5.0   0.0     3    14     2    13     1    13 0.65 -
+mySeq_1del_1ins      -             14 mySeq                -             14     0.019    3.7   0.0   1   1     0.017     0.017    3.8   0.0     3    10     2     9     1    14 0.69 –
+```
+Examine the HMM scores in column 9 (full sequence score) and make a decision about the lowest score that provides an acceptable match. In this example, we will go with 5.0. Next we will create an settings file for the new HMM. This file file needs to have the same name as the HMM file except we replace ".hmm" with ".settings". The settings file provides default scoring parameters for the HMM. Here is an example:
+
+```
+prepReads_HMMsearchReadStartPos: 1  # Anchor read position to start searching for an HMM match.
+prepReads_HMMsearchReadEndPos:  16  # Anchor read postion to stop looking for an HMM match, typicaly a couple NT past expected position.
+prepReads_HMMmaxStartPos: 3         # Max. read position that an HMM match can begin.
+prepReads_HMMminFullBitScore: 5     # Min. score for accepting an HMM hit.
+prepReads_HMMmatchEnd: TRUE         # (True/False) Require a match to the end of the HMM.
+prepReads_HMMmatchTerminalSeq: CA   # If prepReads_HMMmatchEnd is True, these letters must be matched to accept the hit.  
+```
+Settings in HMM settings files will be used to score their respective HMMs if *prepReads_useDefaultHMMsettings* is set to True in AAVengeR's configuration file otherwise the settings in the main configuration file will be used. Both hmm and settings files need to be places in AAVengeR's data/hmms/ folder. 
+
+# Configuring AAVengeR
+
+AAVengeR's configuration file contains two main sections. Settings at the top are designed to be changed for each analysis. These settings point to data files and output locations. The remaining settings are divided into modules and typically do not need to be changed. Paths to resources and outputs can be relative from where the software is started or absolute. It is important to remember that paths should reflect the Docker container's bound file structure when using Docker.
+
+**mode** -- The analysis mode must be set to either integrase, AAV, transposase, or manual. Modes are conveniences that set several of the [settings found in the lower sections](https://github.com/helixscript/AAVengeR/blob/76da0e02814513cd2115a99be5b085ebbdb3e59c/lib.R#L79) to appropriate values for different types of analayses. Analyses with vectors that make use of integrase (retroviruses) should set the mode to *integrase* while analyses of AAV integration should set the mode to *AAV* and analyses of transposons should set the mode to *transposase*. Setting the mode to *manual* will result in none of the lower settings being changed allowing for full control of AAVengeR. 
    
+**core_CPUs** -- This setting defines the maximum number of CPU cores that the core module can work with. The core module will distribute CPUs to sample analyses depending on the number of reads demultiplexed for each sample. Keep in mind that memory requirements will incrase as you increase the number of cores. 
+
+**outputDir** -- This setting defines the path to the output directory for the analysis. The directory will be created if it does not exists.
+
+**softwareDir** -- This setting defines the path to your AAVengeR installation directory. 
