@@ -76,7 +76,7 @@ In addition to this sequence information, the sample configuration file needs in
   
 **vectorFastaFile**: given the repetitive nature of LTR sequences and AAV's tendency to self-integrate, vector sequences are needed to remove reads that read into vector bodies rather than into flanking genomic DNA. Vector FASTA files should be placed in the *AAVengeR/data/vectors* folder and the name of the file placed in this column. It is important that the vector sequence uses capital letters. Lowercase letters are ignored and are used for more advanced analyses.  
   
-**leaderSeqHMM**: (retroviral analyses only -- omit for AAV analyses) AAVengeR recognized the ends of LTR sequences using vector specific HMMs which should be placed in the *AAVengeR/data/hmms* folder. HMMs will be discussed in depth next.  
+**leaderSeqHMM**: (retroviral analyses only -- omit for AAV analyses) AAVengeR recognized the ends of LTR sequences using vector specific HMMs (Hidden Markov Models) which should be placed in the *AAVengeR/data/hmms* folder. HMMs will be discussed in depth next.  
 
 **flags**: This column provides additional information about how to process samples.<br>
  &nbsp; &nbsp; (mode: integrase) &nbsp; &nbsp; **IN_u5**: anchor read is reading out of LTR U5 into genomic DNA.<br>
@@ -123,7 +123,7 @@ mySeq_2SNPs          -             14 mySeq                -             14    0
 mySeq_1del           -             13 mySeq                -             14    0.0051    5.0   0.0   1   1     0.005     0.005    5.0   0.0     3    14     2    13     1    13 0.65 -
 mySeq_1del_1ins      -             14 mySeq                -             14     0.019    3.7   0.0   1   1     0.017     0.017    3.8   0.0     3    10     2     9     1    14 0.69 –
 ```
-Examine the HMM scores in column 9 (full sequence score) and make a decision about the lowest score that provides an acceptable match. In this example, we will go with 5.0. Next we will create an settings file for the new HMM. This file file needs to have the same name as the HMM file except we replace ".hmm" with ".settings". The settings file provides default scoring parameters for the HMM. Here is an example:
+Examine the HMM scores in column 9 (full sequence score) and make a decision about the lowest score that provides an acceptable match. In this example, we will go with 5.0. Next we will create an settings file for the new HMM. This file needs to have the same name as the HMM file except we replace ".hmm" with ".settings". The settings file provides default scoring parameters for the HMM. Here is an example:
 
 ```
 prepReads_HMMsearchReadStartPos: 1  # Anchor read position to start searching for an HMM match.
@@ -139,10 +139,26 @@ Settings in HMM settings files will be used to score their respective HMMs if *p
 
 AAVengeR's configuration file contains two main sections. Settings at the top are designed to be changed for each analysis. These settings point to data files and output locations. The remaining settings are divided into modules and typically do not need to be changed. Paths to resources and outputs can be relative from where the software is started or absolute. It is important to remember that paths should reflect the Docker container's bound file structure when using Docker.
 
-**mode** -- The analysis mode must be set to either integrase, AAV, transposase, or manual. Modes are conveniences that set several of the [settings found in the lower sections](https://github.com/helixscript/AAVengeR/blob/76da0e02814513cd2115a99be5b085ebbdb3e59c/lib.R#L79) to appropriate values for different types of analayses. Analyses with vectors that make use of integrase (retroviruses) should set the mode to *integrase* while analyses of AAV integration should set the mode to *AAV* and analyses of transposons should set the mode to *transposase*. Setting the mode to *manual* will result in none of the lower settings being changed allowing for full control of AAVengeR. 
+**mode** -- The analysis mode must be set to either integrase, AAV, transposase, or manual. Modes are conveniences that set several of the [settings found in the lower sections](https://github.com/helixscript/AAVengeR/blob/76da0e02814513cd2115a99be5b085ebbdb3e59c/lib.R#L79) to appropriate values for different types of analyses. Analyses with vectors that make use of integrase (retroviruses) should set the mode to *integrase* while analyses of AAV integration should set the mode to *AAV* and analyses of transposons should set the mode to *transposase*. Setting the mode to *manual* will result in none of the lower settings being changed allowing for full control of AAVengeR. 
    
-**core_CPUs** -- This setting defines the maximum number of CPU cores that the core module can work with. The core module will distribute CPUs to sample analyses depending on the number of reads demultiplexed for each sample. Keep in mind that memory requirements will incrase as you increase the number of cores. 
+**core_CPUs** -- This setting defines the maximum number of CPU cores that the core module can work with. The core module will dynamically distribute CPUs to sample analyses depending on the number of reads demultiplexed for each sample. Keep in mind that memory requirements will incrase as you increase the number of cores. Module specific CPU limits, defined further down within the configuration file, are ignored When using the core module.
 
 **outputDir** -- This setting defines the path to the output directory for the analysis. The directory will be created if it does not exists.
 
 **softwareDir** -- This setting defines the path to your AAVengeR installation directory. 
+
+**database_configFile** -- This setting defined the path to a MySQL / MardiaDB credential file (typically ~/.my.cnf). This file needs to contain an AAVengeR credential block in order to upload and download data from an AAVengeR database. 
+
+**database_configGroup** -- This setting defines the name of an AAVengeR block within the *database_configFile* credential file. Setting this value to *none* disables all database features.  
+
+**database_samplesConfigGroup** -- This setting defines the name of an AAVengeR sample database credential block within the *database_configFile* credential file. (in development)
+
+**demultiplex_anchorReadsFile**  
+**demultiplex_adriftReadsFile**  
+**demultiplex_index1ReadsFile** --  File paths to Illumina paired-end sequencing data.
+
+**demultiplex_sampleDataFile** -- This setting defines the path to the [sample configuration file](sampleData.tsv).
+
+**modules** -- This setting stores the list of modules (and their order) that AAVengeR should be executed. Each module has its own set of parameters defined further down in the configuration file including data input and output paths.
+
+
