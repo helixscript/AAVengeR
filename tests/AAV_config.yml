@@ -9,8 +9,8 @@ core_CPUs: 50
 outputDir: /data/AAVengeR/tests/AAV_output
 softwareDir: /data/AAVengeR
 
-databaseConfigFile: /home/ubuntu/.my.cnf
-databaseConfigGroup: none
+database_configFile: /home/ubuntu/.my.cnf
+database_configGroup: none
 
 demultiplex_anchorReadsFile: /data/AAVengeR/tests/AAV_dataSet/R2.fastq.gz
 demultiplex_adriftReadsFile: /data/AAVengeR/tests/AAV_dataSet/R1.fastq.gz

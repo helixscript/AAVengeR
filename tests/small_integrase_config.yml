@@ -4,18 +4,18 @@
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
 mode: integrase                       # (integrase, AAV, transposase, or manual)
 
-core_CPUs: 50
+core_CPUs: 25
 
-outputDir: /data/AAVengeR/tests/integrase_output
+outputDir: /data/AAVengeR/tests/small_integrase_output
 softwareDir: /data/AAVengeR
 
 database_configFile: /home/ubuntu/.my.cnf
 database_configGroup: none
 
-demultiplex_anchorReadsFile: /data/AAVengeR/tests/integrase_dataSet/R2.fastq.gz
-demultiplex_adriftReadsFile: /data/AAVengeR/tests/integrase_dataSet/R1.fastq.gz
-demultiplex_index1ReadsFile: /data/AAVengeR/tests/integrase_dataSet/I1.fastq.gz
-demultiplex_sampleDataFile:  /data/AAVengeR/tests/integrase_dataSet/sampleData.tsv
+demultiplex_anchorReadsFile: /data/AAVengeR/tests/small_integrase_dataSet/R2.fastq.gz
+demultiplex_adriftReadsFile: /data/AAVengeR/tests/small_integrase_dataSet/R1.fastq.gz
+demultiplex_index1ReadsFile: /data/AAVengeR/tests/small_integrase_dataSet/I1.fastq.gz
+demultiplex_sampleDataFile:  /data/AAVengeR/tests/small_integrase_dataSet/sampleData.tsv
 
 modules:
   - core

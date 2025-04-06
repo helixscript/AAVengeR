@@ -1,2 +1,0 @@
-#!/usr/bin/sh
-/usr/bin/Rscript /data/AAVengeR/aavenger.R /data/AAVengeR/tests/integrase_output/core/subject_analyses/test~subjectB/config.yml
