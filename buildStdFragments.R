@@ -665,6 +665,17 @@ if(opt$buildStdFragments_evalFragAnchorReadSeqs){
     
     updateLog(paste0('Analyzing sample ', s$sample[1], ' for anchor read start sequence clusters.'))
     
+    # Sort fragment records so that fragments likely to contribute to high abund / high read count fragments apart first.
+    s <- group_by(s, posid) %>%
+         mutate(potentialAbund = n_distinct(abs(fragEnd - fragStart))) %>%
+         ungroup() %>%
+         group_by(anchorReadSeq) %>%
+         mutate(anchorReadSeqReads = n()) %>%
+         ungroup() %>%
+         mutate(anchorReadSeqLen = nchar(anchorReadSeq)) %>%
+         arrange(desc(potentialAbund), desc(anchorReadSeqReads), desc(anchorReadSeqLen)) %>%
+         select(-potentialAbund, -anchorReadSeqReads, -anchorReadSeqLen)
+    
     o <- DNAStringSet(s$anchorReadSeq)
     names(o) <- s$readID
     

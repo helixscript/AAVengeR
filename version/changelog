@@ -216,3 +216,5 @@ Added small syn data test set.
 Updated buildGenomeObjects.R
 Updated scheduler in core.R to make better CPU allocations.
 Updated README
+3.0.5
+Updated buildStdFragments -- changed anchor read clustering input filter to prioritize reads likely to contribute to abundant clones.
