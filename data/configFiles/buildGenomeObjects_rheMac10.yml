@@ -1,6 +1,8 @@
 CPUs: 20
 outputDir: rheMac10_output
 refGenomeName: rheMac10
+forceStdChromosomes: TRUE
+gtfToGenePredPath: /usr/bin/gtfToGenePred
 repeatMaskerSpecies: Macaca mulatta
 repeatMaskerPath: /home/ubuntu/software/RepeatMasker/RepeatMasker
 bwa2Path: /home/ubuntu/software/bwa-mem2/bwa-mem2

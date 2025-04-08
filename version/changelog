@@ -212,5 +212,7 @@ Patched buildStdFragments.R so that results are always the same regardles of how
 Added additional flags to different modules, eg. show_col_types = FALSE, to silence them.
 Changed config file database keys.
 Added new sample database key for future development.
-Added small syn data test set
+Added small syn data test set.
+Updated buildGenomeObjects.R
+Updated scheduler in core.R to make better CPU allocations.
 Updated README

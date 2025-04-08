@@ -13,8 +13,7 @@ tmpFile <- paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = '
 # Read in the configuration file and perform basic sanity checks.
 args <- commandArgs(trailingOnly=TRUE)
 if(length(args) == 0) stop('Expected at least one command line argument')
-source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
-opt <- startModule(args)
+opts <- yaml::read_yaml(args)
 
 logFile <- paste0(opts$refGenomeName, '_buildGenomeObjects.log')
 write(date(), logFile, append = FALSE)
@@ -33,7 +32,8 @@ system(paste0('gunzip ', opts$outputDir, '/', tmpFile, '.gz'))
 # Read in genome NTs and limit to standard chromosomes.
 o <- readDNAStringSet(paste0(opts$outputDir, '/', tmpFile))
 invisible(file.remove(paste0(opts$outputDir, '/', tmpFile)))
-o <- o[names(o) %in% c(paste0('chr', 1:100), paste0('chr', as.roman(1:100)), 'chrY', 'chrM')]
+
+if(opts$forceStdChromosomes) o <- o[names(o) %in% c(paste0('chr', 1:100), paste0('chr', as.roman(1:100)), 'chrY', 'chrM')]
 
 # Run RepeatMasker.
 dir.create(paste0(opts$outputDir, '/repeatMasker'), showWarnings = FALSE)
@@ -88,10 +88,6 @@ invisible(file.remove(file.path(opts$outputDir, 'genome.fasta')))
 
 # Download annotation data from UCSC.
 
-
-# o <- readr::read_tsv(paste0(opts$outputDir, '/', tmpFile, '.gz'), col_names = FALSE)
-# write(unique(sub('\\.\\d+', '', o$X2)), ncolumns = 1, file = 'data/geneLists/humanGeneIDs')
-
 humanGeneFilter <- function(d){
   message('Calling humanGeneFilter()')
   message('Total gene names in source: ', n_distinct(toupper(d$name)))
@@ -102,6 +98,8 @@ humanGeneFilter <- function(d){
 
 createRefSeqObjects <- function(file, label, humanGeneFilter = FALSE){
   d <- read.table(file, sep = '\t', header = FALSE, quote = '')
+  
+  if(length(d) == 15) d <- tibble::add_column(d, bin = NA, .before = 'V1')
   
   names(d) <- c('bin', 'name', 'chrom', 'strand', 'txStart', 'txEnd', 'cdsStart',
                 'cdsEnd', 'exonCount', 'exonStarts', 'exonEnds', 'score', 'name2',
@@ -134,12 +132,24 @@ write(paste0(date(), ' Building refSeq data.'), logFile, append = TRUE)
 
 if('refSeqGeneAnnotations_URL' %in% names(opts)){
   system(paste0('wget -q -O ', opts$outputDir, '/', tmpFile, '.gz ', opts$refSeqGeneAnnotations_URL))
+  
+  if(grepl('\\.gtf', opts$refSeqGeneAnnotations_URL, ignore.case = TRUE)){
+    system(paste(opts$gtfToGenePredPath, '-genePredExt', paste0(opts$outputDir, '/', tmpFile, '.gz'), paste0(opts$outputDir, '/', tmpFile, '2.gz')))
+    system(paste('mv', paste0(opts$outputDir, '/', tmpFile, '2.gz'), paste0(opts$outputDir, '/', tmpFile, '.gz')))
+  }
+  
   createRefSeqObjects(paste0(opts$outputDir, '/', tmpFile, '.gz'), opts$refGenomeName)
   invisible(file.remove(paste0(opts$outputDir, '/', tmpFile, '.gz')))
 }
 
 if('xenoRefSeqGeneAnnotations_URL' %in% names(opts)){
   system(paste0('wget -q -O ', opts$outputDir, '/', tmpFile, '.gz ', opts$xenoRefSeqGeneAnnotations_URL))
+  
+  if(grepl('\\.gtf', opts$xenoRefSeqGeneAnnotations_URL, ignore.case = TRUE)){
+    system(paste(opts$gtfToGenePredPath, '-genePredExt', paste0(opts$outputDir, '/', tmpFile, '.gz'), paste0(opts$outputDir, '/', tmpFile, '2.gz')))
+    system(paste('mv', paste0(opts$outputDir, '/', tmpFile, '2.gz'), paste0(opts$outputDir, '/', tmpFile, '.gz')))
+  }
+  
   createRefSeqObjects(paste0(opts$outputDir, '/', tmpFile, '.gz'), paste0(opts$refGenomeName, '.humanXenoRef'), humanGeneFilter = TRUE)
   invisible(file.remove(paste0(opts$outputDir, '/', tmpFile, '.gz')))
 }

@@ -1,6 +1,8 @@
 CPUs: 12
 outputDir: canFam3_output
 refGenomeName: canFam3
+forceStdChromosomes: TRUE
+gtfToGenePredPath: /usr/bin/gtfToGenePred
 repeatMaskerSpecies: Canis lupus familiaris
 repeatMaskerPath: /home/ubuntu/software/RepeatMasker/RepeatMasker
 bwa2Path: /home/ubuntu/software/bwa-mem2/bwa-mem2

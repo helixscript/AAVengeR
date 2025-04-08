@@ -1,6 +1,8 @@
 CPUs: 20
 outputDir: mm10_output
 refGenomeName: mm10
+forceStdChromosomes: TRUE
+gtfToGenePredPath: /usr/bin/gtfToGenePred
 repeatMaskerSpecies: Mus musculus
 repeatMaskerPath: /home/ubuntu/software/RepeatMasker/RepeatMasker
 bwa2Path: /home/ubuntu/software/bwa-mem2/bwa-mem2

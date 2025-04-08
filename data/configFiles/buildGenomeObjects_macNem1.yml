@@ -1,0 +1,12 @@
+CPUs: 20
+outputDir: macNem1_output
+refGenomeName: macNem1
+forceStdChromosomes: FALSE
+gtfToGenePredPath: /usr/bin/gtfToGenePred
+repeatMaskerSpecies: macaque
+repeatMaskerPath: /media/md0/bin/RepeatMasker/RepeatMasker
+bwa2Path: /media/md0/bin/bwa-mem2-2.2.1_x64-linux/bwa-mem2
+faToTwoBitPath: /usr/bin/faToTwoBit
+refGenomeSeq_URL: https://hgdownload.soe.ucsc.edu/hubs/GCF/000/956/065/GCF_000956065.1/GCF_000956065.1.fa.gz
+refSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/hubs/GCF/000/956/065/GCF_000956065.1/genes/GCF_000956065.1_Mnem_1.0.ncbiRefSeq.gtf.gz
+xenoRefSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/hubs/GCF/000/956/065/GCF_000956065.1/genes/GCF_000956065.1_Mnem_1.0.xenoRefGene.gtf.gz

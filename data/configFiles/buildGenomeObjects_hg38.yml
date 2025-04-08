@@ -1,6 +1,8 @@
 CPUs: 12
 outputDir: hg38_output
 refGenomeName: hg38
+forceStdChromosomes: TRUE
+gtfToGenePredPath: /usr/bin/gtfToGenePred
 repeatMaskerSpecies: Homo sapiens
 repeatMaskerPath: /home/ubuntu/software/RepeatMasker/RepeatMasker
 bwa2Path: /home/ubuntu/software/bwa-mem2/bwa-mem2

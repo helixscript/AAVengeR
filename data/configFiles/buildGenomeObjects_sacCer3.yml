@@ -1,6 +1,8 @@
 CPUs: 30
 outputDir: sacCer3_output
 refGenomeName: sacCer3
+forceStdChromosomes: TRUE
+gtfToGenePredPath: /usr/bin/gtfToGenePred
 repeatMaskerSpecies: Saccharomyces cerevisiae
 repeatMaskerPath: /home/ubuntu/software/RepeatMasker/RepeatMasker
 bwa2Path: /home/ubuntu/software/bwa-mem2/bwa-mem2

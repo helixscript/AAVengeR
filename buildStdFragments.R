@@ -77,7 +77,6 @@ frags <- data.table(tidyr::separate(frags, uniqueSample, c('trial', 'subject', '
 frags$trialSubject <- paste0(frags$trial, '~', frags$subject)
 frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 
-frags <- arrange(frags, readID)
 
 
 # Categorize ITR/LTR remnant sequences.
@@ -142,8 +141,6 @@ frags$leaderSeqGroup <- paste0(frags$trial, '~', frags$subject, '~', frags$leade
 
 frags <- tidyr::unite(frags, fragID, trial, subject, sample, replicate, chromosome, 
                       strand, fragStart, fragEnd, leaderSeqGroupNum, randomLinkerSeq, sep = ':', remove = FALSE)
-
-frags <- arrange(frags, readID)
 
 
 
@@ -211,7 +208,6 @@ if(opt$buildStdFragments_standardizeIntegrationPositions){
   frags <- dplyr::select(frags, -z)
 }
 
-frags <- arrange(frags, readID)
 
 
 # Standardize break  positions if requested (recommended)
@@ -295,8 +291,6 @@ if(opt$buildStdFragments_standardizeBreakPositions){
   
   rm(f, g, g2)
 }
-
-frags <- arrange(frags, readID)
 
 
 
@@ -414,7 +408,6 @@ if(length(z) > 0){
   invisible(gc())
 }
 
-frags_uniqPosIDs <- arrange(frags_uniqPosIDs, readID)
 
 
 # Evaluate position ids on the sample level and assign new remnant group ids.
@@ -522,7 +515,7 @@ frags_uniqPosIDs$posid2 <- NULL
 # Assign updated remnant seq group numbers and update position ids.
 frags_uniqPosIDs$leaderSeqGroup <- paste0(frags_uniqPosIDs$trialSubject, '~', frags_uniqPosIDs$leaderSeqGroupNum)
 
-frags_uniqPosIDs <- arrange(frags_uniqPosIDs, readID)
+
 
 if(opt$processAdriftReadLinkerUMIs){
   
@@ -646,13 +639,13 @@ if(opt$processAdriftReadLinkerUMIs){
 # Apply second max fragment length filter.
 frags_uniqPosIDs <- frags_uniqPosIDs[(frags_uniqPosIDs$fragEnd - frags_uniqPosIDs$fragStart) + 1 <= opt$buildStdFragments_maxFragLength,]
 
-frags_uniqPosIDs <- arrange(frags_uniqPosIDs, readID)
 
+# Arrange fragments to ensure that Anchor read filtering provides the same results when different numbers of CPUs are used.
+frags_uniqPosIDs <- arrange(frags_uniqPosIDs, readID)
 
 
 # Anchor read filtering.
 #-------------------------------------------------------------------------------
-
 
 frags_uniqPosIDs$anchorReadCluster <- FALSE
 anchorReadClusterDecisionTable <- tibble()
@@ -761,8 +754,6 @@ if(opt$buildStdFragments_evalFragAnchorReadSeqs){
   frags_uniqPosIDs <- subset(frags_uniqPosIDs, remove == FALSE)
   frags_uniqPosIDs <- select(frags_uniqPosIDs, -fragClusterGroup, -posid2, -remove)
 }
-
-frags_uniqPosIDs <- arrange(frags_uniqPosIDs, readID)
 
 
 # Build multi-hit clusters if requested.
@@ -893,7 +884,6 @@ frags_uniqPosIDs <- tidyr::unite(frags_uniqPosIDs, fragID, trial, subject, sampl
 # fragments with more than one read, i > 1, need additional processing.
 frags <- group_by(data.frame(frags_uniqPosIDs), fragID) %>% mutate(i = n()) %>% ungroup()
 
-frags <- arrange(frags, readID)
 
 a <- subset(frags, i == 1)   
 b <- subset(frags, i > 1)    
