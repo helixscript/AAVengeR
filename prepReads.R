@@ -41,6 +41,7 @@ quitOnErorr <- function(msg){
   if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
   updateLog(msg)
   updateLog(paste0('See log for more details: ', opt$defaultLogFile))
+  updateMasterLog()
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
@@ -66,6 +67,14 @@ if(! file.exists(file.path(opt$outputDir, opt$prepReads_readsTable))) quitOnEror
 # Read in the reads table.
 updateLog('Reading in demultiplexed reads.')
 reads <- readRDS(file.path(opt$outputDir, opt$prepReads_readsTable))
+
+if(file.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'))){
+  attritionLog <- readr::read_tsv(file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'), show_col_types = FALSE)
+} else {
+  attritionLog <- tibble()
+}
+readr::write_tsv(bind_rows(attritionLog, tibble(label = 'PRD1', value = n_distinct(reads$readID))),
+                 file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'))
 
 if(nrow(reads) == 0) quitOnErorr('Error - the input table contained no rows.')
 
@@ -123,6 +132,17 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
         }))
 
 stopCluster(cluster)
+
+updateLog(paste0(ppNum(n_distinct(reads$readID)), ' reads remain after trimming.'))
+
+if(file.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'))){
+  attritionLog <- readr::read_tsv(file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'), show_col_types = FALSE)
+} else {
+  attritionLog <- tibble()
+}
+readr::write_tsv(bind_rows(attritionLog, tibble(label = 'PRD2', value = n_distinct(reads$readID))),
+                 file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'))
+
 
 if(nrow(reads) == 0) quitOnErorr('Error - no reads remaining after trimming.')
 
@@ -226,12 +246,22 @@ if(nrow(vectorHits) > 0){
   updateLog('No reads aligned to the vector.')
 }  
 
+updateLog(paste0(ppNum(n_distinct(reads$readID)), ' reads remain after vector filtering.'))
+
+if(file.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'))){
+  attritionLog <- readr::read_tsv(file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'), show_col_types = FALSE)
+} else {
+  attritionLog <- tibble()
+}
+readr::write_tsv(bind_rows(attritionLog, tibble(label = 'PRD3', value = n_distinct(reads$readID))),
+                 file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'))
+
+
 if(nrow(reads) == 0) quitOnErorr('Error - no reads remain after filtering for reads aligning to the vector.')
   
 nReadsPostFilter <- n_distinct(reads$readID)
 
 updateLog(paste0(sprintf("%.2f%%", 100 - (nReadsPostFilter/nReadsPreFilter)*100), ' unique reads removed because they aligned to the vector.'))
-
 
 if(! 'leaderSeqHMM' %in% names(reads)){
     # Now align the full anchor reads to the vector excluding those in vectorHits.
@@ -371,6 +401,16 @@ if(opt$prepReads_forceAnchorReadStartSeq & 'anchorReadStartSeq' %in% names(reads
 
 reads <- subset(reads, readID %in% m$id)
 
+updateLog(paste0(ppNum(n_distinct(reads$readID)), ' reads had identifiable leader sequences and were retrained.'))
+
+if(file.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'))){
+  attritionLog <- readr::read_tsv(file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'), show_col_types = FALSE)
+} else {
+  attritionLog <- tibble()
+}
+readr::write_tsv(bind_rows(attritionLog, tibble(label = 'PRD4', value = n_distinct(reads$readID))),
+                 file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'))
+
 if(nrow(reads) == 0) quitOnErorr('Error - no reads remaining after filtering for leader sequence hits.')
 
 reads <- left_join(reads, dplyr::select(m, id, leaderMapping.qStart, leaderMapping.qEnd), by = c('readID' = 'id'))
@@ -386,6 +426,8 @@ reads <- dplyr::rename(reads, anchorReadSeq = anchorReadSeq2)
 
 nReadsPreFilter <- n_distinct(reads$readID)
 reads <- dplyr::filter(reads, nchar(anchorReadSeq) >= opt$prepReads_minAnchorReadLength)
+
+updateLog(paste0(ppNum(n_distinct(reads$readID)), ' reads remain after removing reads that are too short after removing leader sequences.'))
 
 if(nrow(reads) == 0) quitOnErorr('Error - no reads remaining after trimming for min anchor read length.')
 
@@ -443,10 +485,21 @@ reads <- data.table::rbindlist(parLapply(cluster, split(reads, dplyr::ntile(1:nr
   }))
 }))
 
+updateLog(paste0(ppNum(n_distinct(reads$readID)), ' reads remain after adrift read over-reading trimming.'))
+
 if(nrow(reads) == 0) quitOnErorr('Error - no reads remaining after adrift read over-reading trimming.')
 
 updateLog(paste0(sprintf("%.2f%%", (1-n_distinct(reads$readID)/nReadsPreFilter)*100), 
                  ' of reads removed because their trimmed lengths were less than ', opt$prepReads_minAdriftReadLength, ' NTs.'))
+
+if(file.exists(file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'))){
+  attritionLog <- readr::read_tsv(file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'), show_col_types = FALSE)
+} else {
+  attritionLog <- tibble()
+}
+readr::write_tsv(bind_rows(attritionLog, tibble(label = 'PRD5', value = n_distinct(reads$readID))),
+                 file.path(opt$outputDir, opt$prepReads_outputDir, 'attritionLog.tsv'))
+
 
 reads <- dplyr::select(reads, -adriftReadSeq) %>% 
          dplyr::rename(adriftReadSeq = adriftReadSeq2)
@@ -564,6 +617,7 @@ stopCluster(cluster)
 saveRDS(reads, file.path(opt$outputDir, opt$prepReads_outputDir, 'reads.rds'), compress = opt$compressDataFiles)
 
 updateLog('prepReads completed.')
+updateMasterLog()
 
 if(any(! incomingSamples %in% reads$uniqueSample) & opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
 

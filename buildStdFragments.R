@@ -25,8 +25,8 @@ source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
 opt <- startModule(args)
 
 createOuputDir()
-dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir))
-dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'))
+dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir), showWarnings = FALSE)
+dir.create(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), showWarnings = FALSE)
 
 # Start log.
 opt$defaultLogFile <- file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'log')
@@ -39,12 +39,14 @@ quitOnErorr <- function(msg){
   updateLog(msg)
   message(msg)
   message(paste0('See log for more details: ', opt$defaultLogFile))
+  updateMasterLog()
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
+
+
 # Setup.
 #-------------------------------------------------------------------------------
-
 cluster <- makeCluster(opt$buildStdFragments_CPUs)
 clusterSetRNGStream(cluster, 1)
 clusterExport(cluster, 'opt')
@@ -52,11 +54,12 @@ clusterExport(cluster, 'opt')
 if(tolower(opt$database_configGroup) != 'none') dbConn <- createDBconnection()
 
 
+
 # Load fragment data from database or local file depending on configuration file.
 # Fragments are read in on the read level and contain a variable (n) which is the number 
 # of identical read pairs that were removed in prepReads. (n) can be added to fragment
 # read counts to account for all reads supporting fragments.
-#----------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 updateLog('Reading in fragment file(s).')
 
 frags <- distinct(readRDS(file.path(opt$outputDir, opt$buildStdFragments_inputFile)))
@@ -66,9 +69,11 @@ if(nrow(frags) == 0) quitOnErorr('Error -- no fragments were loaded or retrieved
 
 incomingSamples <- unique(sub('~\\d+$', '', frags$uniqueSample))
 
+
+
 # Set aside meta data till the end to save memory and add data back at the end 
 # and unpack the uniqueSample ids.
-# --------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 sampleMetaData <- distinct(dplyr::select(frags, uniqueSample, refGenome, vectorFastaFile, flags))
 
 frags <- data.table(tidyr::separate(frags, uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~', remove = FALSE) %>% 
@@ -81,7 +86,7 @@ frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+'
 
 # Categorize ITR/LTR remnant sequences.
 # Create subject level remnant identifiers.
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 updateLog('Categorizing leader sequences.')
 
 if(opt$buildStdFragments_clusterLeaderSeqs){
@@ -130,6 +135,7 @@ if(opt$buildStdFragments_clusterLeaderSeqs){
 # Build fragment ids.
 # IDs are read level containing both random IDs and remnant IDs.
 # eg. mpPHH_AAV_deJong:pExp4_9883:GTSP5468:1:chr3:-:50217300:50217439:37:AAAAAAAAAAAA
+#-------------------------------------------------------------------------------
 
 i <- is.na(frags$leaderSeqGroupNum)
 if(any(i)) frags[i, ]$leaderSeqGroupNum <- 1
@@ -145,7 +151,7 @@ frags <- tidyr::unite(frags, fragID, trial, subject, sample, replicate, chromoso
 
 
 # Standardize integration site positions if requested (recommended)
-# -------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 if(opt$buildStdFragments_standardizeIntegrationPositions){
   
@@ -211,7 +217,7 @@ if(opt$buildStdFragments_standardizeIntegrationPositions){
 
 
 # Standardize break  positions if requested (recommended)
-# -------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 if(opt$buildStdFragments_standardizeBreakPositions){
   
@@ -644,6 +650,9 @@ frags_uniqPosIDs <- frags_uniqPosIDs[(frags_uniqPosIDs$fragEnd - frags_uniqPosID
 frags_uniqPosIDs <- arrange(frags_uniqPosIDs, readID)
 
 
+updateLog(paste0(n_distinct(frags_uniqPosIDs$readID), ' reads used to build uniquely mapping standardized fragments.'))
+
+
 # Anchor read filtering.
 #-------------------------------------------------------------------------------
 
@@ -766,6 +775,7 @@ if(opt$buildStdFragments_evalFragAnchorReadSeqs){
   frags_uniqPosIDs <- select(frags_uniqPosIDs, -fragClusterGroup, -posid2, -remove)
 }
 
+updateLog(paste0(n_distinct(frags_uniqPosIDs$readID), ' reads used to build uniquely mapping standardized fragments after anchor read filtering.'))
 
 # Build multi-hit clusters if requested.
 # ------------------------------------------------------------------------------
@@ -967,6 +977,7 @@ if(nrow(a) > 0){
 # Merge split fragments back together.
 f <- bind_rows(a2, b2)
 
+updateLog(paste0(n_distinct(unlist(f$readIDs)), ' reads used to build final standardized fragments.'))
 
 # Clear out the tmp/ directory.
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), full.names = TRUE)))
@@ -986,6 +997,16 @@ readr::write_tsv(select(f, -uniqueSample, -readID, -leaderSeq, -nDuplicateReads,
 saveRDS(anchorReadClusterDecisionTable, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'anchorReadClusterDecisionTable.rds'))
 
 updateLog('buildStdFragments completed.')
+updateMasterLog()
+
+# Update read attrition logs.
+invisible(lapply(split(f, f$uniqueSample), function(x){
+ fp <- file.path(opt$orgOutputDir, 'core', 'replicate_analyses', x$uniqueSample[1], 'buildFragments', 'attritionLog.tsv')
+ if(file.exists(fp)){
+   attritionLog <- readr::read_tsv(fp, show_col_types = FALSE)
+   readr::write_tsv(bind_rows(attritionLog, tibble(label = 'BSF1', value = n_distinct(unlist(x$readIDs)))), fp)
+ } 
+}))
 
 if(opt$database_configGroup != 'none') RMariaDB::dbDisconnect(dbConn)
 

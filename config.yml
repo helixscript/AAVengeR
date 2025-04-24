@@ -2,7 +2,7 @@
 
 # Required inputs that should be updated for each run.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-mode: integrase                       # (integrase, AAV, transposase, or manual)
+mode: integrase   # (integrase, AAV, transposase, or manual)
 
 core_CPUs: 30
 
@@ -31,6 +31,12 @@ compressDataFiles: FALSE
 processAdriftReadLinkerUMIs: FALSE
 core_keepIntermediateFiles: FALSE
 core_applyCoreCPUsToAllModules: TRUE
+
+
+# PullDatabaseFragments module.
+# ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
+pullDatabaseFragments_outputDir: pullDatabaseFragments
+pullDatabaseFragments_trialSubjectSamples: Jones,p1,GTSP4938,hg38|Jones,p9,GTSP4946,hg38
 
 
 # Demultiplex module.

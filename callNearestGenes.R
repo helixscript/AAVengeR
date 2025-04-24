@@ -33,6 +33,7 @@ quitOnErorr <- function(msg){
 }
 
 updateLog(paste0('Starting callNearestGenes using ', opt$callNearestGenes_CPUs, ' CPUs.'))
+updateMasterLog()
 
 if(! file.exists(file.path(opt$outputDir, opt$callNearestGenes_inputFile))){
   updateLog('Error - input file does not exist.')
@@ -53,6 +54,7 @@ if(! opt$callNearestGenes_addAfter %in% names(sites)){
 
 sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
            updateLog(paste0('Starting analysis of sites found in ', x$refGenome[1]))
+           updateMasterLog()
   
            if(! x$refGenome[1] %in% names(opt$callNearestGenes_boundaries)){
              updateLog(paste0('   Error - ', x$refGenome[1], ' is not defined beneath callNearestGenes_boundaries in the config file.'))
@@ -101,14 +103,15 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
            }
           
           posids <- x$posid
-          posids <- unique(sub('\\.\\S+$', '', posids))
+          posids <- unique(sub('\\.\\d+$', '', posids))
           
           updateLog(paste0('Calling nearestGene() for ', n_distinct(posids), ' sites.'))
+          updateMasterLog()
           n <- nearestGene(posids, genes, exons, CPUs = opt$callNearestGenes_CPUs)
           
           n$posid2 <- paste0(n$chromosome, n$strand, n$position)
           n <- n[!duplicated(n$posid2),]
-          x$posid2 <- sub('\\.\\S+$', '', x$posid)
+          x$posid2 <- sub('\\.\\d+$', '', x$posid)
           
           len <- length(x)
           n <- select(n, nearestGene, nearestGeneStrand, nearestGeneDist, inGene, inExon, beforeNearestGene, posid2)
@@ -135,5 +138,6 @@ openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$callNearestGenes_output
 readr::write_tsv(sites, file.path(opt$outputDir, opt$callNearestGenes_outputDir, 'sites.tsv.gz'))
 
 updateLog('callNearestGenes completed.')
+updateMasterLog()
 
 q(save = 'no', status = 0, runLast = FALSE) 

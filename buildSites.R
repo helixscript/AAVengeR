@@ -32,12 +32,25 @@ quitOnErorr <- function(msg){
   if(opt$core_createFauxSiteDoneFiles) core_createFauxSiteDoneFiles()
   updateLog(msg)
   updateLog(paste0('See log for more details: ', opt$defaultLogFile))
+  updateMasterLog()
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
 # Read in Standardized fragments.
 updateLog('Reading standardized fragment data.')
+
 frags <- readRDS(file.path(opt$outputDir, opt$buildSites_inputFile)) %>% dplyr::select(-readIDs) 
+
+
+# Patch for chromosomes that contain dots which conflict with leaderSeq identifiers. 
+#--------------------------
+if(any(grepl('\\.', frags$chromosome))){
+  o <- strsplit(frags$posid, '[\\+\\-]')
+  s <- stringr::str_extract(frags$posid, '[\\+\\-]')
+  frags$chromosome <- gsub('\\.', '&', unlist(lapply(o, '[', 1)))
+  frags$posid <- paste0(gsub('\\.', '&', unlist(lapply(o, '[', 1))), s, unlist(lapply(o, '[', 2)))
+}
+
 
 # Create an identifier for counting unique widths for dual detections.
 frags$fragWidths <- paste0(frags$strand, ':', abs(frags$fragEnd - frags$fragStart) + 1)
@@ -223,9 +236,8 @@ frags <- group_by(frags, trial, subject, sample, posid) %>%
 replicateRepLeaderSeqTable <- buildRepLeaderSeqTable(frags, collapseReplicates = FALSE)
 collapsedRepLeaderSeqTable <- buildRepLeaderSeqTable(frags, collapseReplicates = TRUE)
 
-
 sites <- bind_rows(lapply(split(frags, frags$g), function(x){
-  
+
   r <- bind_cols(lapply(minRepNum:maxRepNum, function(r){
          b <- tibble(rUMIs = NA, fUMIs = NA, sonicLengths = NA, reads = NA, repLeaderSeq = NA)
          o <- x[x$replicate == r,]
@@ -280,6 +292,9 @@ sites <- group_by(sites, trial, subject, sample) %>%
          ungroup() %>%
          select(-sampleAbund)
 
+# Undo chromosome dot patch.
+if(any(grepl('\\&', frags$chromosome))) sites$posid <- unname(gsub('&', '.', sites$posid))
+
 # Save outputs.
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'), compress = opt$compressDataFiles)
 openxlsx::write.xlsx(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.xlsx'))
@@ -289,5 +304,6 @@ write(date(), file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.done'))
 if(tolower(opt$database_configGroup) != 'none') uploadSitesToDB(sites)
 
 updateLog('buildSites completed.')
+updateMasterLog()
 
 q(save = 'no', status = 0, runLast = FALSE) 

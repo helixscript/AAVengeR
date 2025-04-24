@@ -52,6 +52,7 @@ o$outputDir <- file.path(opt$outputDir, 'core')
 
 # Run demultiplex module.
 o$demultiplex_CPUs <- opt$core_CPUs
+o$orgOutputDir <- opt$outputDir
 yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml'))
 
 
@@ -141,10 +142,16 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
        # More CPUs can be allocated to jobs.
        additional_CPUs <- free_CPUs - previously_allocated_CPUs
 
-       # message('   Boosting with ', additional_CPUs, ' CPUs')
        o <- arrange(o, desc(reads))
        o$CPUs <- o$CPUs + distribute_integer(additional_CPUs, nrow(o))
+       
        jobTable[match(o$id, jobTable$id),]$CPUs <<- o$CPUs
+       
+       # Make sure that a ridiculous number of CPUs are not assigned. 
+       # Each CPU must work on at least 100 reads.
+       jobTable$maxCPUs <<- ceiling(jobTable$reads/100)
+       jobTable$CPUs <<- ifelse(jobTable$CPUs > jobTable$maxCPUs, jobTable$maxCPUs, jobTable$CPUs) 
+       jobTable$maxCPUs <<- NULL
      }
    }
   
@@ -155,6 +162,7 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
   tab <- pandoc.table.return(arrange(dspJobTable, desc(done), desc(active)), style = "simple", split.tables = Inf, plain.ascii = TRUE)
   
   write(c(date(), paste0('Available CPUs: ', free_CPUs), tab), file = file.path(opt$outputDir, 'core', outputFileName), append = FALSE)
+  updateMasterLog()
 }
 
 # Build a jobs table for prepReads, alignReads, and buildFragments.
@@ -215,6 +223,8 @@ while(! all(jobTable$done == TRUE)){
   o$modules <- list()
   o[['modules']] <- c('prepReads', 'alignReads', 'buildFragments')
   
+  o$orgOutputDir <- opt$outputDir
+  
   yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))
   
   # Create AAVengeR launching script since system(x, wait = TRUE) does not wait for commands w/ arguments.
@@ -243,6 +253,7 @@ while(! all(jobTable$done == TRUE)){
 }
 
 updateLog('Replicate level jobs completed.')
+updateMasterLog()
 
 if(! opt$core_keepIntermediateFiles) invisible(file.remove(list.files(file.path(opt$outputDir, 'core', 'replicate_analyses'), recursive = TRUE, pattern = 'CORE_TMP', full.names = TRUE)))
 
@@ -290,6 +301,7 @@ d$trialSubject <- paste0(d$trial, '~', d$subject)
 frags <- left_join(frags, distinct(dplyr::select(d, uniqueSample, trialSubject)), by = 'uniqueSample')
 
 updateLog('Starting subject level jobs.')
+updateMasterLog()
 
 CPUs_used <- 0
 
@@ -329,6 +341,8 @@ while(! all(jobTable$done == TRUE)){
   o$modules <- list()
   o[['modules']] <- c('buildStdFragments', 'buildSites')
   
+  o$orgOutputDir <- opt$outputDir
+  
   yaml::write_yaml(o, file.path(opt$outputDir, 'core', 'subject_analyses', tab$id, 'config.yml'))
   
   # Create AAVengeR launching script since system(x, wait = TRUE) does not wait for commands w/ arguments.
@@ -354,6 +368,7 @@ while(! all(jobTable$done == TRUE)){
 }
 
 updateLog('Subject level jobs completed.')
+updateMasterLog()
 
 if(! opt$core_keepIntermediateFiles) invisible(file.remove(list.files(file.path(opt$outputDir, 'core', 'subject_analyses'), recursive = TRUE, pattern = 'CORE_TMP', full.names = TRUE)))
 
@@ -379,6 +394,25 @@ if(length(f) > 0){
 }
 
 
+# Collect and write out read attrition values.
+atl <- bind_rows(lapply(list.files(opt$outputDir, pattern = 'attritionLog.tsv', recursive = TRUE, full.names = TRUE), function(x){
+  d <- readr::read_tsv(x, show_col_type = FALSE)
+  d$sampleRep <- rev(unlist(strsplit(x, '/')))[3]
+  d
+}))
+
+if(nrow(atl) > 0){
+  atl <- tidyr::pivot_wider(atl, names_from = label, values_from = value)
+  
+  cols <- c("sampleRep", "PRD1", "PRD2", "PRD3", "PRD4", "PRD5", "ALR1", "ALR2", "ALR3", "ALR4", "ALR5", "BFR1", "BSF1")
+  cols <- cols[cols %in% names(atl)]
+  atl <- atl[, cols]
+  
+  saveRDS(atl, file = file.path(opt$outputDir, 'core', 'readAttrition.rds'), compress = opt$compressDataFiles)
+  readr::write_tsv(atl, file = file.path(opt$outputDir, 'core', 'readAttrition.tsv'))
+}
+
+
 # Bundle together site output files.
 f <- list.files(file.path(opt$outputDir, 'core'), pattern = 'sites.rds', recursive = TRUE, full.names = TRUE)
 
@@ -395,5 +429,6 @@ if(length(f) > 0){
 }
 
 updateLog('Core module completed.')
+updateMasterLog()
 
 q(save = 'no', status = 0, runLast = FALSE) 

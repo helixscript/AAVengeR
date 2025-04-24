@@ -62,18 +62,43 @@ sites <- bind_rows(lapply(split(sites, sites$vector), function(x){
 sites$uniqueSite <- paste0(sites$trial, '~', sites$subject, '~', sites$sample, '~', sites$posid)
 
 cluster <- makeCluster(opt$predictPCRartifacts_CPUs)
-clusterExport(cluster, c('opt', 'tmpFile'))
 
 sites$refGenome <- file.path(opt$softwareDir, 'data', 'referenceGenomes', 'blat', paste0(sites$refGenome, '.2bit'))
 sites$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', sites$vector)
 sites$vectorFastaFile <- gsub('^\\s*|\\s*$', '', sites$vectorFastaFile)
 
+
+safeAlignment <- function(pattern, subject) {
+  result <- Biostrings::pairwiseAlignment(pattern, subject, gapOpening = opt$predictPCRartifacts_gapOpeningPenalty, gapExtension = opt$predictPCRartifacts_gapExtensionPenalty)
+  
+  # Try closing only file-based or unnamed connections, not the worker sockets
+  openConns <- showConnections(all = TRUE)
+  extraConns <- as.integer(rownames(openConns))
+  
+  for (conn in extraConns) {
+    info <- try(summary(getConnection(conn)), silent = TRUE)
+    
+    if (
+      !inherits(info, "try-error") &&
+      isTRUE(info$description != "") &&
+      !grepl("sock|node|master|localhost", info$description, ignore.case = TRUE)
+    ) {
+      try(close(getConnection(conn)), silent = TRUE)
+    }
+  }
+  
+  result
+}
+
+clusterExport(cluster, c('opt', 'tmpFile', 'safeAlignment'))
+
+
 sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
   
        x$n <- ntile(1:nrow(x), opt$predictPCRartifacts_CPUs)
        
-       r <- bind_rows(parLapply(cluster, split(x, x$n), function(a){
-       ### r <- bind_rows(lapply(split(x, x$n), function(a){
+       ### r <- bind_rows(parLapply(cluster, split(x, x$n), function(a){
+       r <- bind_rows(lapply(split(x, x$n), function(a){
               library(dplyr)
               library(Biostrings)
               library(rtracklayer)
@@ -122,7 +147,11 @@ sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
                 }
                 
                 f <- tmpFile()
+                
                 aln <- Biostrings::pairwiseAlignment(r$leaderSeqSeg, r$seq, gapOpening = opt$predictPCRartifacts_gapOpeningPenalty, gapExtension = opt$predictPCRartifacts_gapExtensionPenalty)
+                ### aln <- safeAlignment(r$leaderSeqSeg, r$seq)
+                
+                
                 writePairwiseAlignments(aln, f)
                 aln <- readLines(f)
                 invisible(file.remove(f))

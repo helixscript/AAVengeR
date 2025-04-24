@@ -35,6 +35,7 @@ quitOnErorr <- function(msg){
   if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
   updateLog(msg)
   updateLog(paste0('See log for more details: ', opt$defaultLogFile))
+  updateMasterLog()
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
@@ -89,7 +90,6 @@ updateLog('Building initial fragments.')
 # Convert from tibble to data.table for increased subsetting efficiency. 
 anchorReadAlignments <- data.table(anchorReadAlignments)
 adriftReadAlignments <- data.table(adriftReadAlignments)
-
 
 
 # Identify read pairs where both mates have many alignments that may cause the system 
@@ -241,6 +241,15 @@ frags <- bind_rows(lapply(o, function(z){
 # Odd blat calls can lead to duplicate alignment entries, the blat parser is likely leaving out additional information about the alignments.
 frags <- distinct(frags)
 
+
+if(file.exists(file.path(opt$outputDir, opt$buildFragments_outputDir, 'attritionLog.tsv'))){
+  attritionLog <- readr::read_tsv(file.path(opt$outputDir, opt$buildFragments_outputDir, 'attritionLog.tsv'), show_col_types = FALSE)
+} else {
+  attritionLog <- tibble()
+}
+readr::write_tsv(bind_rows(attritionLog, tibble(label = 'BFR1', value = n_distinct(frags$readID))),
+                 file.path(opt$outputDir, opt$buildFragments_outputDir, 'attritionLog.tsv'))
+
 if(nrow(frags) == 0) quitOnErorr('Error - no fragments were identified.')
 
 updateLog('Fragment generation complete.')
@@ -252,6 +261,8 @@ frags <- left_join(frags, select(r, readID, nDuplicateReads), by = 'readID')
 
 invisible(rm(o, r, id_groups))
 invisible(gc())
+
+updateLog(paste0(ppNum(n_distinct(frags$readID)), ' reads used to build ', ppNum(nrow(distinct(frags))), ' fragment records.'))
 
 frags <- dplyr::rename(frags, leaderSeq = leaderSeq.anchorReads, randomLinkerSeq = randomLinkerSeq.adriftReads, refGenome = refGenome.anchorReads, 
                               vectorFastaFile = vectorFastaFile.anchorReads, flags = flags.anchorReads)
@@ -283,14 +294,17 @@ if(opt$database_configGroup != 'none'){
     dir.create(file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'version'), showWarnings = FALSE)
     invisible(file.copy(list.files(file.path(opt$softwareDir, 'version'), full.names = TRUE), file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'version'), recursive = TRUE))
     invisible(file.copy(opt$configFile, file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'userConfigFile.yml')))
+
     if('demultiplex_sampleDataFile' %in% names(opt)){
       tab <- readr::read_tsv(opt$demultiplex_sampleDataFile, show_col_types = FALSE)
       readr::write_tsv(subset(tab, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & replicate == x$replicate[1]), 
                        file.path(opt$outputDir, opt$buildFragments_outputDir, f, 'userSampleDataFile.tsv'))
     }
     
-    system(paste('tar cf', file.path(opt$outputDir, opt$buildFragments_outputDir, paste0(f, '.tar')), 
-                 file.path(opt$outputDir, opt$buildFragments_outputDir, f), '2>/dev/null'))
+    system(paste('tar -C', file.path(opt$outputDir, opt$buildFragments_outputDir),
+                 '-cf', file.path(opt$outputDir, opt$buildFragments_outputDir, paste0(f, '.tar')), 
+                 f, '2>/dev/null'))
+    
     system(paste0('xz --best ', file.path(opt$outputDir, opt$buildFragments_outputDir, paste0(f, '.tar'))))
     
     fp <- file.path(opt$outputDir, opt$buildFragments_outputDir, paste0(f, '.tar.xz'))
@@ -333,5 +347,6 @@ if(opt$database_configGroup != 'none'){
 }
 
 updateLog('buildFragments completed.')
+updateMasterLog()
 
 q(save = 'no', status = 0, runLast = FALSE) 

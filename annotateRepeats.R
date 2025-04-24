@@ -35,6 +35,7 @@ quitOnErorr <- function(msg){
 }
 
 updateLog('Starting annotateRepeats.')
+updateMasterLog()
 
 if(! file.exists(file.path(opt$outputDir, opt$annotateRepeats_inputFile))){
   updateLog('Error - input file does not exist.')
@@ -62,6 +63,8 @@ invisible(lapply(unique(sites$refGenome), function(x){
 
 sites <- bind_rows(lapply(unique(sites$refGenome), function(x){
   updateLog(paste0('Loading annotation table: ', file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x, '.repeatTable.gz'))))
+  updateMasterLog()
+  
   r <- readr::read_tsv(file.path(opt$softwareDir, 'data', 'genomeAnnotations', paste0(x, '.repeatTable.gz')), show_col_types = FALSE)
   
   r$strand <- sub('C', '-', r$strand)
@@ -117,6 +120,7 @@ readr::write_tsv(sites, file.path(opt$outputDir, opt$annotateRepeats_outputDir, 
 
 if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))){
   updateLog(paste0('Updating multi-hit clusters found at: ', file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds')))
+  updateMasterLog()
   
   o <- readRDS(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'))
   
@@ -178,5 +182,6 @@ if(file.exists(file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiH
 }
 
 updateLog('annotateRepeats completed.')
+updateMasterLog()
 
 q(save = 'no', status = 0, runLast = FALSE) 

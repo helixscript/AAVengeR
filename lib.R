@@ -5,6 +5,163 @@ updateLog <- function(msg, logFile = NULL){
 }
 
 
+updateMasterLog <- function(){
+  # Create a local copy of opt if needed.
+  if('orgOutputDir' %in% names(opt)) opt$outputDir <- opt$orgOutputDir
+  
+  lockFile <- file.path(opt$outputDir, 'log.lock')
+  if(file.exists(lockFile)) return()
+ 
+  write(date(), lockFile)
+  
+  f <- file.path(opt$outputDir, 'log')
+  
+  # Create log skeleton.
+  logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
+  o <- lapply(opt$modules, function(x) return('none\n'))
+  names(o) <- opt$modules
+  
+  # Create core module subsections.
+  if('core' %in% names(o)){
+    o$core <- c("<core>", "{core demultiplex}", "none\n", "{core replicate job table}", "none\n", 
+                "{core subject job table}", "none\n")
+    
+    d <- readr::read_tsv(opt$demultiplex_sampleDataFile, show_col_types = FALSE)
+    
+    r <- unique(paste0('{core replicate ', d$trial, '~', d$subject, '~', d$sample, '~', d$replicate, '}'))
+    r <- as.vector(rbind(r, 'none\n'))
+    
+    s <- unique(paste0('{core subject ', d$trial, '~', d$subject, '}'))
+    s <- as.vector(rbind(s, 'none\n'))
+    
+    o$core <- c(o$core, r, s)
+    
+    z <- split(o$core, cumsum(grepl('^\\{', o$core)))
+    names(z) <- unlist(lapply(z, function(x) gsub('\\{|\\}', '', x[1])))
+    z <- lapply(z, function(x) x[-1])
+    o$core <- z
+  }
+  
+  if(file.exists(file.path(opt$outputDir, 'core', 'replicateJobTable'))){
+    o$core$`core replicate job table` <-  readLines(file.path(opt$outputDir, 'core', 'replicateJobTable'))
+  }
+  
+  if(file.exists(file.path(opt$outputDir, 'core', 'subjectJobTable'))){
+    o$core$`core subject job table` <-  readLines(file.path(opt$outputDir, 'core', 'subjectJobTable'))
+  }
+  
+  # Clear out the master log file and rebuild it.
+  write(logo, f, append = FALSE)
+  write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), f, append = TRUE)
+  
+  # Cycle through the sections in skeleton. Take care to handle core subsections. 
+  invisible(mapply(function(section, x){
+    write(c('\n', logBanner(section, 100)), f, append = TRUE)
+    
+    x <- x[-1]
+    
+    if(section == 'core' & is.list(x)){
+      coreLogFiles <- list.files(file.path(opt$outputDir, 'core'), recursive = TRUE, pattern = '^log$', full.names = TRUE)
+      invisible(lapply(names(x), function(xx){
+        
+        if(grepl('demultiplex', xx)){
+          if(length(coreLogFiles[grepl('demultiplex', coreLogFiles)]) == 1){
+            if(unlist(x[xx])[1] == 'none\n') x[xx] <<- ''
+            x$`core demultiplex` <<- readLines(coreLogFiles[grepl('demultiplex', coreLogFiles)])[-(1:11)]
+          }
+        }
+        
+        if(grepl('core replicate', xx)){
+          logs <- coreLogFiles[grepl(paste0(stringr::str_extract(xx, '\\S+$'), '/'), coreLogFiles)]
+          
+          if(length(logs) > 0){
+            if(unlist(x[xx])[1] == 'none\n') x[xx] <<- ''
+            if(length(logs[grepl('prepReads', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# prepReads', paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('prepReads', logs)])[-(1:11)]))
+            if(length(logs[grepl('alignReads', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# alignReads',  paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('alignReads', logs)])[-(1:11)]))
+            if(length(logs[grepl('buildFragments', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# buildFragments',  paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('buildFragments', logs)])[-(1:11)]))
+            
+            attritionLogs <- list.files(opt$outputDir, pattern = 'attritionLog.tsv', full.names = TRUE, recursive = TRUE)
+            attritionLogs <- attritionLogs[grepl(paste0(stringr::str_extract(xx, '\\S+$'), '/'), attritionLogs)]
+            
+            if(length(attritionLogs) > 0){
+              attrition <- bind_rows(lapply(attritionLogs, readr::read_tsv, show_col_types = FALSE))
+              levs <- c("PRD1", "PRD2", "PRD3", "PRD4", "PRD5", "ALR1", "ALR2", "ALR3", "ALR4", "ALR5", "BFR1", "BSF1")
+              attrition$label <- factor(attrition$label, levels = levs)
+              attrition <- attrition[order(attrition$label),]
+              totalReads <- ppNum(attrition[1,]$value)
+              attrition$value <- attrition$value / attrition[1,]$value
+              title <- paste0('Read attrition of ', totalReads, ' demultiplexed reads.')
+              x[xx] <<- list(c(unlist(x[xx]), '\n# readAttrition',  paste0(c('#', rep('-', 99)), collapse = ''), title, asciiPercentBarChart(attrition)))
+            }
+          }
+        }
+        
+        if(grepl('core subject', xx)){
+          logs <- coreLogFiles[grepl(paste0(stringr::str_extract(xx, '\\S+$'), '/'), coreLogFiles)]
+          
+          if(length(logs) > 0){
+            if(unlist(x[xx])[1] == 'none\n') x[xx] <<- ''
+            if(length(logs[grepl('buildStdFragments', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# buildStdFragments',  paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('buildStdFragments', logs)])[-(1:11)]))
+            if(length(logs[grepl('buildSites', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# buildSites',  paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('buildSites', logs)])[-(1:11)]))
+          }
+        }
+      }))
+      
+      invisible(mapply(function(section2, x2){
+        write(c('\n', logBanner(section2, 100, corner = '+', vert = '|', horiz = '-'),  x2), f, append = TRUE)
+      }, names(x), x))
+      
+    } else {
+      # Non-core section.
+      logFile <- list.files(opt$outputDir, recursive = TRUE, pattern = 'log', full.names = TRUE)
+      logFile <- logFile[grepl(section, logFile)]
+      
+      if(length(logFile) == 1){
+        x2 <- readLines(logFile)[-(1:11)]
+      } else {
+        x2 <- 'none'
+      }
+      
+      write(c('\n', x2), f, append = TRUE)
+    }
+    
+  }, names(o), o, SIMPLIFY = FALSE))
+  
+  invisible(file.remove(lockFile))
+}
+
+
+logBanner <- function(text, width = NULL, corner = "#", horiz = "#", vert = "#") {
+  if (is.null(width)) width <- nchar(text) + 10
+  if (nchar(text) > (width - 2))  stop("Text is too long to fit in the specified width.")
+  
+  padding_total <- width - 2 - nchar(text)
+  left_padding <- floor(padding_total / 2)
+  right_padding <- ceiling(padding_total / 2)
+  
+  top_bottom <- paste0(corner, paste(rep(horiz, width - 2), collapse = ""), corner)
+  middle <- paste0(vert, paste(rep(" ", left_padding), collapse = ""), text, paste(rep(" ", right_padding), collapse = ""), vert)
+  
+  return(c(top_bottom, middle, top_bottom))
+}
+
+
+asciiPercentBarChart <- function(df, max_width = 50, label_width = 5, bar_char = "#") {
+  if (! all(c("label", "value") %in% names(df))) stop("Data frame must have columns named 'label' and 'value'.")
+  
+  r <- vector()
+  for (i in seq_len(nrow(df))) {
+    label <- format(df$label[i], width = label_width, justify = "left")
+    percent_val <- round(df$value[i] * 100, 1)
+    bar_len <- round(df$value[i] * max_width)
+    bar <- paste(rep(bar_char, bar_len), collapse = "")
+    r <- append(r, paste0(label, "|", bar, " ", percent_val, "%"))
+  }
+  
+  r
+}
+
+
 startModule <- function(args){
   set.seed(1)
   configFile <- args[1]
@@ -22,6 +179,7 @@ startModule <- function(args){
   }
   
   opt$configFile <- configFile
+  if(! 'orgOutputDir' %in% names(opt)) opt$orgOutputDir <- opt$outputDir
   
   optionsSanityCheck(opt)
 }
@@ -188,6 +346,7 @@ lowMemoryException <- function(stepDesc = 'none', maxMem = 98){
   if(percentSysMemUsed() > maxMem){
     msg <- paste0('Error - the system has exceeded ', maxMem, '% memory usage -- stopping all processes. Step desc: ', stepDesc)
     updateLog(msg, logFile = file.path(opt$outputDir, 'Error.log'))
+    updateMasterLog()
     q(save = 'no', status = 1, runLast = FALSE) 
   }
 }
@@ -205,6 +364,7 @@ waitForMemory <- function(stepDesc = 'none', minMem = 80, maxWaitSecs = 1200, sl
                     ' seconds for at least ', 100 - minMem, '% of the system memory to be free.',
                     ' Stopping all processes. Step desc: ', stepDesc)
       updateLog(msg, logFile = file.path(opt$outputDir, 'Error.log'))
+      updateMasterLog()
       q(save = 'no', status = 1, runLast = FALSE) 
     }
     
@@ -273,6 +433,7 @@ checkSoftware <- function(){
   
        if(any(is.na(o$path))){
          write(c(paste('Error - one or more of the expected softwares are not in your search path.')), file = file.path(opt$outputDir, 'log'), append = TRUE)
+         updateMasterLog()
          q(save = 'no', status = 1, runLast = FALSE) 
        } 
 }
@@ -489,6 +650,17 @@ alignReadEndsToVector <- function(y){
 }
 
 
+reconstructSampleEnvironment <- function(dbConn, trial, subject, sample, replicate, refGenome, outputDir){
+  o <- dbGetQuery(dbConn, paste0("select * from samples where trial = '", trial, "' and subject = '", subject, 
+                                 "' and sample = '", sample, "' and replicate = '", replicate, "'"))
+  if(nrow(o) == 1){
+    writeBin(unserialize(o$environment[[1]]), file.path(outputDir, 'environment.tar.xz'))
+  } else {
+    message('Error - ', nrow(o), ' rows of data were returned when retrieving data for reconstructSampleEnvironment().')
+  }
+}
+
+
 reconstructDBtable <- function(o, tmpDirPath){
   r <- tibble()
   
@@ -581,19 +753,20 @@ uploadSitesToDB <- function(sites){
 }
 
 
-
 loadSamples <- function(){
   
   samples <- readr::read_tsv(opt$demultiplex_sampleDataFile, show_col_types = FALSE, comment = "#")
   
   if(nrow(samples) == 0){
     updateLog('Error - no lines of information was read from the sample configuration file.')
+    updateMasterLog()
     q(save = 'no', status = 1, runLast = FALSE) 
   }
   
   if('refGenome' %in% names(samples)){
     if(! all(sapply(unique(file.path(opt$softwareDir, 'data', 'referenceGenomes', 'blat', paste0(samples$refGenome, '.2bit'))), file.exists))){
       updateLog("Error - one or more blat database files could not be found in AAVengeR's data/referenceGenomes directory.")
+      updateMasterLog()
       q(save = 'no', status = 1, runLast = FALSE) 
     }
   } else {
@@ -603,6 +776,7 @@ loadSamples <- function(){
   if('vectorFastaFile' %in% names(samples)){
     if(! all(sapply(unique(file.path(opt$softwareDir, 'data', 'vectors', samples$vectorFastaFile)), file.exists))){
       updateLog("Error - one or more vector FASTA files could not be found in AAVengeR's data/vectors directory.")
+      updateMasterLog()
       q(save = 'no', status = 1, runLast = FALSE) 
     }
   } else {
@@ -614,10 +788,23 @@ loadSamples <- function(){
     
     if(! all(sapply(unique(samples$leaderSeqHMM), file.exists))){
       updateLog("Error - one or more leader sequence HMM files could not be found in AAVengeR's data/hmms directory.")
+      updateMasterLog()
       q(save = 'no', status = 1, runLast = FALSE) 
     }
   }
-
+  
+  if(! 'leaderSeqHMM' %in% names(samples) & opt$mode == 'integrase'){
+      updateLog("Error - a leaderSeqHMM column is required when running in integrase mode.")
+      updateMasterLog()
+      q(save = 'no', status = 1, runLast = FALSE) 
+  }
+  
+  if(! 'anchorReadStartSeq' %in% names(samples) & opt$mode == 'AAV'){
+    updateLog("Error - a anchorReadStartSeq column is required when running in AAV mode.")
+    updateMasterLog()
+    q(save = 'no', status = 1, runLast = FALSE) 
+  }
+  
   # Create missing columns and set to NA.
   if(! 'adriftRead.linkerBarcode.start' %in% names(samples)){
     samples$adriftRead.linkerBarcode.start <- NA
@@ -663,18 +850,21 @@ loadSamples <- function(){
   
   if(any(grepl('\\s|~|\\||\\.', paste0(samples$trial, samples$subject, samples$sample, samples$replicate)))){
     updateLog("Error -- spaces, tildas (~), pipes (|), and dots (.) are reserved characters and can not be used in the trial, subject, sample, or replicate sample configuration columns.")
+    updateMasterLog()
     q(save = 'no', status = 1, runLast = FALSE)
   }
   
   if(opt$demultiplex_useAdriftReadUniqueLinkers){
     if(any(is.na(samples$adriftRead.linkerBarcode.start)) | any(is.na(samples$adriftRead.linkerBarcode.end))){
       updateLog('Error - adriftRead.linkerBarcode.start or adriftRead.linkerBarcode.end is set to NA when requesting demultiplex_useAdriftReadUniqueLinkers')
+      updateMasterLog()
       q(save = 'no', status = 1, runLast = FALSE)
     }
   }
   
   if(any(is.na(samples$adriftRead.linkerRandomID.start)) | any(is.na(samples$adriftRead.linkerRandomID.end))){
       updateLog('Error - adriftRead.linkerRandomID.start or adriftRead.linkerRandomID.end is set to NA.')
+      updateMasterLog()
       q(save = 'no', status = 1, runLast = FALSE)
   }
   
@@ -682,6 +872,7 @@ loadSamples <- function(){
   
   if(any(duplicated(samples$uniqueSample))){
     updateLog('Error -- There are one ore more duplications of trial~subject~sample~replicate ids in the sample data file.')
+    updateMasterLog()
     q(save = 'no', status = 1, runLast = FALSE)
   }
   
@@ -711,6 +902,7 @@ golayCorrection <- function(x, tmpDirPath = NA){
   
   if(! all(names(x) == a$id)){
     updateLog('Error - There was an ordering error during the Golay correction step.')
+    updateMasterLog()
     q(save = 'no', status = 1, runLast = FALSE) 
   }
   

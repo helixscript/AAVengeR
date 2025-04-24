@@ -22,7 +22,6 @@ if(length(args) == 0) stop('Expected at least one command line argument')
 source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
 opt <- startModule(args)
 
-
 createOuputDir()
 if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir))) dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir), showWarnings = FALSE)
 if(! dir.exists(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp')))  dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), showWarnings = FALSE)
@@ -46,6 +45,8 @@ if(! file.exists(opt$demultiplex_sampleDataFile)) quitOnErorr('Error - the sampl
 
 # Read in sample data.
 updateLog('Loading sample data.')
+updateMasterLog()
+
 samples <- loadSamples()
 
 # Throw errors if expected files are missing.
@@ -60,6 +61,7 @@ I1 <- ShortRead::readFastq(opt$demultiplex_index1ReadsFile)
 dataSetLength <- length(I1)
 
 updateLog(paste0(ppNum(dataSetLength), ' reads in paired end data set.'))
+updateMasterLog()
 
 if(opt$demultiplex_RC_I1_barcodes_auto){
   updateLog('Determining if I1 barcodes should be switched to RC.')
@@ -104,6 +106,7 @@ processedReads <- 0
 options(scipen = 999)
 
 updateLog('Starting demultipling.')
+updateMasterLog()
 
 # The number of incoming reads can not not be perfectly divisible by opt$demultiplex_sequenceChunkSize
 if(dataSetLength %% opt$demultiplex_sequenceChunkSize == 0) opt$demultiplex_sequenceChunkSize <- opt$demultiplex_sequenceChunkSize + 1
@@ -111,6 +114,7 @@ if(dataSetLength %% opt$demultiplex_sequenceChunkSize == 0) opt$demultiplex_sequ
 repeat {
   
   updateLog(paste0('   processing data chunk ', k, '.'))
+  updateMasterLog()
   
   index1.fq <- yield(index1.strm)
   if(length(index1.fq) == 0) break
@@ -130,6 +134,7 @@ repeat {
   if(n == opt$demultiplex_CPUs | length(index1.fq) < opt$demultiplex_sequenceChunkSize){
    
     updateLog('   Batch read limit reached, calling demultiplex().')
+    updateMasterLog()
     
     o <- data.table(file = list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), pattern = 'fastqChunk'))
     o$n <- unlist(lapply(stringr::str_split(o$file, '\\.'), '[', 2))
@@ -137,6 +142,7 @@ repeat {
     invisible(parLapply(cluster, split(o, o$n), demultiplex))
     
     updateLog(paste0('   ', 'processed ', sprintf("%.2f%%", (processedReads / dataSetLength)*100), ' of all reads.'))
+    updateMasterLog()
     
     n <- 0
   }
@@ -150,6 +156,7 @@ updateLog('Completed processing read batches.')
 # Collate demultiplexed chunks into a single data table.
 
 updateLog('Colating data files.')
+updateMasterLog()
 
 reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
 
@@ -159,6 +166,7 @@ reads <-  rbindlist(lapply(unique(samples$uniqueSample), function(x){
   if(length(f1) == 0 | length(f2) == 0 | length(f1) != length(f2)) return()
 
   updateLog(paste0('Colating reads for ', x, '.'))
+  updateMasterLog()
   
   anchorReads <- Reduce('append', lapply(f1, readDNAStringSet))
   adriftReads <- Reduce('append', lapply(f2, readDNAStringSet))
@@ -206,6 +214,7 @@ logReport <- bind_rows(lapply(split(logReport, logReport$sample), function(x){
 
 
 updateLog('Writing attrition table.')
+updateMasterLog()
 
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'), recursive = TRUE))
 write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))
@@ -318,6 +327,7 @@ if(opt$demultiplex_quickAlignFilter){
   readsLengthPreFilter <- n_distinct(reads$readID)
   
   updateLog(paste0('Prefiltering ', ppNum(readsLengthPreFilter), ' reads with bwa2.'))
+  updateMasterLog()
   
   reads <- rbindlist(lapply(split(reads, reads$refGenome), function(x){
     
@@ -336,11 +346,15 @@ if(opt$demultiplex_quickAlignFilter){
     writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'))
     
     updateLog('Starting BWA2.')
+    updateMasterLog()
+    
     system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.fasta'), ' > ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam')))
     
     updateLog('BWA2 complete. Starting sam2psl.')
+    updateMasterLog()
+    
     # Will work on empty file.
     system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', 
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.sam'), ' -o ',
@@ -353,6 +367,8 @@ if(opt$demultiplex_quickAlignFilter){
     readr::write_tsv(p, file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'), col_names = FALSE)
     
     updateLog('Parsing psl table.')
+    updateMasterLog()
+    
     a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'adriftReads.psl'))
     
     if(nrow(a) > 0){
@@ -377,18 +393,22 @@ if(opt$demultiplex_quickAlignFilter){
     writeXStringSet(o, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'))
     
     updateLog('Starting BWA2.')
+    updateMasterLog()
     
     system(paste0('bwa-mem2 mem -t ', opt$demultiplex_CPUs, ' -a ', file.path(opt$softwareDir, 'data', 'referenceGenomes', 'bwa2', x$refGenome[1]), ' ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.fasta'), ' > ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam')))
     
     updateLog('BWA2 complete. Starting sam2psl.')
+    updateMasterLog()
     
     system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ', 
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.sam'), ' -o ',
                   file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
     
     updateLog('Reading psl table.')
+    updateMasterLog()
+    
     p <- readr::read_tsv(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'), show_col_types = FALSE, col_names = FALSE)
     invisible(file.remove(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl')))
     
@@ -399,6 +419,8 @@ if(opt$demultiplex_quickAlignFilter){
     readr::write_tsv(p, file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'), col_names = FALSE)
     
     updateLog('Parsing psl table.')
+    updateMasterLog()
+    
     a <- parseBLAToutput(file.path(opt$outputDir, opt$demultiplex_outputDir, 'anchorReads.psl'))
     
     updateLog('Filtering psl table.')
@@ -447,6 +469,7 @@ if(opt$demultiplex_quickAlignFilter){
 if(opt$demultiplex_exportFASTQ){
   
   updateLog('Exporting FASTQ.')
+  updateMasterLog()
   
   dir.create(file.path(opt$outputDir, opt$demultiplex_outputDir, 'fastq'))
   
@@ -476,6 +499,7 @@ if(opt$demultiplex_requirePostUmiLinker){
   # Common Bushman linker: CTCCGCTTAAGGGACT
   
   updateLog('Applying post UMI filter because demultiplex_requirePostUmiLinker is set to TRUE.')
+  updateMasterLog()
   
   reads <- rbindlist(lapply(split(reads, reads$uniqueSample), function(x){
     d <- subset(samples, uniqueSample == x$uniqueSample[1])
@@ -515,5 +539,6 @@ saveRDS(reads, file =  file.path(opt$outputDir, opt$demultiplex_outputDir, 'read
 invisible(file.remove(list.files(file.path(opt$outputDir, opt$demultiplex_outputDir, 'tmp'), full.names = TRUE)))
 
 updateLog('Demultiplex completed.')
+updateMasterLog()
 
 q(save = 'no', status = 0, runLast = FALSE) 

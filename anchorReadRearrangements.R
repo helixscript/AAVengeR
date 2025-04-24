@@ -45,6 +45,7 @@ windowsTypes <- unlist(strsplit(opt$anchorReadRearrangements_windowsTypes, '\\s*
 
 updateLog('Reading sample data.')
 
+
 # Read in the reads table.
 updateLog('Reading in demultiplexed reads.')
 if(! file.exists(file.path(opt$outputDir, opt$anchorReadRearrangements_inputFile))) quitOnErorr('Error - the input data file does not exist.')
@@ -64,14 +65,17 @@ if(! all(sapply(unique(reads$vectorFastaFile), function(x) file.exists(file.path
 # A merged read result, m, will be created. Raw sequences are needed to recover the quality scores used by PEAR.
 
 updateLog('Reading in raw adrift sequences.')
+
 R1 <- readFastq(opt$demultiplex_adriftReadsFile); R1@id <- BStringSet(sub('\\s+.+$', '', as.character(R1@id)))
 R1 <- R1[R1@id %in% reads$readID]
 
 updateLog('Reading in raw anchor read sequences.')
+
 R2 <- readFastq(opt$demultiplex_anchorReadsFile); R2@id <- BStringSet(sub('\\s+.+$', '', as.character(R2@id)))
 R2 <- R2[R2@id %in% reads$readID]
 
 updateLog('Trimming anchor read over-reading.')
+
 o <- left_join(tibble(readID = as.character(R1@id)), select(reads, readID, adriftReadTrimSeq, adriftLinkerSeqEnd), by = 'readID')
 
 
@@ -107,6 +111,7 @@ R2 <- R2[width(R2) >= opt$anchorReadRearrangements_minAnchorReadLength]
 
 # Sync reads.
 updateLog('Syncing anchor and adrift reads post trimming.')
+
 i  <- base::intersect(as.character(R1@id), as.character(R2@id))
 R1 <- R1[as.character(R1@id) %in% i]
 R2 <- R2[as.character(R2@id) %in% i]
@@ -121,6 +126,7 @@ gc()
 
 # Merge overlapping reads.
 updateLog('Merging overlapped reads.')
+
 system(paste0('pear  -q 10 -t 100 ', 
               ' -f ', file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', 'adriftReadSeqs.fastq'), 
               ' -r ', file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', 'anchorReadSeqs.fastq'), 
@@ -131,6 +137,7 @@ system(paste0('pear  -q 10 -t 100 ',
               ' -j ', opt$anchorReadRearrangements_CPUs))
 
 updateLog('Reading and updating merged reads.')
+
 m <- readFastq(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', 'merged.assembled.fastq'))
 m@id <- BStringSet(sub('\\s+.+$', '', as.character(m@id)))
 
@@ -140,6 +147,7 @@ invisible(file.remove(c(file.path(opt$outputDir, opt$anchorReadRearrangements_ou
                         file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', 'adriftReadSeqs.fastq'))))
 
 updateLog('Processing sample replicates.')
+
 reads <- bind_rows(lapply(split(reads, reads$uniqueSample), function(x){
            updateLog(paste0('Processing ', x$uniqueSample[1], '.'))
            updateLog(paste0('  ', ppNum(n_distinct(x$readID)), ' demultiplexed reads.'))

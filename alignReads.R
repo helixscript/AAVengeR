@@ -38,6 +38,7 @@ quitOnErorr <- function(msg){
   if(opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
   updateLog(msg)
   updateLog(paste0('See log for more details: ', opt$defaultLogFile))
+  updateMasterLog()
   q(save = 'no', status = 1, runLast = FALSE) 
 }
 
@@ -126,6 +127,17 @@ anchorReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   b
 }))
 
+updateLog(paste0(ppNum(n_distinct(anchorReadAlignments$readID)), ' anchor reads aligned to the reference genome.'))
+
+if(file.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'))){
+  attritionLog <- readr::read_tsv(file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'), show_col_types = FALSE)
+} else {
+  attritionLog <- tibble()
+}
+readr::write_tsv(bind_rows(attritionLog, tibble(label = 'ALR1', value = n_distinct(reads$readID))),
+                 file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'))
+
+
 if(nrow(anchorReadAlignments) == 0) quitOnErorr('Error - no anchor reads aligned to the reference genomes.')
 
 updateLog(paste0(sprintf("%.2f%%", (n_distinct(anchorReadAlignments$readID)/n_distinct(reads$readID))*100), 
@@ -139,6 +151,8 @@ if(sum(i) == 0) quitOnErorr('Error - no anchor read alignments remain after alig
 alignedReadIDsBeforeFilter <- n_distinct(anchorReadAlignments$readID)
 anchorReadAlignments <- anchorReadAlignments[i,]
 
+updateLog(paste0(ppNum(n_distinct(anchorReadAlignments$readID)), ' anchor reads retained after alignment length filter.'))
+
 updateLog(paste0(sprintf("%.2f%%", (1 - n_distinct(anchorReadAlignments$readID) / alignedReadIDsBeforeFilter)*100), 
                  ' of anchor reads removed because their alignments ended more than ',
                  opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned,
@@ -146,6 +160,15 @@ updateLog(paste0(sprintf("%.2f%%", (1 - n_distinct(anchorReadAlignments$readID) 
 
 # Subset reads to those with good anchor read alignments.
 reads <- subset(reads, readID %in% anchorReadAlignments$readID)
+
+if(file.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'))){
+  attritionLog <- readr::read_tsv(file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'), show_col_types = FALSE)
+} else {
+  attritionLog <- tibble()
+}
+readr::write_tsv(bind_rows(attritionLog, tibble(label = 'ALR2', value = n_distinct(reads$readID))),
+                 file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'))
+
 
 
 # Align adrift reads.
@@ -174,6 +197,16 @@ adriftReadAlignments <- rbindlist(lapply(split(reads, reads$refGenome), function
   b
 }))
 
+updateLog(paste0(ppNum(n_distinct(adriftReadAlignments$readID)), ' adrift reads aligned to the reference genome.'))
+
+if(file.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'))){
+  attritionLog <- readr::read_tsv(file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'), show_col_types = FALSE)
+} else {
+  attritionLog <- tibble()
+}
+readr::write_tsv(bind_rows(attritionLog, tibble(label = 'ALR3', value = n_distinct(adriftReadAlignments$readID))),
+                 file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'))
+
 if(nrow(adriftReadAlignments) == 0) quitOnErorr('Error - no adrift reads aligned to the reference genomes.')
 
 updateLog(paste0(sprintf("%.2f%%", (n_distinct(adriftReadAlignments$readID)/n_distinct(reads$readID))*100), 
@@ -184,9 +217,19 @@ i <- (adriftReadAlignments$qSize - adriftReadAlignments$qEnd) <= opt$alignReads_
 
 if(sum(i) == 0) quitOnErorr('Error - no adrift read alignments remain after alignReads_genomeAlignment_adriftReadEnd_maxUnaligned filter.')
 
-
 alignedReadIDsBeforeFilter <- n_distinct(adriftReadAlignments$readID)
 adriftReadAlignments <- adriftReadAlignments[i,]
+
+updateLog(paste0(ppNum(n_distinct(adriftReadAlignments$readID)), ' adrift reads retained after alignment length filter.'))
+
+if(file.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'))){
+  attritionLog <- readr::read_tsv(file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'), show_col_types = FALSE)
+} else {
+  attritionLog <- tibble()
+}
+readr::write_tsv(bind_rows(attritionLog, tibble(label = 'ALR4', value = n_distinct(adriftReadAlignments$readID))),
+                 file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'))
+
 
 updateLog(paste0(sprintf("%.2f%%", (1 - n_distinct(adriftReadAlignments$readID) / alignedReadIDsBeforeFilter)*100), 
                ' of adrift reads removed because their alignments ended more than ',
@@ -215,6 +258,15 @@ if(length(i) == 0) quitOnErorr('Error -- no alignments remaing after filtering f
 anchorReadAlignments <- anchorReadAlignments[anchorReadAlignments$readID %in% i,]
 adriftReadAlignments <- adriftReadAlignments[adriftReadAlignments$readID %in% i,]
 
+updateLog(paste0(ppNum(n_distinct(adriftReadAlignments$readID)), ' reads retained (both anchor and adrift reads aligned).'))
+
+if(file.exists(file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'))){
+  attritionLog <- readr::read_tsv(file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'), show_col_types = FALSE)
+} else {
+  attritionLog <- tibble()
+}
+readr::write_tsv(bind_rows(attritionLog, tibble(label = 'ALR5', value = n_distinct(adriftReadAlignments$readID))),
+                 file.path(opt$outputDir, opt$alignReads_outputDir, 'attritionLog.tsv'))
 
 # Add refGenome, vector, and flags.
 anchorReadAlignments <- left_join(anchorReadAlignments, distinct(select(reads, readID, vectorFastaFile, flags)), by = 'readID')
@@ -236,6 +288,7 @@ if(! opt$core_keepIntermediateFiles) unlink(file.path(opt$outputDir, opt$alignRe
 if(! opt$core_keepIntermediateFiles) unlink(file.path(opt$outputDir, opt$alignReads_outputDir, 'blat2'), recursive = TRUE)
 
 updateLog('alignReads completed.')
+updateMasterLog()
 
 if(any(! incomingSamples %in% anchorReadAlignments$uniqueSample) & opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
 

@@ -143,6 +143,28 @@ opt <- startModule(args)
 if(! opt$calledFromCore) invisible(sapply(readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt')), message))
 
 
+# Test database connection if databasing is turned on.
+if('database_configGroup' %in% names(opt)){
+  if(opt$database_configGroup != 'none'){
+    suppressPackageStartupMessages(library(RMariaDB))
+
+    if(! file.exists(opt$database_configFile)){
+      stop('Error - database_configGroup is not set to none (databasing turned on) and database_configFile does not point to a file.')
+    }
+    
+    dbConn <- tryCatch({
+      dbConnect(RMariaDB::MariaDB(), group = opt$database_configGroup, default.file = opt$database_configFile)
+    },
+    error=function(cond) {
+      stop(paste0('Error - databasing was requested but AAVengeR could not connect to the database defined in the ', 
+                  opt$database_configGroup, ' block of ', opt$database_configFile, '.'))
+    })
+
+    dbDisconnect(dbConn)
+  }
+}
+
+
 # Create main output folder and make a copy of the source code and configurations.
 createOuputDir()
 
@@ -160,32 +182,21 @@ if(! opt$calledFromCore){
   invisible(file.copy(list.files(file.path(opt$softwareDir, 'version'), full.names = TRUE), file.path(opt$outputDir, 'src', 'version'), recursive = TRUE))
 }
 
-
 # Start log.
-opt$defaultLogFile <- file.path(opt$outputDir, 'log')
-logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
-write(logo, opt$defaultLogFile, append = FALSE)
-write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), opt$defaultLogFile, append = TRUE)
-
-updateLog("Starting AAVengeR's module chain.")
-updateLog("Each module will create its own output folder in the main output folder.")
-updateLog("The log files for each module are stored within their output folders.")
+updateMasterLog()
 
 # Execute each module defined in opt$modules.
 invisible(lapply(opt$modules, function(m){
   m <- unlist(strsplit(m, '\\s+'))
   args <- ifelse(length(m) == 2, m[2], '')
-  
-  updateLog(paste0('Starting ', m, '.'))
 
   r <- system(paste(opt$Rscript, file.path(opt$softwareDir, paste0(m[1], '.R')), opt$configFile, args))
   
   if(r != 0){
-    updateLog(paste0('Module ', m[1], ' failed. Please see logs for details.'))
-    if(length(m) == 2) updateLog(paste0('Module arguments: ', args))
+    ## message(paste0('Module ', m[1], ' failed. Please see logs for details.'))
+    ## if(length(m) == 2) message(paste0('Module arguments: ', args))
     q(save = 'no', status = 1, runLast = FALSE)
   }
 }))
 
-updateLog("Done.")
 q(save = 'no', status = 0, runLast = FALSE)
