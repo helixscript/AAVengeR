@@ -5,129 +5,169 @@ updateLog <- function(msg, logFile = NULL){
 }
 
 
+remove_whitespace_in_quotes <- function(file_path) {
+  # Read all lines
+  lines <- readLines(file_path)
+  
+  # Collapse into one text blob
+  text <- paste(lines, collapse = "\n")
+  
+  # Now, match quoted strings manually
+  text_fixed <- stringr::str_replace_all(text, '"([^"]*)"', function(x) {
+    # x comes in as one full match: "something inside"
+    inner <- stringr::str_sub(x, 2, -2)  # Remove the outer quotes manually (first and last char)
+    inner_nospace <- stringr::str_remove_all(inner, "\\s+")  # Remove all whitespace inside
+    stringr::str_c('"', inner_nospace, '"')  # Re-add quotes
+  })
+  
+  # Finally, split back into lines
+  fixed_lines <- stringr::str_split(text_fixed, "\n")[[1]]
+  
+  return(fixed_lines)
+}
+
+
+
 updateMasterLog <- function(){
-  # Create a local copy of opt if needed.
-  if('orgOutputDir' %in% names(opt)) opt$outputDir <- opt$orgOutputDir
+  lockFile <- file.path(opt$orgOutputDir, 'log.lock')
   
-  lockFile <- file.path(opt$outputDir, 'log.lock')
-  if(file.exists(lockFile)) return()
+  if(! file.exists(lockFile)){
+    
+    write(date(), lockFile)
+    
+    f  <- file.path(opt$orgOutputDir, 'log.tmp')
+    f2 <- file.path(opt$orgOutputDir, 'log')
+    
+    # Create log skeleton.
+    orgOpt <- yaml::read_yaml(textConnection(remove_whitespace_in_quotes(file.path(opt$orgOutputDir, 'src', 'config.yml'))))
  
-  write(date(), lockFile)
-  
-  f <- file.path(opt$outputDir, 'log')
-  
-  # Create log skeleton.
-  logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
-  o <- lapply(opt$modules, function(x) return('none\n'))
-  names(o) <- opt$modules
-  
-  # Create core module subsections.
-  if('core' %in% names(o)){
-    o$core <- c("<core>", "{core demultiplex}", "none\n", "{core replicate job table}", "none\n", 
-                "{core subject job table}", "none\n")
+    logo <- readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt'))
+    o <- lapply(orgOpt$modules, function(x) return('none\n'))
+    names(o) <- orgOpt$modules
     
-    d <- readr::read_tsv(opt$demultiplex_sampleDataFile, show_col_types = FALSE)
-    
-    r <- unique(paste0('{core replicate ', d$trial, '~', d$subject, '~', d$sample, '~', d$replicate, '}'))
-    r <- as.vector(rbind(r, 'none\n'))
-    
-    s <- unique(paste0('{core subject ', d$trial, '~', d$subject, '}'))
-    s <- as.vector(rbind(s, 'none\n'))
-    
-    o$core <- c(o$core, r, s)
-    
-    z <- split(o$core, cumsum(grepl('^\\{', o$core)))
-    names(z) <- unlist(lapply(z, function(x) gsub('\\{|\\}', '', x[1])))
-    z <- lapply(z, function(x) x[-1])
-    o$core <- z
-  }
-  
-  if(file.exists(file.path(opt$outputDir, 'core', 'replicateJobTable'))){
-    o$core$`core replicate job table` <-  readLines(file.path(opt$outputDir, 'core', 'replicateJobTable'))
-  }
-  
-  if(file.exists(file.path(opt$outputDir, 'core', 'subjectJobTable'))){
-    o$core$`core subject job table` <-  readLines(file.path(opt$outputDir, 'core', 'subjectJobTable'))
-  }
-  
-  # Clear out the master log file and rebuild it.
-  write(logo, f, append = FALSE)
-  write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), f, append = TRUE)
-  
-  # Cycle through the sections in skeleton. Take care to handle core subsections. 
-  invisible(mapply(function(section, x){
-    write(c('\n', logBanner(section, 100)), f, append = TRUE)
-    
-    x <- x[-1]
-    
-    if(section == 'core' & is.list(x)){
-      coreLogFiles <- list.files(file.path(opt$outputDir, 'core'), recursive = TRUE, pattern = '^log$', full.names = TRUE)
-      invisible(lapply(names(x), function(xx){
-        
-        if(grepl('demultiplex', xx)){
-          if(length(coreLogFiles[grepl('demultiplex', coreLogFiles)]) == 1){
-            if(unlist(x[xx])[1] == 'none\n') x[xx] <<- ''
-            x$`core demultiplex` <<- readLines(coreLogFiles[grepl('demultiplex', coreLogFiles)])[-(1:11)]
-          }
-        }
-        
-        if(grepl('core replicate', xx)){
-          logs <- coreLogFiles[grepl(paste0(stringr::str_extract(xx, '\\S+$'), '/'), coreLogFiles)]
-          
-          if(length(logs) > 0){
-            if(unlist(x[xx])[1] == 'none\n') x[xx] <<- ''
-            if(length(logs[grepl('prepReads', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# prepReads', paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('prepReads', logs)])[-(1:11)]))
-            if(length(logs[grepl('alignReads', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# alignReads',  paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('alignReads', logs)])[-(1:11)]))
-            if(length(logs[grepl('buildFragments', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# buildFragments',  paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('buildFragments', logs)])[-(1:11)]))
-            
-            attritionLogs <- list.files(opt$outputDir, pattern = 'attritionLog.tsv', full.names = TRUE, recursive = TRUE)
-            attritionLogs <- attritionLogs[grepl(paste0(stringr::str_extract(xx, '\\S+$'), '/'), attritionLogs)]
-            
-            if(length(attritionLogs) > 0){
-              attrition <- bind_rows(lapply(attritionLogs, readr::read_tsv, show_col_types = FALSE))
-              levs <- c("PRD1", "PRD2", "PRD3", "PRD4", "PRD5", "ALR1", "ALR2", "ALR3", "ALR4", "ALR5", "BFR1", "BSF1")
-              attrition$label <- factor(attrition$label, levels = levs)
-              attrition <- attrition[order(attrition$label),]
-              totalReads <- ppNum(attrition[1,]$value)
-              attrition$value <- attrition$value / attrition[1,]$value
-              title <- paste0('Read attrition of ', totalReads, ' demultiplexed reads.')
-              x[xx] <<- list(c(unlist(x[xx]), '\n# readAttrition',  paste0(c('#', rep('-', 99)), collapse = ''), title, asciiPercentBarChart(attrition)))
-            }
-          }
-        }
-        
-        if(grepl('core subject', xx)){
-          logs <- coreLogFiles[grepl(paste0(stringr::str_extract(xx, '\\S+$'), '/'), coreLogFiles)]
-          
-          if(length(logs) > 0){
-            if(unlist(x[xx])[1] == 'none\n') x[xx] <<- ''
-            if(length(logs[grepl('buildStdFragments', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# buildStdFragments',  paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('buildStdFragments', logs)])[-(1:11)]))
-            if(length(logs[grepl('buildSites', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# buildSites',  paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('buildSites', logs)])[-(1:11)]))
-          }
-        }
-      }))
+    # Create core module subsections.
+    if('core' %in% names(o)){
+      o$core <- c("<core>", "{core demultiplex}", "none\n", "{core replicate job table}", "none\n", 
+                  "{core subject job table}", "none\n")
       
-      invisible(mapply(function(section2, x2){
-        write(c('\n', logBanner(section2, 100, corner = '+', vert = '|', horiz = '-'),  x2), f, append = TRUE)
-      }, names(x), x))
+      d <- readr::read_tsv(opt$demultiplex_sampleDataFile, show_col_types = FALSE)
       
-    } else {
-      # Non-core section.
-      logFile <- list.files(opt$outputDir, recursive = TRUE, pattern = 'log', full.names = TRUE)
-      logFile <- logFile[grepl(section, logFile)]
+      r <- unique(paste0('{core replicate ', d$trial, '~', d$subject, '~', d$sample, '~', d$replicate, '}'))
+      r <- as.vector(rbind(r, 'none\n'))
       
-      if(length(logFile) == 1){
-        x2 <- readLines(logFile)[-(1:11)]
-      } else {
-        x2 <- 'none'
-      }
+      s <- unique(paste0('{core subject ', d$trial, '~', d$subject, '}'))
+      s <- as.vector(rbind(s, 'none\n'))
       
-      write(c('\n', x2), f, append = TRUE)
+      o$core <- c(o$core, r, s)
+      
+      z <- split(o$core, cumsum(grepl('^\\{', o$core)))
+      names(z) <- unlist(lapply(z, function(x) gsub('\\{|\\}', '', x[1])))
+      z <- lapply(z, function(x) x[-1])
+      o$core <- z
     }
     
-  }, names(o), o, SIMPLIFY = FALSE))
-  
-  invisible(file.remove(lockFile))
+    if(any(grepl('outputDir', names(o)))){
+      # Handle instances where outputDir is changed by parameter injection.
+      names(o) <- mapply(function(x, y){
+                    if(length(x) > 0){
+                      return(sub('outputDir:', '', stringr::str_extract(x, 'outputDir\\:[^,^\\:^\\"]+')))
+                    } else {
+                      return(y)
+                    }
+                  }, stringr::str_extract_all(names(o), 'outputDir:\\S+'), names(o))
+      
+    }
+    
+    if(file.exists(file.path(opt$orgOutputDir, 'core', 'replicateJobTable'))){
+      o$core$`core replicate job table` <-  readLines(file.path(opt$orgOutputDir, 'core', 'replicateJobTable'))
+    }
+    
+    if(file.exists(file.path(opt$orgOutputDir, 'core', 'subjectJobTable'))){
+      o$core$`core subject job table` <-  readLines(file.path(opt$orgOutputDir, 'core', 'subjectJobTable'))
+    }
+    
+    # Clear out the master log file and rebuild it.
+    write(logo, f, append = FALSE)
+    write(paste0('version: ', readLines(file.path(opt$softwareDir, 'version', 'version')), "\n"), f, append = TRUE)
+    
+    # Cycle through the sections in skeleton. Take care to handle core subsections. 
+    invisible(mapply(function(section, x){
+      write(c('\n', logBanner(section)), f, append = TRUE)
+      
+      x <- x[-1]
+      
+      if(section == 'core' & is.list(x)){
+        coreLogFiles <- list.files(file.path(opt$orgOutputDir, 'core'), recursive = TRUE, pattern = '^log$', full.names = TRUE)
+        invisible(lapply(names(x), function(xx){
+          
+          if(grepl('demultiplex', xx)){
+            if(length(coreLogFiles[grepl('demultiplex', coreLogFiles)]) == 1){
+              if(unlist(x[xx])[1] == 'none\n') x[xx] <<- ''
+              x$`core demultiplex` <<- readLines(coreLogFiles[grepl('demultiplex', coreLogFiles)])[-(1:11)]
+            }
+          }
+          
+          if(grepl('core replicate', xx)){
+            logs <- coreLogFiles[grepl(paste0(stringr::str_extract(xx, '\\S+$'), '/'), coreLogFiles)]
+            
+            if(length(logs) > 0){
+              if(unlist(x[xx])[1] == 'none\n') x[xx] <<- ''
+              if(length(logs[grepl('prepReads', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# prepReads', paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('prepReads', logs)])[-(1:11)]))
+              if(length(logs[grepl('alignReads', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# alignReads',  paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('alignReads', logs)])[-(1:11)]))
+              if(length(logs[grepl('buildFragments', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# buildFragments',  paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('buildFragments', logs)])[-(1:11)]))
+              
+              attritionLogs <- list.files(opt$orgOutputDir, pattern = 'attritionLog.tsv', full.names = TRUE, recursive = TRUE)
+              attritionLogs <- attritionLogs[grepl(paste0(stringr::str_extract(xx, '\\S+$'), '/'), attritionLogs)]
+              
+              if(length(attritionLogs) > 0){
+                attrition <- bind_rows(lapply(attritionLogs, readr::read_tsv, show_col_types = FALSE))
+                levs <- c("PRD1", "PRD2", "PRD3", "PRD4", "PRD5", "ALR1", "ALR2", "ALR3", "ALR4", "ALR5", "BFR1", "BSF1")
+                attrition$label <- factor(attrition$label, levels = levs)
+                attrition <- attrition[order(attrition$label),]
+                totalReads <- ppNum(attrition[1,]$value)
+                attrition <- attrition[! is.na(attrition$value),]
+                attrition$value <- attrition$value / attrition[1,]$value
+                title <- paste0('Read attrition of ', totalReads, ' demultiplexed reads.')
+                x[xx] <<- list(c(unlist(x[xx]), '\n# readAttrition',  paste0(c('#', rep('-', 99)), collapse = ''), title, asciiPercentBarChart(attrition)))
+              }
+            }
+          }
+          
+          if(grepl('core subject', xx)){
+            logs <- coreLogFiles[grepl(paste0(stringr::str_extract(xx, '\\S+$'), '/'), coreLogFiles)]
+            
+            if(length(logs) > 0){
+              if(unlist(x[xx])[1] == 'none\n') x[xx] <<- ''
+              if(length(logs[grepl('buildStdFragments', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# buildStdFragments',  paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('buildStdFragments', logs)])[-(1:11)]))
+              if(length(logs[grepl('buildSites', logs)]) == 1)  x[xx] <<- list(c(unlist(x[xx]), '\n# buildSites',  paste0(c('#', rep('-', 99)), collapse = ''), readLines(logs[grepl('buildSites', logs)])[-(1:11)]))
+            }
+          }
+        }))
+        
+        invisible(mapply(function(section2, x2){
+          write(c('\n', logBanner(section2, corner = '+', vert = '|', horiz = '-'),  x2), f, append = TRUE)
+        }, names(x), x))
+        
+      } else {
+        # Non-core sections.
+        
+        logFile <- list.files(opt$orgOutputDir, recursive = TRUE, pattern = 'log', full.names = TRUE)
+        logFile <- logFile[grepl(section, logFile, fixed = TRUE)]
+        
+        if(length(logFile) == 1){
+          x2 <- readLines(logFile)[-(1:11)]
+        } else {
+          x2 <- 'none'
+        }
+        
+        write(c('\n', x2), f, append = TRUE)
+      }
+      
+    }, names(o), o, SIMPLIFY = FALSE))
+    
+    invisible(system(paste('mv', f, f2)))
+    invisible(file.remove(lockFile))
+  }
 }
 
 
@@ -166,14 +206,16 @@ startModule <- function(args){
   set.seed(1)
   configFile <- args[1]
   if(! file.exists(configFile)) stop('Error - the configuration file does not exists.')
-
-  opt <- yaml::read_yaml(configFile)
+  
+  opt <- yaml::read_yaml(textConnection(remove_whitespace_in_quotes(configFile)))
   
   if(length(args) == 2){
-    invisible(lapply(strsplit(unlist(strsplit(args[2], ',')), ':'), function(x){
+    message('Injecting module...')
+    invisible(lapply(strsplit(unlist(strsplit(args[2], '\\s*,\\s*')), '\\s*:\\s*'), function(x){
       val <- x[2]
       if(! suppressWarnings(is.na(as.numeric(val))) & grepl('\\.', val)) val <- as.numeric(val)
       if(! suppressWarnings(is.na(as.numeric(val))) & ! grepl('\\.', val)) val <- as.integer(val)
+      message(paste0('Setting ', x[1], ' to ', val))
       opt[[x[1]]] <<- val
     })) 
   }

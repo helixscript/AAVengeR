@@ -40,6 +40,7 @@ quitOnErorr <- function(msg){
 }
 
 updateLog('Starting mapSiteLeaderSequences.')
+updateMasterLog()
 
 if(! file.exists(file.path(opt$outputDir, opt$mapSiteLeaderSequences_inputFile))) quitOnErorr("Error -- the sites input file could not be found.")
 
@@ -54,6 +55,7 @@ clusterExport(cluster, c('opt', 'blast2rearangements', 'buildRearrangementModel'
 m <- rbindlist(lapply(split(sites, sites$vector), function(x){
  
   updateLog(paste0('Processing maps for vector: ', x$vector[1], '.'))
+  updateMasterLog()
   
   # Clean up tmp database directory.
   invisible(file.remove(list.files(file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'dbs'), full.names = TRUE)))
@@ -160,5 +162,6 @@ openxlsx::write.xlsx(sites, file = file.path(opt$outputDir, opt$mapSiteLeaderSeq
 readr::write_tsv(sites, file.path(opt$outputDir, opt$mapSiteLeaderSequences_outputDir, 'sites.tsv.gz'))
 
 updateLog('mapSiteLeaderSequences completed.')
+updateMasterLog()
 
 q(save = 'no', status = 0, runLast = FALSE) 

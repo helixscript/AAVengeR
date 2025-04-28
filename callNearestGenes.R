@@ -13,6 +13,7 @@ suppressPackageStartupMessages(library(GenomicRanges))
 
 # Read in the configuration file and perform basic sanity checks.
 args <- commandArgs(trailingOnly=TRUE)
+
 if(length(args) == 0) stop('Expected at least one command line argument')
 source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
 opt <- startModule(args)
@@ -53,7 +54,7 @@ if(! opt$callNearestGenes_addAfter %in% names(sites)){
 }
 
 sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
-           updateLog(paste0('Starting analysis of sites found in ', x$refGenome[1]))
+           updateLog(paste0('Starting analysis of sites found in ', x$refGenome[1], '.'))
            updateMasterLog()
   
            if(! x$refGenome[1] %in% names(opt$callNearestGenes_boundaries)){
@@ -85,7 +86,13 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
            exons <- readRDS(file.path(opt$softwareDir, 'data', 'genomeAnnotations', opt$callNearestGenes_boundaries[[x$refGenome[1]]][['exons']]))
            
            if(tolower(opt$callNearestGenes_geneList) != 'none'){
+             updateLog(paste0('Filtering gene ranges with gene name list: ', opt$callNearestGenes_geneList)) 
              geneList <- toupper(readLines(opt$callNearestGenes_geneList))
+             
+             if(! file.exists(opt$callNearestGenes_geneList)){
+               quitOnErorr(paste0('Gene filter list (', opt$callNearestGenes_geneList, ') could not be found.'))
+             }
+             
              genes <- genes[toupper(genes$name2) %in% geneList]
              exons <- exons[toupper(exons$name2) %in% geneList]
            }
@@ -105,7 +112,7 @@ sites <- distinct(bind_rows(lapply(split(sites, sites$refGenome), function(x){
           posids <- x$posid
           posids <- unique(sub('\\.\\d+$', '', posids))
           
-          updateLog(paste0('Calling nearestGene() for ', n_distinct(posids), ' sites.'))
+          updateLog(paste0('Calling nearestGene() for ', ppNum(n_distinct(posids)), ' sites.'))
           updateMasterLog()
           n <- nearestGene(posids, genes, exons, CPUs = opt$callNearestGenes_CPUs)
           

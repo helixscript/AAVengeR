@@ -239,14 +239,13 @@ collapsedRepLeaderSeqTable <- buildRepLeaderSeqTable(frags, collapseReplicates =
 sites <- bind_rows(lapply(split(frags, frags$g), function(x){
 
   r <- bind_cols(lapply(minRepNum:maxRepNum, function(r){
-         b <- tibble(rUMIs = NA, fUMIs = NA, sonicLengths = NA, reads = NA, repLeaderSeq = NA)
+         b <- tibble(rUMIs = NA, sonicLengths = NA, reads = NA, repLeaderSeq = NA)
          o <- x[x$replicate == r,]
     
          if(nrow(o) >= 1){
            repLeaderSeq <- subset(replicateRepLeaderSeqTable, trial == o$trial[1] & subject == o$subject[1] & sample == o$sample[1] & posid == o$posid[1] & replicate == o$replicate[1])$repLeaderSeq
            
            b$rUMIs <- ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(o$rUMI_list)), NA)
-           b$fUMIs <- ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(o$fUMI_list)), NA)
            b$sonicLengths <- n_distinct(o$fragWidths)
            b$reads <- sum(o$reads)
            b$repLeaderSeq <- repLeaderSeq
@@ -262,7 +261,6 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
                    refGenome = x$refGenome[1], 
                    posid = x$posid[1],
                    rUMIs = ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(x$rUMI_list)), NA),
-                   fUMIs = ifelse(opt$processAdriftReadLinkerUMIs, n_distinct(unlist(x$fUMI_list)), NA),
                    anchorReadClusters = ifelse(any(x$anchorReadCluster), TRUE, NA),
                    sonicLengths = ifelse(opt$buildSites_sumSonicBreaksWithin == 'replicates', 
                                          sum(r[, grepl('sonicLengths', names(r))], na.rm = TRUE),
@@ -294,6 +292,9 @@ sites <- group_by(sites, trial, subject, sample) %>%
 
 # Undo chromosome dot patch.
 if(any(grepl('\\&', frags$chromosome))) sites$posid <- unname(gsub('&', '.', sites$posid))
+
+# Hide rUMIs unless requested.
+if(! opt$processAdriftReadLinkerUMIs) sites <- select(sites, -rUMIs)
 
 # Save outputs.
 saveRDS(sites, file.path(opt$outputDir, opt$buildSites_outputDir, 'sites.rds'), compress = opt$compressDataFiles)

@@ -917,18 +917,6 @@ buildConsensusSeq <- function(x){
   dplyr::pull(leaderSeq)
 }
 
-filterUMIs <- function(x){
-  k <- data.frame(table(x)) %>%
-       dplyr::mutate(f = (Freq / sum(Freq) * 100)) %>%
-       dplyr::filter(f >= opt$buildStdFragments_UMIminPercentReads) %>%
-       dplyr::pull(x) %>%
-       as.character()
-  
-  if(length(k) == 0) k <- vector()
-  
-  k
-}
-
 if(nrow(b) > 0){
   o <- split(b, b$fragID)
 
@@ -944,7 +932,6 @@ if(nrow(b) > 0){
          readList <- x$readID
          
          rUmiList <- unique(x$randomLinkerSeq)
-         fUmiList <- filterUMIs(x$randomLinkerSeq)
          
          x <- x[1,]
          
@@ -952,7 +939,6 @@ if(nrow(b) > 0){
          
          x$readIDs   <- list(sort(readList))
          x$rUMI_list <- list(sort(rUmiList))
-         x$fUMI_list <- list(sort(fUmiList))
     
          x
        }))
@@ -965,8 +951,7 @@ if(nrow(a) > 0){
         dplyr::mutate(reads = nDuplicateReads+1, 
                       repLeaderSeq = leaderSeq[1],
                       readIDs = list(sort(readID)),
-                      rUMI_list = list(sort(randomLinkerSeq)),
-                      fUMI_list = list(sort(filterUMIs(randomLinkerSeq)))) %>%
+                      rUMI_list = list(sort(randomLinkerSeq))) %>%
         dplyr::slice(1) %>%
         dplyr::ungroup() %>%
         dplyr::filter(reads >= opt$buildStdFragments_minReadsPerFrag)

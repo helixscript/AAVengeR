@@ -52,7 +52,7 @@ o$outputDir <- file.path(opt$outputDir, 'core')
 
 # Run demultiplex module.
 o$demultiplex_CPUs <- opt$core_CPUs
-o$orgOutputDir <- opt$outputDir
+### o$orgOutputDir <- opt$outputDir
 yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml'))
 
 
@@ -223,7 +223,7 @@ while(! all(jobTable$done == TRUE)){
   o$modules <- list()
   o[['modules']] <- c('prepReads', 'alignReads', 'buildFragments')
   
-  o$orgOutputDir <- opt$outputDir
+  ### o$orgOutputDir <- opt$outputDir
   
   yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))
   
@@ -341,7 +341,7 @@ while(! all(jobTable$done == TRUE)){
   o$modules <- list()
   o[['modules']] <- c('buildStdFragments', 'buildSites')
   
-  o$orgOutputDir <- opt$outputDir
+  ### o$orgOutputDir <- opt$outputDir
   
   yaml::write_yaml(o, file.path(opt$outputDir, 'core', 'subject_analyses', tab$id, 'config.yml'))
   
@@ -402,14 +402,28 @@ atl <- bind_rows(lapply(list.files(opt$outputDir, pattern = 'attritionLog.tsv', 
 }))
 
 if(nrow(atl) > 0){
+  atlOutput <- vector()
   atl <- tidyr::pivot_wider(atl, names_from = label, values_from = value)
   
   cols <- c("sampleRep", "PRD1", "PRD2", "PRD3", "PRD4", "PRD5", "ALR1", "ALR2", "ALR3", "ALR4", "ALR5", "BFR1", "BSF1")
   cols <- cols[cols %in% names(atl)]
   atl <- atl[, cols]
   
-  saveRDS(atl, file = file.path(opt$outputDir, 'core', 'readAttrition.rds'), compress = opt$compressDataFiles)
   readr::write_tsv(atl, file = file.path(opt$outputDir, 'core', 'readAttrition.tsv'))
+  
+  invisible(lapply(split(atl, atl$sampleRep), function(x){
+    sampleRep <- x$sampleRep[1]
+    x <- tidyr::pivot_longer(x, cols[cols != 'sampleRep'])[,2:3]
+    names(x) <- c('label', 'value')
+    
+    reads <- x[1,]$value
+    x$value <- x$value / reads
+   
+    x <- x[! is.na(x$value),]
+    atlOutput <<- c(atlOutput, sampleRep, paste0(ppNum(reads), ' demultiplexed reads'), asciiPercentBarChart(x), '\n')
+  }))
+  
+  write(c(readLines(file.path(opt$softwareDir, 'figures', 'readAttritionDesc.txt')), atlOutput), file.path(opt$outputDir, 'core', 'readAttritionReport.txt'))
 }
 
 

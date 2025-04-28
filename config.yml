@@ -30,7 +30,7 @@ Rscript: /usr/bin/Rscript
 compressDataFiles: FALSE
 processAdriftReadLinkerUMIs: FALSE
 core_keepIntermediateFiles: FALSE
-core_applyCoreCPUsToAllModules: TRUE
+core_applyCoreCPUsToAllModules: FALSE
 
 
 # PullDatabaseFragments module.
@@ -41,7 +41,7 @@ pullDatabaseFragments_trialSubjectSamples: Jones,p1,GTSP4938,hg38|Jones,p9,GTSP4
 
 # Demultiplex module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-demultiplex_CPUs: 15
+demultiplex_CPUs: 30
 demultiplex_outputDir: demultiplex
 demultiplex_replicateMergingInstructions: none
 demultiplex_level: unique                          # (all, unique, or clustered)
@@ -68,7 +68,7 @@ demultiplex_mergeSimilarReadPairsParams: -c 0.98 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 
 
 # prepRead module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-prepReads_CPUs: 15
+prepReads_CPUs: 30
 prepReads_outputDir: prepReads
 prepReads_readsTable:  demultiplex/reads.rds
 prepReads_excludeAnchorReadVectorHits: TRUE
@@ -98,7 +98,7 @@ prepReads_cutAdaptErrorRate: 0.15
 
 # alignReads module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-alignReads_CPUs: 15
+alignReads_CPUs: 30
 alignReads_outputDir: alignReads
 alignReads_inputFile: prepReads/reads.rds
 alignReads_blat_fastMap: FALSE
@@ -119,7 +119,7 @@ alignReads_genomeAlignment_adriftReadEnd_maxUnaligned: 5
 
 # buildFragments module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-buildFragments_CPUs: 15
+buildFragments_CPUs: 30
 buildFragments_outputDir: buildFragments
 buildFragments_anchorReadsAlignmentFile: alignReads/anchorReadAlignments.rds
 buildFragments_adriftReadsAlignmentFile: alignReads/adriftReadAlignments.rds
@@ -134,7 +134,7 @@ buildFragments_randomLinkerID_minSingleSampleMajorityPercent: 90
 
 # buildStdFragments module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-buildStdFragments_CPUs: 15
+buildStdFragments_CPUs: 30
 buildStdFragments_inputFile: buildFragments/fragments.rds
 buildStdFragments_outputDir: buildStdFragments
 buildStdFragments_randomIDdupReadMult: 3
@@ -160,7 +160,7 @@ buildStdFragments_fragEvalAnchorReadMinReadMult: 10
 
 # buildSites module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-buildSites_CPUs: 15
+buildSites_CPUs: 30
 buildSites_inputFile: buildStdFragments/stdFragments.rds
 buildSites_outputDir: buildSites
 buildSites_enableDualDetection: TRUE
@@ -171,7 +171,7 @@ buildSites_sumSonicBreaksWithin: samples
 
 # annotateRepeat module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-annotateRepeats_CPUs: 15
+annotateRepeats_CPUs: 30
 annotateRepeats_inputFile: callNearestGenes/sites.rds
 annotateRepeats_outputDir: annotateRepeats
 annotateRepeats_addAfter: nRepsObs
@@ -179,7 +179,7 @@ annotateRepeats_addAfter: nRepsObs
 
 # callNearestGenes module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-callNearestGenes_CPUs: 15
+callNearestGenes_CPUs: 30
 callNearestGenes_inputFile: core/sites.rds
 callNearestGenes_outputDir: callNearestGenes
 callNearestGenes_addAfter: nRepsObs
@@ -209,7 +209,7 @@ callNearestGenes_boundaries:
 
 # mapSiteLeaderSequences module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-mapSiteLeaderSequences_CPUs: 15
+mapSiteLeaderSequences_CPUs: 30
 mapSiteLeaderSequences_outputDir: mapSiteLeaderSequences
 mapSiteLeaderSequences_inputFile: annotateRepeats/sites.rds
 mapSiteLeaderSequences_addAfter: repLeaderSeq
@@ -221,10 +221,11 @@ mapSiteLeaderSequences_maxMissingTailNTs: 5
 
 # predictPCRartifacts module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-predictPCRartifacts_CPUs: 15
+predictPCRartifacts_CPUs: 30
 predictPCRartifacts_inputFile: annotateRepeats/sites.rds
 predictPCRartifacts_outputDir: predictPCRartifacts
 predictPCRartifacts_adjacentSeqLength: 20
+predictPCRartifacts_minMeltingTemp: 50
 predictPCRartifacts_minReportHalfMatches: 7
 predictPCRartifacts_minReportMatches: 15
 predictPCRartifacts_wordSize: 5
@@ -259,7 +260,7 @@ buildAAVremnantPlots_plotOutputWidthInches: 10
 
 # anchorReadStartSeqs
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-anchorReadStartSeqs_CPUs: 25
+anchorReadStartSeqs_CPUs: 30
 anchorReadStartSeqs_outputDir: anchorReadStartSeqs
 anchorReadStartSeqs_inputFile: demultiplex/reads.rds
 anchorReadStartSeqs_windows: "10,50,100,200"
@@ -267,7 +268,7 @@ anchorReadStartSeqs_nStartSeqs: 5
 
 # anchorReadRearrangements module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-anchorReadRearrangements_CPUs: 90
+anchorReadRearrangements_CPUs: 30
 anchorReadRearrangements_outputDir: anchorReadRearrangements_env
 anchorReadRearrangements_inputFile: demultiplex/reads.rds
 anchorReadRearrangements_calcReplicateLevelStats: TRUE

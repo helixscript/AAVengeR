@@ -44,7 +44,7 @@ windows <- as.integer(unlist(strsplit(opt$anchorReadRearrangements_windows, '\\s
 windowsTypes <- unlist(strsplit(opt$anchorReadRearrangements_windowsTypes, '\\s*,\\s*'))
 
 updateLog('Reading sample data.')
-
+updateMasterLog()
 
 # Read in the reads table.
 updateLog('Reading in demultiplexed reads.')
@@ -65,16 +65,19 @@ if(! all(sapply(unique(reads$vectorFastaFile), function(x) file.exists(file.path
 # A merged read result, m, will be created. Raw sequences are needed to recover the quality scores used by PEAR.
 
 updateLog('Reading in raw adrift sequences.')
+updateMasterLog()
 
 R1 <- readFastq(opt$demultiplex_adriftReadsFile); R1@id <- BStringSet(sub('\\s+.+$', '', as.character(R1@id)))
 R1 <- R1[R1@id %in% reads$readID]
 
 updateLog('Reading in raw anchor read sequences.')
+updateMasterLog()
 
 R2 <- readFastq(opt$demultiplex_anchorReadsFile); R2@id <- BStringSet(sub('\\s+.+$', '', as.character(R2@id)))
 R2 <- R2[R2@id %in% reads$readID]
 
 updateLog('Trimming anchor read over-reading.')
+updateMasterLog()
 
 o <- left_join(tibble(readID = as.character(R1@id)), select(reads, readID, adriftReadTrimSeq, adriftLinkerSeqEnd), by = 'readID')
 
@@ -111,6 +114,7 @@ R2 <- R2[width(R2) >= opt$anchorReadRearrangements_minAnchorReadLength]
 
 # Sync reads.
 updateLog('Syncing anchor and adrift reads post trimming.')
+updateMasterLog()
 
 i  <- base::intersect(as.character(R1@id), as.character(R2@id))
 R1 <- R1[as.character(R1@id) %in% i]
@@ -126,6 +130,7 @@ gc()
 
 # Merge overlapping reads.
 updateLog('Merging overlapped reads.')
+updateMasterLog()
 
 system(paste0('pear  -q 10 -t 100 ', 
               ' -f ', file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', 'adriftReadSeqs.fastq'), 
@@ -137,6 +142,7 @@ system(paste0('pear  -q 10 -t 100 ',
               ' -j ', opt$anchorReadRearrangements_CPUs))
 
 updateLog('Reading and updating merged reads.')
+updateMasterLog()
 
 m <- readFastq(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', 'merged.assembled.fastq'))
 m@id <- BStringSet(sub('\\s+.+$', '', as.character(m@id)))
@@ -147,6 +153,7 @@ invisible(file.remove(c(file.path(opt$outputDir, opt$anchorReadRearrangements_ou
                         file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', 'adriftReadSeqs.fastq'))))
 
 updateLog('Processing sample replicates.')
+updateMasterLog()
 
 reads <- bind_rows(lapply(split(reads, reads$uniqueSample), function(x){
            updateLog(paste0('Processing ', x$uniqueSample[1], '.'))
@@ -212,6 +219,7 @@ reads <- bind_rows(lapply(split(reads, reads$uniqueSample), function(x){
                                 file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', 'TMP_QUERY.psl')))
           
           updateLog(paste0('  ', round((sum(x$i %in% b$qName) / nrow(x))*100, 2), '% reads have ends that align to the vector plasmid.'))
+          updateMasterLog()
           
           if(nrow(b) == 0) return(tibble())
           
@@ -454,7 +462,7 @@ reads$sample <- sub('~\\d+$', '', reads$uniqueSample)
 
 if(opt$anchorReadRearrangements_calcReplicateLevelStats){
   updateLog('Calculating rearrangements for sample replicates.')
-  save.image('~/image1.RData')
+  updateMasterLog()
   
   r.replicates <- rbindlist(parLapply(cluster, split(reads, paste(reads$vectorFastaFile, reads$uniqueSample)), worker))
 
@@ -479,6 +487,7 @@ if(opt$anchorReadRearrangements_calcReplicateLevelStats){
 
 if(opt$anchorReadRearrangements_calcSampleLevelStats){
   updateLog('Calculating rearrangements for samples.')
+  updateMasterLog()
 
   r.samples <- rbindlist(parLapply(cluster, split(reads, paste(reads$vectorFastaFile, reads$sample)), worker))
   r.samples$altStructsPerKB <- (r.samples$altStructs / (r.samples$window * r.samples$vectorPaths))*1000
@@ -498,5 +507,6 @@ if(opt$anchorReadRearrangements_calcSampleLevelStats){
 }
 
 updateLog('anchorReadRearrangements completed.')
+updateMasterLog()
 
 q(save = 'no', status = 0, runLast = FALSE) 

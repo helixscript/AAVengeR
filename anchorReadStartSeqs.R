@@ -16,6 +16,9 @@ opt <- startModule(args)
 
 dir.create(file.path(opt$outputDir, opt$anchorReadStartSeqs_outputDir), showWarnings = FALSE)
 
+updateLog('Starting anchorReadStartSeqs.')
+updateMasterLog()
+
 reads <- tidyr::separate(readRDS(file.path(opt$outputDir, opt$anchorReadStartSeqs_inputFile)), 
                          uniqueSample, c('trial', 'subject', 'sample', 'replicate'), sep = '~')
 
@@ -45,5 +48,7 @@ r <- bind_rows(parLapply(cluster, split(reads, reads$i), function(x){
 
 stopCluster(cluster)
 saveRDS(r, file.path(opt$outputDir, opt$anchorReadStartSeqs_outputDir, 'startSeqs.rds'))
+updateLog('anchorReadStartSeqs completed.')
+updateMasterLog()
 
 q()

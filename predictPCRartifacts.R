@@ -46,161 +46,144 @@ if(! opt$predictPCRartifacts_addAfter %in% names(sites)){
 
 # Switch vectors to non-plasmid forms where available.
 sites <- bind_rows(lapply(split(sites, sites$vector), function(x){
-           if(grepl('\\-plasmid\\.fasta$', x$vector[1])){
-             alt <- sub('\\-plasmid\\.fasta$', '.fasta', x$vector[1])
+  if(grepl('\\-plasmid\\.fasta$', x$vector[1])){
+    alt <- sub('\\-plasmid\\.fasta$', '.fasta', x$vector[1])
     
-             if(file.exists(file.path(opt$softwareDir, 'data', 'vectors', alt))){
-               message('Switching vector from ', x$vector[1], ' to ', alt)
-               x$vector <- alt
-             }
-           } 
+    if(file.exists(file.path(opt$softwareDir, 'data', 'vectors', alt))){
+      message('Switching vector from ', x$vector[1], ' to ', alt)
+      x$vector <- alt
+    }
+  } 
   
-           x
-          }))
+  x
+}))
 
 
 sites$uniqueSite <- paste0(sites$trial, '~', sites$subject, '~', sites$sample, '~', sites$posid)
 
 cluster <- makeCluster(opt$predictPCRartifacts_CPUs)
+clusterExport(cluster, c('opt', 'tmpFile'))
 
 sites$refGenome <- file.path(opt$softwareDir, 'data', 'referenceGenomes', 'blat', paste0(sites$refGenome, '.2bit'))
 sites$vectorFastaFile <- file.path(opt$softwareDir, 'data', 'vectors', sites$vector)
 sites$vectorFastaFile <- gsub('^\\s*|\\s*$', '', sites$vectorFastaFile)
 
-
-safeAlignment <- function(pattern, subject) {
-  result <- Biostrings::pairwiseAlignment(pattern, subject, gapOpening = opt$predictPCRartifacts_gapOpeningPenalty, gapExtension = opt$predictPCRartifacts_gapExtensionPenalty)
-  
-  # Try closing only file-based or unnamed connections, not the worker sockets
-  openConns <- showConnections(all = TRUE)
-  extraConns <- as.integer(rownames(openConns))
-  
-  for (conn in extraConns) {
-    info <- try(summary(getConnection(conn)), silent = TRUE)
-    
-    if (
-      !inherits(info, "try-error") &&
-      isTRUE(info$description != "") &&
-      !grepl("sock|node|master|localhost", info$description, ignore.case = TRUE)
-    ) {
-      try(close(getConnection(conn)), silent = TRUE)
-    }
-  }
-  
-  result
-}
-
-clusterExport(cluster, c('opt', 'tmpFile', 'safeAlignment'))
-
-
 sites <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
   
-       x$n <- ntile(1:nrow(x), opt$predictPCRartifacts_CPUs)
-       
-       ### r <- bind_rows(parLapply(cluster, split(x, x$n), function(a){
-       r <- bind_rows(lapply(split(x, x$n), function(a){
-              library(dplyr)
-              library(Biostrings)
-              library(rtracklayer)
-          
-              # Read in genome.
-              g <- import(TwoBitFile(a$refGenome[1]))
-         
-              # Loop over each unique site (trial~subject~sample~posid)
-              bind_rows(lapply(split(a, a$uniqueSite), function(x2){
-                us <- x2$uniqueSite
-                
-                o <- unlist(strsplit(us, '~'))
-                x2 <- o[length(o)]
-             
-                o <- unlist(strsplit(x2, '[\\+\\-]'))
-                strand <- stringr::str_extract(x2, '[\\-\\+]')
-             
-                o[2] <- sub('\\.\\S+$', '', o[2])
-                pos <- as.integer(o[2])
-             
-                if(! o[1] %in% names(g)) return(tibble(uniqueSite = us, PCRartifact1 = NA))
-                s <- g[names(g) == o[1]]
-
-                leaderSeq <- subset(x, posid == x2)$repLeaderSeq
-                i <- ifelse(nchar(leaderSeq) < opt$predictPCRartifacts_adjacentSeqLength, nchar(leaderSeq),opt$predictPCRartifacts_adjacentSeqLength)
-                t <- substr(leaderSeq, nchar(leaderSeq)-i+1, nchar(leaderSeq))
-                
-                if(strand == '-'){
-                  endPos <- pos + opt$predictPCRartifacts_adjacentSeqLength
-                  startPos <- pos + 1
-                  
-                  if(startPos > width(s)) startPos <- width(s)
-                  if(endPos > width(s))   endPos <- width(s)
-                  if(startPos == endPos) startPos <- startPos - 1
-                  
-                  r <- tibble(uniqueSite = us, leaderSeqSeg = t, seq = as.character(reverseComplement( subseq(s, start = startPos, end = endPos))))   
-                } else {
-                  startPos <- pos - opt$predictPCRartifacts_adjacentSeqLength
-                  endPos <- pos-1
-                  
-                  if(startPos < 1) startPos <- 1
-                  if(endPos < 1)   endPos <- 1
-                  if(startPos == endPos) endPos <- endPos + 1
-                  
-                  r <- tibble(uniqueSite = us, leaderSeqSeg = t, seq = as.character(subseq(s, start = startPos, end = endPos)))   
-                }
-                
-                f <- tmpFile()
-                
-                aln <- Biostrings::pairwiseAlignment(r$leaderSeqSeg, r$seq, gapOpening = opt$predictPCRartifacts_gapOpeningPenalty, gapExtension = opt$predictPCRartifacts_gapExtensionPenalty)
-                ### aln <- safeAlignment(r$leaderSeqSeg, r$seq)
-                
-                
-                writePairwiseAlignments(aln, f)
-                aln <- readLines(f)
-                invisible(file.remove(f))
-          
-                a <- sub('^\\S+\\s+\\d\\s+', '', aln[23])
-                a <- sub('\\s+\\d+$', '', a)
-             
-                b <- sub('^\\S+\\s+\\d\\s+', '', aln[25])
-                b <- sub('\\s+\\d+$', '', b)
-             
-                o <- strsplit(c(a, b), '')
-                
-                m <- paste0(unlist(lapply(1:nchar(a), function(n){
-                       b <- '.'
-                       n1 <- o[[1]][n]
-                       n2 <- o[[2]][n]
-                       
-                       if( n1 == n2) b <- '*'
-                       
-                       if(n1 == '-' | n2 == '-') b <- '-'
-                   
-                       b
-                     })), collapse = '')
-             
-                # Look at the right half of the alignment and report it if there are >= opt$predictPCRartifacts_minReportHalfMatches matches.
-                t <- substr(m, ceiling(opt$predictPCRartifacts_adjacentSeqLength / 2)+1, nchar(m))
-
-                if((stringr::str_count(t, '\\*') - stringr::str_count(t, '\\-')) < opt$predictPCRartifacts_minReportHalfMatches){
-                  o <- NA
-                } else if (stringr::str_count(m, '\\*') < opt$predictPCRartifacts_minReportMatches) {
-                  o <- NA
-                } else {
-                  o <- paste0(stringr::str_count(m, '\\*'), 'nt | ', m)
-                }
-
-                tibble(uniqueSite = us, PCRartifact1 = o)
-              }))
-            }))
-       
-       left_join(x, r, by = 'uniqueSite', relationship = 'many-to-many') %>% relocate(PCRartifact1, .after = opt$predictPCRartifacts_addAfter)
+  x$n <- ntile(1:nrow(x), opt$predictPCRartifacts_CPUs)
+  
+  updateLog(paste0('Starting refGenome: ', x$refGenome[1]))
+  
+  # Biostrings::pairwiseAlignment is leaking unclosed connections and breaking Docker when ran in parLapply().
+  r <- bind_rows(parLapply(cluster, split(x, x$n), function(a){
+  #r <- bind_rows(lapply(split(x, x$n), function(a){
+    library(dplyr)
+    library(Biostrings)
+    library(rtracklayer)
+    
+    set.seed(a$n[1])
+    
+    # Read in genome.
+    g <- import(TwoBitFile(a$refGenome[1]))
+    
+    # Loop over each unique site (trial~subject~sample~posid)
+    bind_rows(lapply(split(a, a$uniqueSite), function(x2){
+      us <- x2$uniqueSite
+      
+      o <- unlist(strsplit(us, '~'))
+      x2 <- o[length(o)]
+      
+      o <- unlist(strsplit(x2, '[\\+\\-]'))
+      strand <- stringr::str_extract(x2, '[\\-\\+]')
+      
+      o[2] <- sub('\\.\\S+$', '', o[2])
+      pos <- as.integer(o[2])
+      
+      if(! o[1] %in% names(g)) return(tibble(uniqueSite = us, PCRartifact1 = NA))
+      s <- g[names(g) == o[1]]
+      
+      leaderSeq <- subset(x, posid == x2)$repLeaderSeq
+      i <- ifelse(nchar(leaderSeq) < opt$predictPCRartifacts_adjacentSeqLength, nchar(leaderSeq),opt$predictPCRartifacts_adjacentSeqLength)
+      t <- substr(leaderSeq, nchar(leaderSeq)-i+1, nchar(leaderSeq))
+      
+      if(strand == '-'){
+        endPos <- pos + opt$predictPCRartifacts_adjacentSeqLength
+        startPos <- pos + 1
+        
+        if(startPos > width(s)) startPos <- width(s)
+        if(endPos > width(s))   endPos <- width(s)
+        if(startPos == endPos) startPos <- startPos - 1
+        
+        r <- tibble(uniqueSite = us, leaderSeqSeg = t, seq = as.character(reverseComplement( subseq(s, start = startPos, end = endPos))))   
+      } else {
+        startPos <- pos - opt$predictPCRartifacts_adjacentSeqLength
+        endPos <- pos-1
+        
+        if(startPos < 1) startPos <- 1
+        if(endPos < 1)   endPos <- 1
+        if(startPos == endPos) endPos <- endPos + 1
+        
+        r <- tibble(uniqueSite = us, leaderSeqSeg = t, seq = as.character(subseq(s, start = startPos, end = endPos)))   
+      }
+      
+      f <- tmpFile()
+      
+      # Stop pairwiseAlignment() from building up open connections while in parLapply() by making it a system call.
+      write(c('suppressPackageStartupMessages(library(Biostrings))', 
+        paste0('aln <- pairwiseAlignment("', r$leaderSeqSeg, '", "', r$seq, '", gapOpening = ', opt$predictPCRartifacts_gapOpeningPenalty, ', gapExtension = ', opt$predictPCRartifacts_gapExtensionPenalty, ')'),
+        paste0('writePairwiseAlignments(aln, "', f, '")'), 
+        'q(save = "no", status = 0, runLast = FALSE)'), file = paste0(f, '.com'))
+      system(paste('Rscript', paste0(f, '.com')))
+      
+      aln <- readLines(f)
+      invisible(c(file.remove(f, paste0(f, '.com'))))
+      
+      a <- sub('^\\S+\\s+\\d\\s+', '', aln[23])
+      a <- sub('\\s+\\d+$', '', a)
+      
+      b <- sub('^\\S+\\s+\\d\\s+', '', aln[25])
+      b <- sub('\\s+\\d+$', '', b)
+      
+      o <- strsplit(c(a, b), '')
+      
+      m <- paste0(unlist(lapply(1:nchar(a), function(n){
+        b <- '.'
+        n1 <- o[[1]][n]
+        n2 <- o[[2]][n]
+        
+        if( n1 == n2) b <- '*'
+        
+        if(n1 == '-' | n2 == '-') b <- '-'
+        
+        b
+      })), collapse = '')
+      
+      # Look at the right half of the alignment and report it if there are >= opt$predictPCRartifacts_minReportHalfMatches matches.
+      t <- substr(m, ceiling(opt$predictPCRartifacts_adjacentSeqLength / 2)+1, nchar(m))
+      
+      if((stringr::str_count(t, '\\*') - stringr::str_count(t, '\\-')) < opt$predictPCRartifacts_minReportHalfMatches){
+        o <- NA
+      } else if (stringr::str_count(m, '\\*') < opt$predictPCRartifacts_minReportMatches) {
+        o <- NA
+      } else {
+        o <- paste0(stringr::str_count(m, '\\*'), 'nt | ', m)
+      }
+      
+      tibble(uniqueSite = us, PCRartifact1 = o)
+    }))
+  }))
+  
+  left_join(x, r, by = 'uniqueSite', relationship = 'many-to-many') %>% relocate(PCRartifact1, .after = opt$predictPCRartifacts_addAfter)
 }))
 
-
+updateLog('Step one completed.')
 
 o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
   
   g <- import(rtracklayer::TwoBitFile(x$refGenome[1]))
   
   r <- bind_rows(lapply(x$uniqueSite, function(x2){
+
     us <- x2
     o <- unlist(strsplit(x2, '~'))
     x2 <- o[length(o)]
@@ -241,6 +224,7 @@ o <- bind_rows(lapply(split(sites, sites$refGenome), function(x){
   left_join(x, r, by = 'uniqueSite', relationship = 'many-to-many')
 }))
 
+updateLog('Step two completed.')
 
 o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
   vectorFastaFile <- a$vectorFastaFile[1]
@@ -257,7 +241,7 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
     library(Biostrings)
     library(stringr)
     source(file.path(opt$softwareDir, 'lib.R'))
-        
+    
     f <- tmpFile()
     
     write(c('>seq', x$seq), file = file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', f), append = FALSE)
@@ -267,7 +251,7 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
                   file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', f), ' -db ',
                   file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', 'd'),
                   ' -out ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f, '.blast'))), ignore.stdout = TRUE, ignore.stderr = TRUE)
-        
+    
     if(file.info(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f, '.blast')))$size > 0){
       
       b <- read.table(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f, '.blast')), sep = '\t', header = FALSE)
@@ -276,9 +260,9 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
       b$matches = b$length - b$mismatch
       
       b <- dplyr::filter(b, matches >= opt$predictPCRartifacts_minReportHalfMatches) %>% dplyr::slice_max(bitscore, with_ties = TRUE)
-            
+      
       if(nrow(b) > 0){
-                
+        
         b <- dplyr::slice_max(b, matches, with_ties = FALSE)
         
         f2 <- tmpFile()
@@ -292,23 +276,23 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
         writeXStringSet(v, file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f2, '.fasta')))
         
         system(paste0('makeblastdb -in ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f2, '.fasta')), ' -dbtype nucl -out ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', f2)), ignore.stderr = TRUE)
-                
+        
         system(paste0('blastn -dust no -soft_masking false -evalue 50 -outfmt 1 -word_size ', opt$predictPCRartifacts_wordSize, 
                       ' -gapopen ', opt$predictPCRartifacts_gapOpeningPenalty, ' -gapextend ', opt$predictPCRartifacts_gapExtensionPenalty, ' -query ',
                       file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', f), ' -db ',
                       file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', f2),
                       ' -out ', file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f, '.blast2'))), ignore.stdout = TRUE, ignore.stderr = TRUE)
-                
+        
         if(file.info(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f, '.blast2')))$size > 0){
-                    
+          
           p <- readLines(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs', paste0(f, '.blast2')))
           invisible(file.remove(list.files(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs'), pattern = f2, full.names = TRUE)))
-        
+          
           if(length(p) == 0){
             invisible(file.remove(list.files(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs'), pattern = f, full.names = TRUE)))
             return(tibble(uniqueSite = x$uniqueSite, PCRartifact2 = NA))
           }
-                    
+          
           q <- p[grepl('Query_1', p)]
           
           queryLetters <- stringr::str_extract(q, '[ATCG\\-]+')
@@ -317,29 +301,29 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
             invisible(file.remove(list.files(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs'), pattern = f, full.names = TRUE)))
             return(tibble(uniqueSite = x$uniqueSite, PCRartifact2 = NA))
           }
-                  
+          
           dashes <- stringr::str_count(str_extract(q, '[ATCGN\\-]+'), '-')
           
           i <- stringr::str_locate(q, '[ATCGN\\-]+')
           q <- as.integer(unlist(stringr::str_extract_all(sub('Query_1\\s+', '', q), '\\d+')))
-        
+          
           p <- p[grepl(paste0('\\.\\s+', b$send, '$'), p)][1]
           p <- substr(p, i[1], i[2])
           p <- gsub('\\.', '*', p)
           p <- gsub('\\s', '.', p)
           p <- unlist(strsplit(p, ''))
           names(p) <- q[1]:(q[2]+dashes)
-        
+          
           p <- paste0(unlist(lapply(1:(opt$predictPCRartifacts_adjacentSeqLength+dashes), function(n){
             n <- as.character(n)
             if(n %in% names(p)) return(p[names(p) == n])
             return('.')
           })), collapse = '')
-        
+          
           # Look at the right half of the alignment and report it if there are >= opt$predictPCRartifacts_minReportHalfMatches matches.
           
           matchingLetter <- unlist(strsplit(queryLetters, ''))[unlist(strsplit(p, '')) == '*']
-  
+          
           tm = (sum(stringr::str_count(matchingLetter, '[AT]')) * 2) + (sum(stringr::str_count(matchingLetter, '[GC]')) * 4)
           
           # Look at the right half of the alignment and report it if there are >= opt$predictPCRartifacts_minReportHalfMatches matches.
@@ -351,10 +335,10 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
             if(tm >= opt$predictPCRartifacts_minMeltingTemp & (stringr::str_count(t, '\\*') - stringr::str_count(t, '\\-')) >= opt$predictPCRartifacts_minReportHalfMatches){
               p <- paste0(tm, 'C | ', p)
             } else {
-             p <- NA
+              p <- NA
             }
           }
-        
+          
           invisible(file.remove(list.files(file.path(opt$outputDir, opt$predictPCRartifacts_outputDir, 'dbs'), pattern = f, full.names = TRUE)))
           return(tibble(uniqueSite = x$uniqueSite, PCRartifact2 = p))
         } else {
@@ -374,6 +358,8 @@ o2 <- bind_rows(lapply(split(o, o$vectorFastaFile), function(a){
   stopCluster(cluster)
   r
 }))
+
+updateLog('Step three completed.')
 
 sites <- left_join(sites, o2, by = 'uniqueSite', relationship = 'many-to-many') %>% relocate(PCRartifact2, .after = PCRartifact1) %>% select(-uniqueSite)
 sites <- arrange(sites, desc(sonicLengths))

@@ -36,6 +36,7 @@ frags <- bind_rows(lapply(unlist(strsplit(opt$pullDatabaseFragments_trialSubject
            updateLog(paste0('Submitting query: ', query))
            o <- reconstructDBtable(dbGetQuery(dbConn, query), tmpDirPath = file.path(opt$outputDir, opt$pullDatabaseFragments_outputDir, 'tmp'))
            updateLog(paste0(ppNum(nrow(o)), ' rows returned from the database.'))
+           updateMasterLog()
            o
          }))
 
@@ -44,5 +45,6 @@ dbDisconnect(dbConn)
 saveRDS(frags, file.path(opt$outputDir, opt$pullDatabaseFragments_outputDir, 'fragments.rds'))
 
 updateLog('pullDatabaseFragments completed.')
+updateMasterLog()
 
 q(save = 'no', status = 0, runLast = FALSE) 

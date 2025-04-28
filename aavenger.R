@@ -174,12 +174,14 @@ checkSoftware()
 
 
 if(! opt$calledFromCore){
-  dir.create(file.path(opt$outputDir, 'src'), showWarnings = FALSE)
-  invisible(sapply(list.files(opt$softwareDir, pattern = '*.R', full.names = TRUE), file.copy, to = file.path(opt$outputDir, 'src')))
-  invisible(file.copy(opt$sampleConfigFile, file.path(opt$outputDir, 'src', 'sampleData.tsv')))
-  invisible(file.copy(opt$configFile, file.path(opt$outputDir, 'src', 'config.yml')))
-  dir.create(file.path(opt$outputDir, 'src', 'version'), showWarnings = FALSE)
-  invisible(file.copy(list.files(file.path(opt$softwareDir, 'version'), full.names = TRUE), file.path(opt$outputDir, 'src', 'version'), recursive = TRUE))
+  if(! dir.exists(file.path(opt$outputDir, 'src'))){
+    dir.create(file.path(opt$outputDir, 'src'), showWarnings = FALSE)
+    invisible(sapply(list.files(opt$softwareDir, pattern = '*.R', full.names = TRUE), file.copy, to = file.path(opt$outputDir, 'src')))
+    invisible(file.copy(opt$sampleConfigFile, file.path(opt$outputDir, 'src', 'sampleData.tsv')))
+    invisible(file.copy(opt$configFile, file.path(opt$outputDir, 'src', 'config.yml')))
+    dir.create(file.path(opt$outputDir, 'src', 'version'), showWarnings = FALSE)
+    invisible(file.copy(list.files(file.path(opt$softwareDir, 'version'), full.names = TRUE), file.path(opt$outputDir, 'src', 'version'), recursive = TRUE))
+  }
 }
 
 # Start log.

@@ -218,3 +218,13 @@ Updated scheduler in core.R to make better CPU allocations.
 Updated README
 3.0.5
 Updated buildStdFragments -- changed anchor read clustering input filter to prioritize reads likely to contribute to abundant clones.
+3.0.6
+Updated core scheduler -- make better use of free CPUs.
+Introduced cumlative log in output/log
+Updated paramaeter injection system.
+Added database connection check.
+Fixed issue with taring source code when uploading to database.
+Added pullDatabaseFragments.R
+Dropped UMI columns in sites output when UMI processing is turned off.
+Added read attrition to cumlative log and core outputs.
+Added examples of logs for README.

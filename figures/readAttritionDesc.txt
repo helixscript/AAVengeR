@@ -1,0 +1,24 @@
+AAVengeR read attrition report.
+
+(prepReads module)
+PRD1 - reads remaining after demultiplexing module completed.
+PRD2 - reads remaining after trimming common linker over-read and removing short sequences.
+PRD3 - reads remaining after vector similarity filter.
+PRD4 - reads remaining after removing those without recognizable LTR sequences.
+PRD5 - reads remaining after removing those with short gDNA segments
+ 
+(alignReads module)
+ALR1 - anchor reads with alignments to the reference genome.
+ALR2 - anchor reads remaining after removing those with only partial alignments.
+ALR3 - adrift reads with alignments to the reference genome.
+ALR4 - adrift reads remaining after removing those with only partial alignments.
+ALR5 - reads remaining after both anchor and adrift reads have ≥ 1 good alignments.
+ 
+(buildFragments module)
+BFR1 - reads that assembled into rationale fragments (contains multi-hit fragments).
+ 
+(buildStdFragments module)
+BSF1 - reads that assembled into standardized fragments (multi-hits set aside).
+
+#-------------------------------------------------------------------------------
+
