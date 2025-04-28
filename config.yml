@@ -224,6 +224,7 @@ mapSiteLeaderSequences_maxMissingTailNTs: 5
 predictPCRartifacts_CPUs: 30
 predictPCRartifacts_inputFile: annotateRepeats/sites.rds
 predictPCRartifacts_outputDir: predictPCRartifacts
+predictPCRartifacts_minMeltingTemp: 50
 predictPCRartifacts_adjacentSeqLength: 20
 predictPCRartifacts_minMeltingTemp: 50
 predictPCRartifacts_minReportHalfMatches: 7
