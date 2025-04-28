@@ -25,7 +25,7 @@ Clone this repository and install one or more precompiled genomes.
 
 AAVengeR requires two configuration files. The [first configuration file](config.yml) contains the list of modules to run, module specific processing parameters, paths to resources, and the path to the second configuration file which defines sample specific parameters. The [sample configuration file](sampleData.tsv) contains sample specific information such as barcode sequences for demultiplexing, linker sequences, and reference genome against which reads should be aligned. Typically, only parameters near the top of the configuration file need to be changed such as those pointing to sequencing data, the sample configuration file, module chain, and the name of the output directory.  
   
-AAVengeR pushes data through a series of modules defined in the 'modules' section of the configuration. There core modules are: demultiplex, prepReads, alignReads, buildFragments, buildStdFragments and buildSites. Rather than chaining these modules together in the 'modules' section, it is often more advantageous to simply call the 'core' module. This module calls the six core modules and automatically allocates CPUs to each sample depending on the number of demultiplexed reads. When using the core module, progress can be tracked through three key log files. The first log file, assuming your output directory is named 'output', would be 'output/core/demultiplex/log'. This file is updated in real time detailing the progress of the demultiplex module. Once the demultiplexing module finishes, 'output/core/replicateJobTable' will be created and show each sample replicate, the number of CPUs assigned to it, and its position and status in the queue. Finally, once replicate level analyses are complete, the 'output/cores/subjectJobTable' log will be created and report the progress of subject level analyses after which integration sites will be written to 'output/core'.
+AAVengeR pushes data through a series of modules defined in the 'modules' section of the configuration. The core modules are: demultiplex, prepReads, alignReads, buildFragments, buildStdFragments and buildSites. Rather than chaining these modules together in the 'modules' section, it is often more advantageous to simply call the 'core' module. This module calls the six core modules and dynamically allocates CPUs to each process depending on the number of demultiplexed reads. The pipeline creates log files for each module and continuously collates them in real time to a single master log file found in outout/log  ([example master log](figures/exampleLog.txt)). When using the core module, a job table will be found in the master log file to help track the progress of pipeline jobs. Another benefit of using the core module rather than chaining together modules is the creation of read attrition plots. These plots are embeded within the master log and a complete collection of plots is available in output/core/readAttritionReport.txt ([example report](figures/exampleReadAttritionReport.txt)).
   
 When both configuration files are ready, the pipeline is launched with this command:
   
@@ -160,5 +160,21 @@ AAVengeR's configuration file contains two main sections. Settings at the top ar
 **demultiplex_sampleDataFile** -- This setting defines the path to the [sample configuration file](sampleData.tsv).
 
 **modules** -- This setting stores the list of modules (and their order) that AAVengeR should be executed. Each module has its own set of parameters defined further down in the configuration file including data input and output paths.
+
+# Module parameter injection  
+
+The parameters for each modules are defined in the module specific sections of the AAVengeR configuration file. These parameters can be overridden by passing parameter directly to modules (example below). 
+This is useful for when users want to run a module more than once but use different parameters each time.
+
+```
+modules:
+  - core
+  - callNearestGenes
+  - callNearestGenes "callNearestGenes_outputDir:callNearestOncoGene,
+                      callNearestGenes_columnPrefix:onocoGenes_,
+                      callNearestGenes_geneList:/data/AAVengeR_3.0.6/data/geneLists/COSMIC_v10_genes"
+  - annotateRepeats
+```
+
 
 
