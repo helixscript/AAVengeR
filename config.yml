@@ -226,13 +226,11 @@ predictPCRartifacts_inputFile: annotateRepeats/sites.rds
 predictPCRartifacts_outputDir: predictPCRartifacts
 predictPCRartifacts_minMeltingTemp: 50
 predictPCRartifacts_adjacentSeqLength: 20
-predictPCRartifacts_minMeltingTemp: 50
 predictPCRartifacts_minReportHalfMatches: 7
 predictPCRartifacts_minReportMatches: 15
 predictPCRartifacts_wordSize: 5
 predictPCRartifacts_gapOpeningPenalty: 3
 predictPCRartifacts_gapExtensionPenalty: 2
-predictPCRartifacts_minMeltingTemp: 50
 predictPCRartifacts_addAfter: posid
 
 
