@@ -403,8 +403,8 @@ atl <- bind_rows(lapply(list.files(opt$outputDir, pattern = 'attritionLog.tsv', 
 
 if(nrow(atl) > 0){
   atlOutput <- vector()
-  atl <- tidyr::pivot_wider(atl, names_from = label, values_from = value)
-  
+  atl <- tidyr::pivot_wider(distinct(atl), names_from = label, values_from = value)
+
   cols <- c("sampleRep", "PRD1", "PRD2", "PRD3", "PRD4", "PRD5", "ALR1", "ALR2", "ALR3", "ALR4", "ALR5", "BFR1", "BSF1")
   cols <- cols[cols %in% names(atl)]
   atl <- atl[, cols]
