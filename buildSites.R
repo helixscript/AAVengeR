@@ -11,6 +11,7 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(RMariaDB))
 suppressPackageStartupMessages(library(Biostrings))
+suppressPackageStartupMessages(library(data.table))
 
 # Read in the configuration file and perform basic sanity checks.
 args <- commandArgs(trailingOnly=TRUE)

@@ -53,9 +53,6 @@ reads <- readRDS(file.path(opt$outputDir, opt$anchorReadRearrangements_inputFile
 if(nrow(reads) == 0) quitOnErorr('Error - the input table contained no rows.')
 
 
-# Correct common vector format used in earlier versions.
-reads$vectorFastaFile <- sub('_plasmids?\\.fasta$', '-plasmid.fasta', reads$vectorFastaFile)
-
 # Test for raw reads, vector files, and 500mers in config file.
 if(! all(unique(reads$vectorFastaFile) %in% names(opt$anchorReadRearrangements_expectedSeqs))) quitOnErorr('Error: one or more vector expected sequences are missing from the configuration file.')
 if(! all(sapply(unique(reads$vectorFastaFile), function(x) file.exists(file.path(opt$softwareDir, 'data', 'vectors', x))))) quitOnErorr('Error: one or more vector sequences are missing from the AAVengeR data/vectors folder.')
@@ -279,9 +276,9 @@ worker <- function(x){
                 ' -dbtype nucl -out ', file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', db)), ignore.stderr = FALSE)
   
   o <- rbindlist(lapply(windowsTypes, function(windowType){
-    rbindlist(lapply(rarifactionLevels, function(rarifactionLevel){
-      rbindlist(lapply(windows, function(w){
-        rbindlist(lapply(seeds, function(seed){
+         rbindlist(lapply(rarifactionLevels, function(rarifactionLevel){
+           rbindlist(lapply(windows, function(w){
+             rbindlist(lapply(seeds, function(seed){
           
         # No need to sample additional seeds if rarifactionLevel == 0.    
         if(rarifactionLevel == 0 & which(seeds == seed) > 1) return(tibble())
@@ -392,15 +389,12 @@ worker <- function(x){
           rtab$window = w
           rtab$seed = seed
           rtab$vector = x$vectorFastaFile[1]
-          rtab$totalReads = n_distinct(x$readID)
           rtab <- left_join(rtab, select(x, readID, seq), by = c('Var1' = 'readID'))
           rtab$seq <- substr(rtab$seq, 1, w)
           rtab$seqModel <- sapply(rtab$seq, buildSeqModel, 
                                   db = file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', db),
                                   id = f,
                                   tmpDir = file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'))
-          ## message('f1')
-          ## browser()
           
           write_tsv(rtab, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'clusterSequences', paste0(x$uniqueSample[1], '_', windowType, '_', rarifactionLevel, '_',  w, '_', seed)))
         }
@@ -440,7 +434,7 @@ worker <- function(x){
                    vectorPaths              = length(opt$anchorReadRearrangements_expectedSeqs[[x$vectorFastaFile[1]]]),
                    window                   = w,
                    windowType               = windowType,
-                   totalReads               = n_distinct(o$readID), 
+                   totalReads               = expectedStructReadNum + unExpectedStructReadNum, 
                    expectedStructReads      = expectedStructReadNum,
                    unExpectedStructReads    = unExpectedStructReadNum,
                    altStructs               = altStructNum,
