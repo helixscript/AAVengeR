@@ -230,3 +230,5 @@ Added read attrition to cumlative log and core outputs.
 Added examples of logs for README.
 3.0.7
 Updated buildRepLeaderSeqTable() in lib.R (used by buildSites). Replaced tibbles with data.tables to fix memory leak.
+3.0.8
+Added missing data.table library load to buildSites.
