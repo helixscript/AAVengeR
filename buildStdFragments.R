@@ -860,6 +860,86 @@ if(nrow(frags_multPosIDs) > 0 & opt$buildStdFragments_createMultiHitClusters){
     invisible(gc())
   }
   
+  
+  if(opt$buildStdFragments_calcMultiHitClusterAbunds | opt$buildStdFragments_calcMultiHitClusterNodeAbunds){
+    
+    # Calculate cluster abundances.
+    clusterExport(cluster, c('opt', 'frags'))
+    multiHitClusters <- rbindlist(parLapply(cluster, split(multiHitClusters, 1:nrow(multiHitClusters)), function(x){
+      suppressPackageStartupMessages(library(dplyr))
+      suppressPackageStartupMessages(library(data.table))
+      suppressPackageStartupMessages(library(Biostrings))
+      source(file.path(opt$softwareDir, 'lib.R'))
+      
+      if(opt$buildStdFragments_calcMultiHitClusterAbunds){
+        # Calculate abundance for entire cluster.
+        seqs <- DNAStringSet(unique(frags[frags$readID %in% unlist(x$readIDs),]$adriftReadSeq))
+        names(seqs) <- paste0('seq', 1:length(seqs))
+        
+        clusterAbund <- 1
+        
+        if(length(seqs) > 1){
+          clstrs <- CD_HIT_clusters(seqs, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), opt$buildStdFragments_fragClusterParams)
+          
+          n <- 0
+          m <- rbindlist(lapply(clstrs, function(x){
+            e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
+            
+            if(length(e) > 0){
+              n <<- n + 1
+              return(data.table(readID = sub('^>', '', e), fragClusterGroup = n))
+            } else {
+              return(data.table())
+            }
+          }))
+          
+          clusterAbund <- n_distinct(m$fragClusterGroup)
+        }
+        
+        x$clusterSonicLengths <- clusterAbund
+        
+      } else {
+        x$clusterSonicLengths <- NA
+      }
+      
+      if(opt$buildStdFragments_calcMultiHitClusterNodeAbunds){
+        
+        # Calculate sonic lengths within each node.
+        x$nodeSonicLengths <- list(rbindlist(lapply(unlist(x$posids), function(p){
+          seqs <- DNAStringSet(unique(subset(frags, posid == p)$adriftReadSeq))
+          names(seqs) <- paste0('seq', 1:length(seqs))
+          
+          nodeAbund <- 1
+          
+          if(length(seqs) > 1){
+            clstrs <- CD_HIT_clusters(seqs, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'tmp'), opt$buildStdFragments_fragClusterParams)
+            
+            n <- 0
+            m <- rbindlist(lapply(clstrs, function(x){
+              e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
+              
+              if(length(e) > 0){
+                n <<- n + 1
+                return(data.table(readID = sub('^>', '', e), fragClusterGroup = n))
+              } else {
+                return(data.table())
+              }
+            }))
+            
+            nodeAbund <- n_distinct(m$fragClusterGroup)
+          }
+          
+          data.table(posid = p, sonicLengths = nodeAbund)
+        })))
+      } else {
+        x$nodeSonicLengths <- list(data.table())
+      }
+      
+      x
+    }))
+    
+  }
+  
   saveRDS(multiHitClusters, file.path(opt$outputDir, opt$buildStdFragments_outputDir, 'multiHitClusters.rds'), compress = opt$compressDataFiles)
   
   if(opt$database_configGroup != 'none' & nrow(multiHitClusters) > 0){

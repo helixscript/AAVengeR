@@ -232,3 +232,7 @@ Added examples of logs for README.
 Updated buildRepLeaderSeqTable() in lib.R (used by buildSites). Replaced tibbles with data.tables to fix memory leak.
 3.0.8
 Added missing data.table library load to buildSites.
+3.0.1
+Updated multi-hit clusters to track abundances using adrift read clustering.
+Added new core flags for debugging.
+Added Bushman allOnco gene list.

@@ -73,7 +73,7 @@ updateLog('Preparing alignment data for fragment generation.')
 
 anchorReadAlignments <- subset(anchorReadAlignments, readID %in% adriftReadAlignments$readID)
 
-anchorReadAlignments <- select(anchorReadAlignments, uniqueSample, sample, readID, tName, strand, tStart, tEnd, leaderSeq, refGenome, flags, vectorFastaFile, anchorReadSeq, qStart)
+anchorReadAlignments <- select(anchorReadAlignments, uniqueSample, sample, readID, tName, strand, tStart, tEnd, leaderSeq, refGenome, flags, vectorFastaFile, anchorReadSeq, qStart, adriftReadSeq)
 adriftReadAlignments <- select(adriftReadAlignments, sample, readID, tName, strand, tStart, tEnd, randomLinkerSeq)
 
 names(anchorReadAlignments) <- paste0(names(anchorReadAlignments), '.anchorReads')
@@ -227,6 +227,7 @@ frags <- bind_rows(lapply(o, function(z){
          chromosome = tName.anchorReads,  
          fragTest  = ifelse(strand.anchorReads == '+', tStart.anchorReads < tEnd.adriftReads, tStart.adriftReads < tEnd.anchorReads),  
          anchorReadSeq = anchorReadSeq.anchorReads,
+         adriftReadSeq = adriftReadSeq.anchorReads,
          qStart = qStart.anchorReads,
          fragWidth = (fragEnd - fragStart) + 1) %>%
          filter(fragTest == TRUE, 
@@ -234,7 +235,7 @@ frags <- bind_rows(lapply(o, function(z){
                 fragWidth >= opt$buildFragments_minFragLength) %>%
                 mutate(uniqueSample = uniqueSample.anchorReads, readID = readID.anchorReads) %>%
                 select(uniqueSample, readID, chromosome, strand, fragStart, fragEnd, leaderSeq.anchorReads, randomLinkerSeq.adriftReads, 
-                       anchorReadSeq, qStart, refGenome.anchorReads, vectorFastaFile.anchorReads, flags.anchorReads, )
+                       anchorReadSeq, qStart, adriftReadSeq, refGenome.anchorReads, vectorFastaFile.anchorReads, flags.anchorReads, )
    r
 }))
 
@@ -269,8 +270,11 @@ frags <- dplyr::rename(frags, leaderSeq = leaderSeq.anchorReads, randomLinkerSeq
 
 if(any(! incomingSamples %in% frags$uniqueSample) & opt$core_createFauxFragDoneFiles) core_createFauxFragDoneFiles()
 
+# Prep read sequences for clustering in buildStdFragments.
 frags$anchorReadSeq <- substr(frags$anchorReadSeq, (frags$qStart + 1), (opt$buildStdFragments_fragEvalAnchorReadTestLen + frags$qStart))
 frags$qStart <- NULL
+
+frags$adriftReadSeq <- substr(frags$adriftReadSeq, 1, opt$buildStdFragments_fragEvalAdriftReadTestLen)
 
 saveRDS(frags, file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.rds'), compress = opt$compressDataFiles)
 write(date(), file.path(opt$outputDir, opt$buildFragments_outputDir, 'fragments.done'))

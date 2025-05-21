@@ -52,9 +52,8 @@ o$outputDir <- file.path(opt$outputDir, 'core')
 
 # Run demultiplex module.
 o$demultiplex_CPUs <- opt$core_CPUs
-### o$orgOutputDir <- opt$outputDir
-yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml'))
 
+yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'demultiplex', 'config.yml'))
 
 # Create a shell script to start demultiplex module.
 write(c('#!/usr/bin/sh', 
@@ -68,11 +67,13 @@ updateLog('Running the demultiplex module.')
 system(paste('chmod 755', file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh')))
 
 
-# Run demultiplex.
+# Run demultiplex module.
 
-# !!! Set r to zero to bypass if this result is already available.
-r <- system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, intern = TRUE)
-### r <- 0
+if(opt$core_skipDemultiplexing == FALSE){
+  r <- system(file.path(opt$outputDir, 'core',  'demultiplex', 'run.sh'), wait = TRUE, intern = TRUE)
+} else {
+  r <- 0
+}
 
 
 if(r != 0){
@@ -183,8 +184,7 @@ CPUs_used <- 0
 
 updateLog('Starting replicate level jobs.')
 
-# !!! Short circuit replicate level analyses
-### jobTable$done <- TRUE
+if(opt$core_skipReplicateLevelJobs) jobTable$done <- TRUE
 
 # Run prepReads, alignReads, and buildFragments.
 while(! all(jobTable$done == TRUE)){
@@ -222,8 +222,6 @@ while(! all(jobTable$done == TRUE)){
   # Define modules to run in replicate level configuration file and write out file.
   o$modules <- list()
   o[['modules']] <- c('prepReads', 'alignReads', 'buildFragments')
-  
-  ### o$orgOutputDir <- opt$outputDir
   
   yaml::write_yaml(o, file.path(opt$outputDir, 'core',  'replicate_analyses', tab$id, 'config.yml'))
   
@@ -340,8 +338,6 @@ while(! all(jobTable$done == TRUE)){
   # Define modules to run in replicate level configuration file and write out file.
   o$modules <- list()
   o[['modules']] <- c('buildStdFragments', 'buildSites')
-  
-  ### o$orgOutputDir <- opt$outputDir
   
   yaml::write_yaml(o, file.path(opt$outputDir, 'core', 'subject_analyses', tab$id, 'config.yml'))
   
