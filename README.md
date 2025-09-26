@@ -51,7 +51,7 @@ For example, if AAVengeR and your data files are all located in your home direct
 The container needs to know the location of AAVengeR and its configuration file. These paths are provided in the command to start the container. **Importantly, these paths, and the paths included in your AAVengeR configuration file, need to be written from the container's perspective**. For example, if you installed AAVengeR at */home/myUser/AAVengeR* and bound */home/myUser* to the container's */data* directory, the path to AAVengeR would be */data/AAVengeR*. Putting it all together: 
 
 ```
-%> docker run --rm --mount type=bind,source=/home/myUser,target=/data -e CONFIG_PATH=/data/seqRun/config.yml aavenger_docker_v3
+%> docker run --rm --mount type=bind,source=/home/myUser,target=/data -e CONFIG_PATH=/data/seqRun/config.yml aavenger
 ```
 
 # Setting up the sample configuration file
