@@ -33,13 +33,13 @@ When both configuration files are ready, the pipeline is launched with this comm
 %> ./aavenger.R config.yml
 ```
 
-The AAVengeR pipeline is written in both R and Python and requires several software libraries and third party tools to run. In order to simplify its installation and standardize its behavior, a [precompiled Docker image](http://bushmanlab.org/data/AAVengeR/docker/aavenger_docker_v3.tar) is available and recommended. 
+The AAVengeR pipeline is written in both R and Python and requires several software libraries and third party tools to run. In order to simplify its installation and standardize its behavior, a [precompiled Docker image](https://bushmanlab.org/data/AAVengeR/docker/aavenger.tar.gz) is available and recommended. 
 
 # Working with Docker  
 
 The provided Docker image can be imported with this command:
 ```
-%> docker load < aavenger_docker_v3.tar
+%> docker load < aavenger.tar.gz
 ```
   
 The Docker container expects you to 'bind' a file directory containing all the files needed for the analysis (AAVengeR, FASTQs, and configuration files) to the container at run time. Within the container, the directory will be bound to */data*. 
