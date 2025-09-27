@@ -34,7 +34,8 @@ When both configuration files are ready, the pipeline is launched with this comm
 ```
 
 The AAVengeR pipeline is written in both R and Python and requires several software libraries and third party tools to run. In order to simplify its installation and standardize its behavior, a [precompiled Docker image](https://bushmanlab.org/data/AAVengeR/docker/aavenger.tar.gz) is available and recommended. 
-
+<br>
+<br>
 # Working with Docker  
 
 The provided Docker image can be imported with this command:
@@ -53,7 +54,8 @@ The container needs to know the location of AAVengeR and its configuration file.
 ```
 %> docker run --rm --mount type=bind,source=/home/myUser,target=/data -e CONFIG_PATH=/data/seqRun/config.yml aavenger
 ```
-
+<br>
+<br>
 # Setting up the sample configuration file
 
 The [sample configuration file](sampleData.tsv) provides AAVengeR information about sequencing library. Sequenced amplicons are expected to have the structure defined in the [2016 INSPIIRED paper](https://pubmed.ncbi.nlm.nih.gov/28344990). Reads originating from within LTR or ITR sequences and transverse genomic junctures are referred to as *anchor reads* because they anchor sequencing reads to integration positions. Reads originating from within ligated linkers at the opposite ends of fragments are referred to as *adrift reads* because their alignment positions drift due to the genome being sheared during library preparation. For each sample replicate, the sample configuration file will need the sequence of the adrift linker (eg. GTTAAAGGTGTTCCCTGCCGNNNNNNNNNNNNCTCCGCTTAAGGGACT) and I1 barcode (eg. ACCTAAGTCCGT).
@@ -75,7 +77,8 @@ In addition to this sequence information, the sample configuration file needs in
  &nbsp; &nbsp; (mode: integrase) &nbsp; &nbsp; **IN_u3**: anchor read is reading out of LTR U3 into genomic DNA.<br>
  &nbsp; &nbsp; (mode: AAV) &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; **AAV**: sample is an AAV integration sample.<br>
  &nbsp; &nbsp; (mode: manual) &nbsp; &nbsp; &nbsp; &nbsp;**none**: place holder for other analyses.<br>  
-
+<br>
+<br>
 # Working with HMMs
 Anchor reads containing the ends of vector LTR sequences are recognized using vector specific HMMs. HMMs are used because them are particularly adept at recognizing mismatches and minor indels that can occur due to natural variation and sequencing error.  Vector HMMs are created with the HMMER software package for each vector used in your analysis. To create a vector HMM, first create a FASTA file for the expected vector sequence you expect to observe in your R2 read sequences. This will be the expected sequence observed before transitioning into genomic DNA, eg.
 ```
@@ -100,11 +103,15 @@ GAAAATTCTAGCA
 >mySeq_1del_1ins
 GAAATCTCTGAGCA
 ```
-Once we create a couple of minor variations in our target sequence, we evaluate the variations with our HMM.
+Once we create a couple of minor variations in our target sequence, we evaluate the variations with our HMM.  
+First run this command to evaluate the test sequences:
+
 ```
 nhmmer --F1 1 --F2 1 --F3 1 -T -5 --incT -5 --nobias --popen 0.15 --pextend 0.05 --tblout mySeqTests.tbl mySeq.hmm mySeqTests.fasta
 ```
 
+Next, review the output (mySeqTests.tbl) to determine a minimum acceptable score:
+  
 ```
 # target name        accession  query name           accession  hmmfrom hmm to alifrom  ali to envfrom  env to  sq len strand   E-value  score  bias  description of target
 #------------------- ---------- -------------------- ---------- ------- ------- ------- ------- ------- ------- ------- ------ --------- ------ ----- ---------------------
@@ -115,8 +122,8 @@ mySeq_1del_1ins      -          mySeq                -                3      10 
 mySeq_1del           -          mySeq                -                4      13       3      12       1      13      13    +        0.38   -0.4   1.2  -
 ```
   
-Examine the HMM scores in column 9 (full sequence score) and make a decision about the lowest score that provides an acceptable match. In this example, we will go with 5.0. Next we will create an settings file for the new HMM. This file needs to have the same name as the HMM file except we replace ".hmm" with ".settings". The settings file provides default scoring parameters for the HMM. Here is an example:
-
+Examine the HMM scores in column 14 (score) and make a decision about the lowest score that provides an acceptable match. In this example, we will go with 0.5. Next we will create an settings file for the new HMM. This file needs to have the same name as the HMM file except we replace ".hmm" with ".settings". The settings file provides default scoring parameters for the HMM. Here is an example:
+  
 ```
 prepReads_HMMsearchReadStartPos: 1  # Anchor read position to start searching for an HMM match.
 prepReads_HMMsearchReadEndPos:  16  # Anchor read postion to stop looking for an HMM match, typicaly a couple NT past expected position.
@@ -127,7 +134,8 @@ prepReads_HMMmatchTerminalSeq: CA   # If prepReads_HMMmatchEnd is True, these le
 prepReads_HMMmatchEndRadius: 2      # If a terminal seq match is requested and not found at end of an HMM match, allow the software to look +/- 2 NT for the terminal sequence.
 ```
 Settings in HMM settings files will be used to score their respective HMMs if *prepReads_useDefaultHMMsettings* is set to True in AAVengeR's configuration file otherwise the settings in the main configuration file will be used. Both hmm and settings files need to be places in AAVengeR's data/hmms/ folder. 
-
+<br>
+<br>
 # Configuring AAVengeR
 
 AAVengeR's configuration file contains two main sections. Settings at the top are designed to be changed for each analysis. These settings point to data files and output locations. The remaining settings are divided into modules and typically do not need to be changed. Paths to resources and outputs can be relative from where the software is started or absolute. It is important to remember that paths should reflect the Docker container's bound file structure when using Docker.
@@ -153,7 +161,8 @@ AAVengeR's configuration file contains two main sections. Settings at the top ar
 **demultiplex_sampleDataFile** -- This setting defines the path to the [sample configuration file](sampleData.tsv).
 
 **modules** -- This setting stores the list of modules (and their order) that AAVengeR should be executed. Each module has its own set of parameters defined further down in the configuration file including data input and output paths.
-
+<br>
+<br>
 # Module parameter injection  
 
 The parameters for each modules are defined in the module specific sections of the AAVengeR configuration file. These parameters can be overridden by passing parameter directly to modules (example below). 
