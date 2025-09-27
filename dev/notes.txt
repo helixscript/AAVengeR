@@ -1,10 +1,8 @@
 # Mask a vector for repeats using lower case letters.
 ~/scratch/RepeatMasker/RepeatMasker -e hmmer -s -species human -xsmall -dir repeatMaskerOutput pAAV-GFP-plasmid.fasta
 
-
 # Start a Docker container and enter a shell rather than starting AAVengeR.
 docker run --rm -it --mount type=bind,source=/data,target=/data --entrypoint "" aavenger /bin/bash
-
 
 # Bushman group yeast positive controls
 ID   posid            ITR remnant / following gDNA seq
