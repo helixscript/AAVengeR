@@ -232,7 +232,21 @@ Added examples of logs for README.
 Updated buildRepLeaderSeqTable() in lib.R (used by buildSites). Replaced tibbles with data.tables to fix memory leak.
 3.0.8
 Added missing data.table library load to buildSites.
-3.0.1
+3.1.0
 Updated multi-hit clusters to track abundances using adrift read clustering.
 Added new core flags for debugging.
 Added Bushman allOnco gene list.
+3.1.1 
+Added an else() clause to multi-hit abundance calculations to catch instances when these calcs are turned off in the config file.
+Added multi-hit abund options to default variables files.
+Removed buildRunSynSeqData.R in favor of buildSynReadData.py
+updated anchorReadRearrangements.R
+updated default settings for anchorReadRearrangements.R in config.R
+3.2.0
+Changed file structure -- segregated modules and libraries.
+Removed bwa2 pre-filter options.
+Rewrote Golay correction function (Python2 -> R).
+Updated CPU load balancing function in core.R.
+Replaced hmmsearch with nhmmer - prepReads_HMMminFullBitScore values need to be reduce compared to earlier versions.
+Added prepReads_HMMmatchEndRadius option to allow software to search +/- n NTs for terminal HMM match sequences. 
+Added memory monitoring to master log file.

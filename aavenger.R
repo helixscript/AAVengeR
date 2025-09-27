@@ -7,38 +7,26 @@
 # Its primary function is to check for configuration errors and execute
 # the module list found in the configuration file.
 
-suppressPackageStartupMessages(library(yaml))
-suppressPackageStartupMessages(library(dplyr))
-suppressPackageStartupMessages(library(lubridate))
-suppressPackageStartupMessages(library(pander))
-suppressPackageStartupMessages(library(optparse))
+for (p in c('yaml', 'dplyr', 'lubridate', 'pander', 'optparse')) suppressPackageStartupMessages(library(p, character.only = TRUE))
 
 args <- commandArgs(trailingOnly=TRUE)
 
+knownParameters <- c('list_available_genomes', 'list_installed_genomes', 'install_genome', 'remove_genome')
+
 if(length(args) == 0){
-  message('primary usage:   aavenger.R  <config file>\n')
-  message('genome management:   aavenger.R --list.available.genomes')
-  message('genome management:   aavenger.R --list.installed.genomes')
-  message('genome management:   aavenger.R --install.genome <genome id>')
-  message('genome management:   aavenger.R --remove.genome <genome id>\n')
-  q()
+  message('usage: ')
+  message('  aavenger.R <config file>')
+  message('  aavenger.R list_available_genomes')
+  message('  aavenger.R list_installed_genomes')
+  message('  aavenger.R install_genome <genome id>')
+  message('  aavenger.R remove_genome <genome id>')
+  quit(save = "no", status = 0, runLast = FALSE)
 }
 
-if(any(grepl('\\-\\-', args))){
-  option_list = list(
-    make_option(c("--list.available.genomes"), type="character", default=NULL, help="Display a list of available genomes.", action="store_true"),
-    make_option(c("--list.installed.genomes"), type="character", default=NULL, help="Display a list of installed genomes.", action="store_true"),
-    make_option(c("--install.genome"), type="character", default=NULL, help="install an available genome.", action="store"),
-    make_option(c("--remove.genome"), type="character", default=NULL, help="Remove a genome from your installation.", action="store"))
-  
-  opt_parser = OptionParser(option_list=option_list, add_help_option = FALSE)
-  opt = parse_args(opt_parser)
-  
-  if(length(opt) > 1) stop('Error - more than one argument was provided.')
- 
-  if('list.available.genomes' %in% names(opt)){
-    o <- yaml::read_yaml('defaults.yml')
-    f <- system(paste0('wget -qO- ', o$remoteDataURL, '/fileList'), intern = TRUE)
+parseParameters <- function(){
+  if(args[1] == 'list_available_genomes'){
+    o <- yaml::read_yaml('data/defaults.yml')
+    f <- system(paste0('wget -qO- ', o$remoteDataURL, '/genomePackages/fileList'), intern = TRUE)
     f <- f[2:length(f)]
     f <- f[! grepl('fileList', f)]
     sizes <-  unlist(lapply(strsplit(f, '\\s+'), '[[', 5))
@@ -47,15 +35,17 @@ if(any(grepl('\\-\\-', args))){
     genomes <- unlist(lapply(strsplit(f, '\\s+'), '[[', 9))
     genomes <- sub('\\.tar$', '', genomes)
     message('Available genomes:', pandoc.table.return(tibble(refGenome = genomes, dataSize = sizes), style = "simple", split.tables = Inf, plain.ascii = TRUE))
-    q()
+    closeAllConnections()
+    quit(save = "no", status = 0, runLast = FALSE)
   }
   
-  if('list.installed.genomes' %in% names(opt)){
+  if(args[1] == 'list_installed_genomes'){
     f <- list.files('data/referenceGenomes/blat', pattern = "*.2bit", full.names = TRUE)
     
     if(length(f) == 0){
       message('No installed genomes found.\n')
-      q()
+      closeAllConnections()
+      quit(save = "no", status = 0, runLast = FALSE)
     }
     
     g <- unique(sub('\\.2bit', '', stringr::str_extract(f, '[a-zA-Z\\d]+.2bit')))
@@ -66,36 +56,40 @@ if(any(grepl('\\-\\-', args))){
     }))
     
     message(pandoc.table.return(tab, style = "simple", split.tables = Inf, plain.ascii = TRUE))
-    
-    q()
+    closeAllConnections()
+    quit(save = "no", status = 0, runLast = FALSE)
   }
   
-  if('install.genome' %in% names(opt)){
-    o <- yaml::read_yaml('defaults.yml')
-    f <- system(paste0('wget -qO- ', o$remoteDataURL, '/fileList'), intern = TRUE)
+  if(args[1] == 'install_genome'){
+    if(length(args) == 1) stop('The install_genome parameter requires a genome identifier.')
+    
+    o <- yaml::read_yaml('data/defaults.yml')
+    f <- system(paste0('wget -qO- ', o$remoteDataURL, '/genomePackages/fileList'), intern = TRUE)
     f <- f[2:length(f)]
     f <- f[! grepl('fileList', f)]
     genomes <- unlist(lapply(strsplit(f, '\\s+'), '[[', 9))
     genomes <- sub('\\.tar$', '', genomes)
     
-    if(! opt$install.genome %in% genomes){
-      message("Error - ", opt$install.genome, " is not in the list of available genomes.\n")
-      q()
+    if(! args[2] %in% genomes){
+      message("Error - ", args[2], " is not in the list of available genomes.\n")
+      closeAllConnections()
+      quit(save = "no", status = 0, runLast = FALSE)
     }
     
     ff <- list.files('data/referenceGenomes/blat', pattern = "*.2bit", full.names = TRUE)
     gg <- unique(sub('\\.2bit', '', stringr::str_extract(ff, '[a-zA-Z\\d]+.2bit')))
     
-    if(opt$install.genome %in% gg){
-      message('Error - ', opt$install.genome, ' is already installed.')
-      q()
+    if(args[2] %in% gg){
+      message('Error - ', args[2], ' is already installed.')
+      closeAllConnections()
+      quit(save = "no", status = 0, runLast = FALSE)
     }
     
     tmpDir <- paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = '')
     dir.create(tmpDir, showWarnings = FALSE)
     
     message('Downloading genome data.')
-    system(paste0('wget -q -O ', tmpDir, '/archive.tar ', o$remoteDataURL, '/', opt$install.genome, '.tar'))
+    system(paste0('wget -q -O ', tmpDir, '/archive.tar ', o$remoteDataURL, '/genomePackages/', args[2], '.tar'))
     
     message('Extracting data.')
     system(paste0('tar xvf ', tmpDir, '/archive.tar -C ', tmpDir))
@@ -105,16 +99,19 @@ if(any(grepl('\\-\\-', args))){
     unlink(tmpDir, recursive = TRUE)
     
     message('done.\n')
-    q()
+    closeAllConnections()
+    quit(save = "no", status = 0, runLast = FALSE)
   }
   
-  if('remove.genome' %in% names(opt)){
+  if(args[1] == 'remove_genome'){
+    if(length(args) == 1) stop('The remove_genome parameter requires a genome identifier.')
     
-    f <- list.files('data', pattern = paste0('^', opt$remove.genome, '\\.'), recursive = TRUE, full.names = TRUE)
+    f <- list.files('data', pattern = paste0('^', args[2], '\\.'), recursive = TRUE, full.names = TRUE)
     
     if(length(f) == 0){
-      message('No genome files were found matching ', opt$remove.genome, '.\n')
-      q()
+      message('No genome files were found matching ', args[2], '.\n')
+      closeAllConnections()
+      quit(save = "no", status = 0, runLast = FALSE)
     }
     
     print(f)
@@ -125,23 +122,25 @@ if(any(grepl('\\-\\-', args))){
       invisible(file.remove(f)) 
     } 
     
-    message(opt$remove.genome, ' removed.')
-    q()
+    message(args[2], ' removed.')
+    closeAllConnections()
+    quit(save = "no", status = 0, runLast = FALSE)
   }
 }
 
+# If a flagged parameter was provided, provide the requested action then exit.
+if(args[1] %in% knownParameters) parseParameters()
+ 
+# Exit if config file does not exist.
+if(! file.exists(args[1])) stop(paste0("Config file '", args[1], "' does not exist."))
 
 # Read in the configuration file and perform basic sanity checks.
 set.seed(1)
-args <- commandArgs(trailingOnly=TRUE)
-if(length(args) == 0) stop('Expected at least one command line argument')
-source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib.R'))
+source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib', 'main.R'))
 opt <- startModule(args)
-
 
 # Show AAVengeR banner.
 if(! opt$calledFromCore) invisible(sapply(readLines(file.path(opt$softwareDir, 'figures', 'ASCII_logo.txt')), message))
-
 
 # Test database connection if databasing is turned on.
 if('database_configGroup' %in% names(opt)){
@@ -164,20 +163,18 @@ if('database_configGroup' %in% names(opt)){
   }
 }
 
-
 # Create main output folder and make a copy of the source code and configurations.
 createOuputDir()
-
 
 # Check for third party software.
 checkSoftware()
 
-
+# Make a copy of all R and config files if aavenger.R is not called from the core module.
 if(! opt$calledFromCore){
   if(! dir.exists(file.path(opt$outputDir, 'src'))){
     dir.create(file.path(opt$outputDir, 'src'), showWarnings = FALSE)
-    invisible(sapply(list.files(opt$softwareDir, pattern = '*.R', full.names = TRUE), file.copy, to = file.path(opt$outputDir, 'src')))
-    invisible(file.copy(opt$sampleConfigFile, file.path(opt$outputDir, 'src', 'sampleData.tsv')))
+    invisible(sapply(list.files(file.path(opt$softwareDir, 'modules'), pattern = '*.R', full.names = TRUE), file.copy, to = file.path(opt$outputDir, 'src')))
+    invisible(file.copy(opt$demultiplex_sampleDataFile, file.path(opt$outputDir, 'src', 'sampleData.tsv')))
     invisible(file.copy(opt$configFile, file.path(opt$outputDir, 'src', 'config.yml')))
     dir.create(file.path(opt$outputDir, 'src', 'version'), showWarnings = FALSE)
     invisible(file.copy(list.files(file.path(opt$softwareDir, 'version'), full.names = TRUE), file.path(opt$outputDir, 'src', 'version'), recursive = TRUE))
@@ -192,13 +189,13 @@ invisible(lapply(opt$modules, function(m){
   m <- unlist(strsplit(m, '\\s+'))
   args <- ifelse(length(m) == 2, m[2], '')
 
-  r <- system(paste(opt$Rscript, file.path(opt$softwareDir, paste0(m[1], '.R')), opt$configFile, args))
-  
+  r <- system(paste(opt$Rscript, file.path(opt$softwareDir, 'modules', paste0(m[1], '.R')), opt$configFile, args))
+
   if(r != 0){
-    ## message(paste0('Module ', m[1], ' failed. Please see logs for details.'))
-    ## if(length(m) == 2) message(paste0('Module arguments: ', args))
-    q(save = 'no', status = 1, runLast = FALSE)
+    closeAllConnections()
+    quit(save = "no", status = 0, runLast = FALSE)
   }
 }))
 
-q(save = 'no', status = 0, runLast = FALSE)
+closeAllConnections()
+quit(save = "no", status = 0, runLast = FALSE)

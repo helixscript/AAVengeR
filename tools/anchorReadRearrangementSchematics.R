@@ -4,11 +4,10 @@ library(scales)
 library(grid)
 
 nSpecies <- 50
-# vector <- 'Sabatino_PMC7855056_singleChain-plasmid.fasta'
-vector <- 'Sabatino_PMC7855056_singleChain-plasmid.fasta'
+vector <- 'CB7-CI-hIDUAco.fasta'
 expectedSeqs <- c('1..300[1944+2244]', '1..300[6815-7115]')
-configFile <- '~/scratch/AAVengeR_3.0.7/config.yml'
-rearrangementOutputDir <- '~/scratch/Sabatino/canine_AAV_factorVIII/inward/240501_M03249_0020_000000000-L4FK6/output/anchorReadRearrangements/'
+configFile <- '~/scratch/AAVengeR_3.1.1/config.yml'
+rearrangementOutputDir <- '/scratch/super1/everett/CHOP_AAV_AE/vectorRearrangementSchematics'
 
 # DogHemo~pTBG_HC_VCN20~pTBG_HC
 

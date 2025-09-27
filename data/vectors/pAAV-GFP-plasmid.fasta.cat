@@ -1,0 +1,67 @@
+14 26.73 0.00 2.17 PGFP_FLIP_FLIP 1698 1744 (5147) (CGAG)n#Simple_repeat 1 46 (0) m_b1s252i3
+
+  PGFP_FLIP_FLI       1698 CGAACGACCGAGCGCAGCGAGTCAGTGAGCGAGGAAGCGGAAGAGCG 1744
+                              i   v      -      iv  i       vi    iiv     
+  (CGAG)n#Simpl          1 CGAGCGAGCGAGCG-AGCGAGCGAGCGAGCGAGCGAGCGAGCGAGCG 46
+
+Matrix = Unknown
+Transitions / transversions = 1.50 (6/4)
+Gap_init rate = 0.02 (1 / 46), avg. gap size = 1.00 (1 / 1)
+
+12 15.26 3.45 0.00 PGFP_FLIP_FLIP 1870 1898 (4993) (AGCG)n#Simple_repeat 1 30 (0) m_b1s252i4
+
+  PGFP_FLIP_FLI       1870 AGTGAGCGAGCGAGCGCGC-AGAGAGGGAG 1898
+                             i             v  -  v   v   
+  (AGCG)n#Simpl          1 AGCGAGCGAGCGAGCGAGCGAGCGAGCGAG 30
+
+Matrix = Unknown
+Transitions / transversions = 0.33 (1/3)
+Gap_init rate = 0.04 (1 / 28), avg. gap size = 1.00 (1 / 1)
+
+12 15.26 3.45 0.00 PGFP_FLIP_FLIP 4993 5021 (1870) (CTCG)n#Simple_repeat 1 30 (0) m_b1s252i5
+
+  PGFP_FLIP_FLI       4993 CTCCCTCTCT-GCGCGCTCGCTCGCTCACT 5021
+                              v   v  -  v             i  
+  (CTCG)n#Simpl          1 CTCGCTCGCTCGCTCGCTCGCTCGCTCGCT 30
+
+Matrix = Unknown
+Transitions / transversions = 0.33 (1/3)
+Gap_init rate = 0.04 (1 / 28), avg. gap size = 1.00 (1 / 1)
+
+14 26.73 0.00 2.17 PGFP_FLOP_FLOP 1698 1744 (5147) (CGAG)n#Simple_repeat 1 46 (0) m_b1s252i0
+
+  PGFP_FLOP_FLO       1698 CGAACGACCGAGCGCAGCGAGTCAGTGAGCGAGGAAGCGGAAGAGCG 1744
+                              i   v      -      iv  i       vi    iiv     
+  (CGAG)n#Simpl          1 CGAGCGAGCGAGCG-AGCGAGCGAGCGAGCGAGCGAGCGAGCGAGCG 46
+
+Matrix = Unknown
+Transitions / transversions = 1.50 (6/4)
+Gap_init rate = 0.02 (1 / 46), avg. gap size = 1.00 (1 / 1)
+
+12 15.26 3.45 0.00 PGFP_FLOP_FLOP 1870 1898 (4993) (AGCG)n#Simple_repeat 1 30 (0) m_b1s252i1
+
+  PGFP_FLOP_FLO       1870 AGTGAGCGAGCGAGCGCGC-AGAGAGGGAG 1898
+                             i             v  -  v   v   
+  (AGCG)n#Simpl          1 AGCGAGCGAGCGAGCGAGCGAGCGAGCGAG 30
+
+Matrix = Unknown
+Transitions / transversions = 0.33 (1/3)
+Gap_init rate = 0.04 (1 / 28), avg. gap size = 1.00 (1 / 1)
+
+12 15.26 3.45 0.00 PGFP_FLOP_FLOP 4993 5021 (1870) (CTCG)n#Simple_repeat 1 30 (0) m_b1s252i2
+
+  PGFP_FLOP_FLO       4993 CTCCCTCTCT-GCGCGCTCGCTCGCTCACT 5021
+                              v   v  -  v             i  
+  (CTCG)n#Simpl          1 CTCGCTCGCTCGCTCGCTCGCTCGCTCGCT 30
+
+Matrix = Unknown
+Transitions / transversions = 0.33 (1/3)
+Gap_init rate = 0.04 (1 / 28), avg. gap size = 1.00 (1 / 1)
+
+## Total Sequences: 2
+## Total Length: 13782
+## Total NonMask ( excluding >20bp runs of N/X bases ): 13782
+## Total NonSub ( excluding all non ACGT bases ):13782
+RepeatMasker version 4.1.6 , sensitive mode
+run with nhmmscan version 3.4 (Aug 2023)
+RM Library: HMM-Dfam_3.8

@@ -1,0 +1,11 @@
+CPUs: 12
+outputDir: felCat9_output
+refGenomeName: felCat9
+forceStdChromosomes: TRUE
+gtfToGenePredPath: /usr/bin/gtfToGenePred
+repeatMaskerSpecies: Felis catus
+repeatMaskerPath: /scratch/super1/everett/RepeatMasker/RepeatMasker
+faToTwoBitPath: /home/ubuntu/software/faToTwoBit
+refGenomeSeq_URL: https://hgdownload.soe.ucsc.edu/goldenPath/felCat9/bigZips/felCat9.fa.gz
+refSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/goldenPath/felCat9/database/ncbiRefSeqCurated.txt.gz
+xenoRefSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/goldenPath/felCat9/database/xenoRefGene.txt.gz

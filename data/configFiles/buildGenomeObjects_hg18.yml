@@ -1,0 +1,11 @@
+CPUs: 30
+outputDir: hg18_output
+refGenomeName: hg18
+forceStdChromosomes: TRUE
+gtfToGenePredPath: /usr/bin/gtfToGenePred
+repeatMaskerSpecies: Homo sapiens
+repeatMaskerPath: /home/ubuntu/software/RepeatMasker/RepeatMasker
+bwa2Path: /home/ubuntu/software/bwa-mem2/bwa-mem2
+faToTwoBitPath: /home/ubuntu/software/faToTwoBit
+refGenomeSeq_URL: https://hgdownload.soe.ucsc.edu/goldenPath/hg18/bigZips/hg18.fa.gz
+refSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/goldenPath/hg18/database/ncbiRefSeqCurated.txt.gz

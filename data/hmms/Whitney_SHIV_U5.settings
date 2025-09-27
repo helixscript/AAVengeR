@@ -1,8 +1,0 @@
-# GACCCTTTCTGCTTTGGGAAACCGAAGCAGGAAAATCCCTAGCA
-# Max score: 38
-prepReads_HMMsearchReadStartPos: 1
-prepReads_HMMsearchReadEndPos:  47
-prepReads_HMMmaxStartPos: 3
-prepReads_HMMminFullBitScore: 20
-prepReads_HMMmatchEnd: TRUE
-prepReads_HMMmatchTerminalSeq: CA

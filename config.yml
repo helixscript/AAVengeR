@@ -1,4 +1,4 @@
-# AAVengeR configuration file.
+# AAVengeR integrase configuration file.
 
 # Required inputs that should be updated for each run.
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
@@ -47,7 +47,6 @@ demultiplex_CPUs: 30
 demultiplex_outputDir: demultiplex
 demultiplex_replicateMergingInstructions: none
 demultiplex_level: unique                          # (all, unique, or clustered)
-demultiplex_quickAlignFilter: FALSE
 demultiplex_useAdriftReadUniqueLinkers: TRUE
 demultiplex_requirePostUmiLinker: TRUE
 demultiplex_requirePostUmiLinker_maxMismatch: 2
@@ -63,8 +62,6 @@ demultiplex_index1ReadMaxMismatch: 1
 demultiplex_adriftReadLinkerBarcodeMaxMismatch: 1
 demultiplex_anchorReadStartSeq.maxMisMatch: 1
 demultiplex_exportFASTQ: FALSE
-demultiplex_quickAlignFilter_minPercentID: 97
-demultiplex_quickAlignFilter_minMatches: 30
 demultiplex_mergeSimilarReadPairsParams: -c 0.98 -d 0 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -10 -gap-ext -5 -aS 0.98 -aL 0.98
 
 
@@ -91,9 +88,9 @@ prepReads_HMMsearchReadEndPos:  100
 prepReads_HMMmaxStartPos: 5
 prepReads_HMMminFullBitScore: 20
 prepReads_HMMmatchEnd: TRUE
+prepReads_HMMmatchEndRadius: 2
 prepReads_HMMmatchTerminalSeq: CA
 prepReads_forceAnchorReadStartSeq: FALSE
-prepReads_limitLeaderSeqsWithQuickAlignFilter: TRUE
 prepReads_additionalAnchorReadOverReadingSeqs: none
 prepReads_cutAdaptErrorRate: 0.15
 
@@ -272,8 +269,8 @@ anchorReadStartSeqs_nStartSeqs: 5
 
 # anchorReadRearrangements module.
 # ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
-anchorReadRearrangements_CPUs: 30
-anchorReadRearrangements_outputDir: anchorReadRearrangements_env
+anchorReadRearrangements_CPUs: 80
+anchorReadRearrangements_outputDir: anchorReadRearrangements
 anchorReadRearrangements_inputFile: demultiplex/reads.rds
 anchorReadRearrangements_calcReplicateLevelStats: TRUE
 anchorReadRearrangements_calcSampleLevelStats: TRUE
@@ -281,13 +278,15 @@ anchorReadRearrangements_minAnchorReadLength: 200
 anchorReadRearrangements_minAdriftReadLength: 100
 anchorReadRearrangements_vectorLeaderSeqFilterLength: 12
 anchorReadRearrangements_vectorLeaderSeqFilterMaxMismatch: 2
-anchorReadRearrangements_minReadOverlapNTs: 20
-anchorReadRearrangements_maxReadOverlapPval: 0.001
+anchorReadRearrangements_overlapQualTrimLevel: 20
+anchorReadRearrangements_overlapTrimmedReadMinLen: 100
+anchorReadRearrangements_overlapMinReadOverlap: 25
+anchorReadRearrangements_overlapMaxPval: 0.001
 anchorReadRearrangements_minReadsPerAltStruct: 2
 anchorReadRearrangements_readEndAlignmentTestLength: 12
 anchorReadRearrangements_readEndAlignmentTestMinMatch: 10
-anchorReadRearrangements_seeds: '1,2,3'
-anchorReadRearrangements_rarifactionLevels: '0,10000,20000,30000'
+anchorReadRearrangements_seeds: '1,2,3,4,5'
+anchorReadRearrangements_rarifactionLevels: '0,10000,20000,30000,40000,50000'
 anchorReadRearrangements_windows: '300'
 anchorReadRearrangements_windowsTypes: soft
 anchorReadRearrangements_clusterParams: -c 0.90 -d 0 -aS 0.93 -M 0 -g 1 -r 0 -ap 1 -G 0 -n 5 -gap -5 -gap-ext -1
@@ -326,6 +325,49 @@ anchorReadRearrangements_expectedSeqs:
     - TTCCTCAGATCTGAATTCGGTACCTAGTTATTAATAGTAATCAATTACGGGGTCATTAGTTCATAGCCCATATATGGAGTTCCGCGTTACATAACTTACGGTAAATGGCCCGCCTGGCTGACCGCCCAACGACCCCCGCCCATTGACGTCAATAATGACGTATGTTCCCATAGTAACGCCAATAGGGACTTTCCATTGACGTCAATGGGTGGAGTATTTACGGTAAACTGCCCACTTGGCAGTACATCAAGTGTATCATATGCCAAGTACGCCCCCTATTGACGTCAATGACGGTAAATGGCCCGCCTGGCATTATGCCCAGTACATGACCTTATGGGACTTTCCTACTTGGCAGTACATCTACGTATTAGTCATCGCTATTACCATGGTCGAGGTGAGCCCCACGTTCTGCTTCACTCTCCCCATCTCCCCCCCCCTCCCCACCCCCAATTTTGTATTTATTTATTTTTTAATTATTTTGTGCAGCGATGGGGGCGGGG
     - TTCCTCAGATCTCTCCCCAGCATGCCTGCTATTGTCTTCCCAATCCTCCCCCTTGCTGTCCTGCCCCACCCCACCCCCCAGAATAGAATGACACCTACTCAGACAATGCGATGCAATTTCCTCATTTTATTAGGAAAGGACAGTGGGAGTGGCACCTTCCAGGGTCAAGGAAGGCACGGGGGAGGGGCAAACAACAGATGGCTGGCAACTAGAAGGCACAGTCGAGGCTGATCAGCGAGCTCTAGTCGACGGATCCCCTCAGAAGAACTCGTCAAGAAGGCGATAGAAGGCGATGCGCTGCGAATCGGGAGCGGCGATACCGTAAAGCACGAGGAAGCGGTCAGCCCATTCGCCGCCAAGCTCTTCAGCAATATCACGGGTAGCCAACGCTATGTCCTGATAGCGGTCCGCCACACCCAGCCGGCCACAGTCGATGAATCCAGAAAAGCGGCCATTTTCCACCATGATATTCGGCAAGCAGGCATCGCCATGGGTCACGA
 vectors:
+  - CB7-CI-hIDUAco.fasta:
+    length: 4344
+    features:
+        - vectorBody:
+            start: 131
+            end: 4214
+            startColor: '#94fffb'  # Light yellow gradient
+            endColor:   '#e6fafa'
+        - 5pITR:
+            start: 1
+            end: 130
+            startColor: '#dc0000'  # Red gradient
+            endColor:   '#ffa0a0'
+        - Enhancer:
+            start: 204
+            end: 583
+            startColor: '#0b7a00'  # Green gradient
+            endColor:   '#c5fbc0'
+        - Promoter:
+            start: 585
+            end: 862
+            startColor: '#ce6100'  # Orange gradient
+            endColor:   '#fca95f'
+        - Intron:
+            start: 863
+            end: 1928
+            startColor: '#673c20'  # Brown gradient
+            endColor:   '#a78a6c'
+        - Transgene:
+            start: 1990
+            end: 3948
+            startColor: '#9b00a5'  # Purple gradient
+            endColor:   '#f484fb'
+        - polyA:
+            start: 4000
+            end: 4126
+            startColor: '#cfcd45'  # Yellow gradient
+            endColor:   '#f9f69f'
+        - 3pITR:
+            start: 4215
+            end: 4344
+            startColor: '#0004bb'  # Blue gradient
+            endColor:   '#b6b7f9'
   - pAAV-GFP-plasmid.fasta:
       length: 6891
       features:

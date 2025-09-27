@@ -5,7 +5,7 @@ forceStdChromosomes: TRUE
 gtfToGenePredPath: /usr/bin/gtfToGenePred
 repeatMaskerSpecies: macaque
 repeatMaskerPath: /media/md0/bin/RepeatMasker/RepeatMasker
-bwa2Path: /media/md0/bin/bwa-mem2-2.2.1_x64-linux/bwa-mem2
+bwa2Path: /media/md0/bin/bwa-mem2/bwa-mem2
 faToTwoBitPath: /usr/bin/faToTwoBit
 refGenomeSeq_URL: https://hgdownload.soe.ucsc.edu/goldenPath/macFas5/bigZips/macFas5.fa.gz
 refSeqGeneAnnotations_URL: https://hgdownload.soe.ucsc.edu/goldenPath/macFas5/database/ncbiRefSeqCurated.txt.gz

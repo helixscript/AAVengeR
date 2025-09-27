@@ -1,0 +1,6 @@
+~/scratch/RepeatMasker/RepeatMasker -e hmmer -s -species human -xsmall -dir repeatMaskerOutput pAAV-GFP-plasmid.fasta
+
+docker run --rm -it --mount type=bind,source=/data,target=/data --entrypoint "" aavenger_v4 /bin/bash
+
+
+
