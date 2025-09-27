@@ -102,19 +102,19 @@ GAAATCTCTGAGCA
 ```
 Once we create a couple of minor variations in our target sequence, we evaluate the variations with our HMM.
 ```
-hmmsearch --max --domtblout mySeqTests.domTbl mySeq.hmm mySeqTests.fasta
+nhmmer --F1 1 --F2 1 --F3 1 -T -5 --incT -5 --nobias --popen 0.15 --pextend 0.05 --tblout mySeqTests.tbl mySeq.hmm mySeqTests.fasta
 ```
 
 ```
-#                                                                            --- full sequence --- -------------- this domain -------------   hmm coord   ali coord   env coord
-# target name        accession   tlen query name           accession   qlen   E-value  score  bias   #  of  c-Evalue  i-Evalue  score  bias  from    to  from    to  from    to  acc description of target
-#------------------- ---------- ----- -------------------- ---------- ----- --------- ------ ----- --- --- --------- --------- ------ ----- ----- ----- ----- ----- ----- ----- ---- ---------------------
-mySeq                -             14 mySeq                -             14     6e-05    9.5   0.0   1   1     6e-05     6e-05    9.5   0.0     1    14     1    14     1    14 0.90 -
-mySeq_1SNP           -             14 mySeq                -             14   0.00035    7.7   0.0   1   1   0.00035   0.00035    7.7   0.0     1    14     1    14     1    14 0.87 -
-mySeq_2SNPs          -             14 mySeq                -             14    0.0022    5.8   0.0   1   1    0.0021    0.0021    5.9   0.0     1    14     1    14     1    14 0.84 -
-mySeq_1del           -             13 mySeq                -             14    0.0051    5.0   0.0   1   1     0.005     0.005    5.0   0.0     3    14     2    13     1    13 0.65 -
-mySeq_1del_1ins      -             14 mySeq                -             14     0.019    3.7   0.0   1   1     0.017     0.017    3.8   0.0     3    10     2     9     1    14 0.69 –
+# target name        accession  query name           accession  hmmfrom hmm to alifrom  ali to envfrom  env to  sq len strand   E-value  score  bias  description of target
+#------------------- ---------- -------------------- ---------- ------- ------- ------- ------- ------- ------- ------- ------ --------- ------ ----- ---------------------
+mySeq                -          mySeq                -                1      14       1      14       1      14      14    +      0.0063    3.7   1.1  -
+mySeq_1SNP           -          mySeq                -                1      14       1      14       1      14      14    +       0.016    2.8   0.3  -
+mySeq_2SNPs          -          mySeq                -                1      13       1      13       1      14      14    +        0.15    0.5   0.9  -
+mySeq_1del_1ins      -          mySeq                -                3      10       2       9       1      14      14    +        0.29   -0.1   0.2  -
+mySeq_1del           -          mySeq                -                4      13       3      12       1      13      13    +        0.38   -0.4   1.2  -
 ```
+  
 Examine the HMM scores in column 9 (full sequence score) and make a decision about the lowest score that provides an acceptable match. In this example, we will go with 5.0. Next we will create an settings file for the new HMM. This file needs to have the same name as the HMM file except we replace ".hmm" with ".settings". The settings file provides default scoring parameters for the HMM. Here is an example:
 
 ```
@@ -124,6 +124,7 @@ prepReads_HMMmaxStartPos: 3         # Max. read position that an HMM match can b
 prepReads_HMMminFullBitScore: 5     # Min. score for accepting an HMM hit.
 prepReads_HMMmatchEnd: TRUE         # (True/False) Require a match to the end of the HMM.
 prepReads_HMMmatchTerminalSeq: CA   # If prepReads_HMMmatchEnd is True, these letters must be matched to accept the hit.  
+prepReads_HMMmatchEndRadius: 2      # If a terminal seq match is requested and not found at end of an HMM match, allow the software to look +/- 2 NT for the terminal sequence.
 ```
 Settings in HMM settings files will be used to score their respective HMMs if *prepReads_useDefaultHMMsettings* is set to True in AAVengeR's configuration file otherwise the settings in the main configuration file will be used. Both hmm and settings files need to be places in AAVengeR's data/hmms/ folder. 
 
