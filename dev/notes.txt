@@ -1,6 +1,17 @@
+# Mask a vector for repeats using lower case letters.
 ~/scratch/RepeatMasker/RepeatMasker -e hmmer -s -species human -xsmall -dir repeatMaskerOutput pAAV-GFP-plasmid.fasta
 
-docker run --rm -it --mount type=bind,source=/data,target=/data --entrypoint "" aavenger_v4 /bin/bash
+
+# Start a Docker container and enter a shell rather than starting AAVengeR.
+docker run --rm -it --mount type=bind,source=/data,target=/data --entrypoint "" aavenger /bin/bash
 
 
-
+# Bushman group yeast positive controls
+ID   posid            ITR remnant / following gDNA seq
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Y7   chrXII+514047    tctgcgcgctcgctcgctcactgaggc TATACGCGTTTGCACAATATACTCTATCTTATCCGTATCTATACGAGCCG
+Y8   chrIII+51720     tctgcgcgctcgctcgctcactgaggccgggcgacca AATGAGCTCAAGCACTTGCCTACTACTAAGTATGACGTCGTAATTGACCA
+Y9   chrXII+1012894   tctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccga CCTCAAGATAAAGCCATCATTCTGGGTGCCGAGGGTAACTTCCACGGGAG
+Y10  chrIX+53124      tctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccgacgcccgggctt TTTGGACAGTAGGTATGATTTTTTCAAGTTTTGGGAACCGGCAAAGAAAT
+Y11  chrVII+384526    tctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccgacgcccgggctttgcccgggcg ATACATTCCGAGGGCGCCCGCACAAGGCCTATTATTAGAGGGACCTGTGT
+Y12  chrIII+51517     tctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccgacgcccgggctttgcccgggcggcctcagtgagcgagcgagcgcgcagctgcctgcagg GCTACACGTCCGATAACACGGACTCAATGACGTCCGGAGAAATCTCGGAG
