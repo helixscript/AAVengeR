@@ -28,6 +28,29 @@ remove_whitespace_in_quotes <- function(file_path) {
 
 
 
+write_tsv_with_comments <- function(x, file,
+                                    comments = character(),
+                                    row.names = FALSE,
+                                    col.names = TRUE,
+                                    na = "NA",
+                                    quote = FALSE, ...) {
+
+  con <- file(file, open = "wt", encoding = "UTF-8")
+  on.exit(close(con), add = TRUE)
+  
+  if (length(comments) > 0) {
+    writeLines(paste0("# ", comments), con = con, useBytes = TRUE)
+  }
+  
+  utils::write.table(
+    x, file = con, sep = "\t",
+    row.names = row.names, col.names = col.names,
+    quote = quote, na = na, ...
+  )
+}
+
+
+
 updateMasterLog <- function(){
   lockFile <- file.path(opt$orgOutputDir, 'log.lock')
   

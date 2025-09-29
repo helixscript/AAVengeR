@@ -54,7 +54,17 @@ if(! file.exists(opt$demultiplex_index1ReadsFile)) quitOnErorr('Error - the anch
 I1 <- ShortRead::readFastq(opt$demultiplex_index1ReadsFile)
 dataSetLength <- length(I1)
 
+i <- vcountPattern('GGGGGGGGGG', I1@sread, max.mismatch = 1)
+dataSetLengthNoPolyG <- length(i[i == 0])
+
+barCodeFreqTable <- data.frame(sort(table(I1[i == 0]@sread), decreasing = TRUE))
+names(barCodeFreqTable) <- c('barCode', 'freq')
+
+write_tsv_with_comments(barCodeFreqTable, file.path(opt$outputDir, opt$demultiplex_outputDir, 'barCodeFreqTbl.tsv'),
+                        comments = c('Barcode frequencies excluding poly-G barcodes.'))
+
 updateLog(paste0(ppNum(dataSetLength), ' reads in paired end data set.'))
+updateLog(paste0(ppNum(dataSetLengthNoPolyG), ' reads excluding those with poly-G barcodes in paired end data set.'))
 updateMasterLog()
 
 if(opt$demultiplex_RC_I1_barcodes_auto){
@@ -213,9 +223,14 @@ updateLog('Writing attrition table.')
 updateMasterLog()
 
 invisible(unlink(file.path(opt$outputDir, opt$demultiplex_outputDir, 'logs'), recursive = TRUE))
-write.table(logReport, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE, file = file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'))
 
 
+logReport$percentTotal <- sprintf("%.2f%%", (logReport$demultiplexedReads / dataSetLengthNoPolyG)*100)
+
+write_tsv_with_comments(logReport, file.path(opt$outputDir, opt$demultiplex_outputDir, 'readAttritionTbl.tsv'),
+                        comments = c(paste0('Total number of reads: ', ppNum(dataSetLength)),
+                                     paste0('Number of reads exluding poly-G barcodes: ', ppNum(dataSetLengthNoPolyG)),
+                                     '* percentTotal exludes poly-G barcodes.'))
 
 # Expand read table with additional columns when appropriate.
 
