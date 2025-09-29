@@ -3,7 +3,7 @@
 prepReads_HMMsearchReadStartPos: 1
 prepReads_HMMsearchReadEndPos:  100
 prepReads_HMMmaxStartPos: 5
-prepReads_HMMminFullBitScore: 50
+prepReads_HMMminFullBitScore: 40
 prepReads_HMMmatchEnd: TRUE
 prepReads_HMMmatchTerminalSeq: CA
 prepReads_HMMmatchEndRadius: 2
