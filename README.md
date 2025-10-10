@@ -6,7 +6,7 @@ Clone this repository and install one or more precompiled genomes.
 %> git clone https://github.com/helixscript/AAVengeR
 %> cd AAVengeR
 
-%> ./aavenger.R --list_available_genomes
+%> ./aavenger.R list_available_genomes
    Available genomes:
 
    refGenome   dataSize 
@@ -19,8 +19,8 @@ Clone this repository and install one or more precompiled genomes.
     rheMac10     16 GB   
      sacCer3     68 MB   
 
-%> ./aavenger.R --install_genome sacCer3
-%> ./aavenger.R --install_genome hg38
+%> ./aavenger.R install_genome sacCer3
+%> ./aavenger.R install_genome hg38
 ```
 
 AAVengeR requires two configuration files. The [first configuration file](config.yml) contains the list of modules to run, module specific processing parameters, paths to resources, and the path to the second configuration file which defines sample specific parameters. The [sample configuration file](sampleData.tsv) contains sample specific information such as barcode sequences for demultiplexing, linker sequences, and reference genome against which reads should be aligned. Typically, only parameters near the top of the configuration file need to be changed such as those pointing to sequencing data, the sample configuration file, module chain, and the name of the output directory.  
@@ -52,7 +52,7 @@ For example, if AAVengeR and your data files are all located in your home direct
 The container needs to know the location of AAVengeR and its configuration file. These paths are provided in the command to start the container. **Importantly, these paths, and the paths included in your AAVengeR configuration file, need to be written from the container's perspective**. For example, if you installed AAVengeR at */home/myUser/AAVengeR* and bound */home/myUser* to the container's */data* directory, the path to AAVengeR would be */data/AAVengeR*. Putting it all together: 
 
 ```
-%> docker run --rm --mount type=bind,source=/home/myUser,target=/data -e CONFIG_PATH=/data/seqRun/config.yml aavenger
+%> docker run rm mount type=bind,source=/home/myUser,target=/data -e CONFIG_PATH=/data/seqRun/config.yml aavenger
 ```
 <br>
 <br>
@@ -67,7 +67,7 @@ The [sample configuration file](sampleData.tsv) provides AAVengeR information ab
 
 In addition to this sequence information, the sample configuration file needs information about the reference genome against which to align your data (refGenome), information about your vector (vectorFastaFile), information about how to recognize the ends of LTR sequences (leaderSeqHMM), and processing details (flags).
 
-**refGenome**: use one of the reference genome identifiers provided by ./aavenger.R --list_installed_genomes  
+**refGenome**: use one of the reference genome identifiers provided by ./aavenger.R _installed_genomes  
   
 **vectorFastaFile**: given the repetitive nature of LTR sequences and AAV's tendency to self-integrate, vector sequences are needed to remove reads that read into vector bodies rather than into flanking genomic DNA. Vector FASTA files should be placed in the *AAVengeR/data/vectors* folder and the name of the file placed in this column. It is important that the vector sequence uses capital letters. Lowercase letters are ignored and are used for more advanced analyses.  
   
@@ -161,7 +161,7 @@ AAVengeR's configuration file contains two main sections. Settings at the top ar
 
 **demultiplex_sampleDataFile** -- This setting defines the path to the [sample configuration file](sampleData.tsv).
 
-**modules** -- This setting stores the list of modules (and their order) that AAVengeR should be executed. Each module has its own set of parameters defined further down in the configuration file including data input and output paths.
+**modules** -- This setting stores the  of modules (and their order) that AAVengeR should be executed. Each module has its own set of parameters defined further down in the configuration file including data input and output paths.
 <br>
 <br>
 # Module parameter injection  
