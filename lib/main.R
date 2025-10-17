@@ -1082,7 +1082,7 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
   writeXStringSet(subseq(reads, opt$prepReads_HMMsearchReadStartPos, endPos), outputFile)
   
   ### comm <- paste0('nhmmer --max -T 0 --incT 0 --tblout ', outputFile, '.tbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
-  comm <- paste0('nhmmer --F1 1 --F2 1 --F3 1 -T -5 --incT -5 --nobias --popen 0.15 --pextend 0.05 --tblout ', outputFile, '.tbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
+  comm <- paste0('nhmmer --dna --F1 1 --F2 1 --F3 1 -T -5 --incT -5 --nobias --popen 0.15 --pextend 0.05 --tblout ', outputFile, '.tbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
   system(comm)
   
   o <- readr::read_table(paste0(outputFile, '.tbl'), col_names = FALSE, col_types = NULL, comment = "#", show_col_types = FALSE)

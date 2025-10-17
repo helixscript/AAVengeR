@@ -417,28 +417,41 @@ if(length(f) > 0){
 
 
 # Collect and write out read attrition values.
+updateLog('Compiling attrition logs.')
 atl <- bind_rows(lapply(list.files(opt$outputDir, pattern = 'attritionLog.tsv', recursive = TRUE, full.names = TRUE), function(x){
   d <- readr::read_tsv(x, show_col_type = FALSE)
+  #browser()
   d$sampleRep <- rev(unlist(strsplit(x, '/')))[3]
   d
 }))
 
 if(nrow(atl) > 0){
+  updateLog(paste0(nrow(atl), ' rows found in compiled attrition logs.'))
   atlOutput <- vector()
+  
+  # Protection against duplicate rows from re-running analyses.
+  i <- duplicated(paste(atl$label, atl$sampleRep))
+  if(length(i) > 0) atl <- atl[!i,]
+  
   atl <- tidyr::pivot_wider(distinct(atl), names_from = label, values_from = value)
 
   cols <- c("sampleRep", "PRD1", "PRD2", "PRD3", "PRD4", "PRD5", "ALR1", "ALR2", "ALR3", "ALR4", "ALR5", "BFR1", "BSF1")
   cols <- cols[cols %in% names(atl)]
   atl <- atl[, cols]
   
+  updateLog('Writing out tsv formatted attrition log.')
   readr::write_tsv(atl, file = file.path(opt$outputDir, 'core', 'readAttrition.tsv'))
+  
+  updateLog('Compiling readAttritionReport.txt.')
   
   invisible(lapply(split(atl, atl$sampleRep), function(x){
     sampleRep <- x$sampleRep[1]
     x <- tidyr::pivot_longer(x, cols[cols != 'sampleRep'])[,2:3]
     names(x) <- c('label', 'value')
     
-    reads <- x[1,]$value
+    reads <- as.integer(x[1,]$value)    # Get top row value for divisor.
+    if(! is.integer(reads)) reads <- NA # Safe for division.
+    x$value <- as.integer(x$value)      # Ensure integer type.
     x$value <- x$value / reads
    
     x <- x[! is.na(x$value),]

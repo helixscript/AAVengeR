@@ -250,3 +250,7 @@ Updated CPU load balancing function in core.R.
 Replaced hmmsearch with nhmmer - prepReads_HMMminFullBitScore values need to be reduce compared to earlier versions.
 Added prepReads_HMMmatchEndRadius option to allow software to search +/- n NTs for terminal HMM match sequences. 
 Added memory monitoring to master log file.
+3.2.1
+Fixed an issue with anchorReadRearrangements where it would sometimes write over its own tmp files.
+Patched main.R in by adding --dna flag to nhmmer so that it would not panic when it could not determine alphabet type.
+Patched fuzzy fragment corretion in buildStdFragments when different reads build the same fragment associated with the same site after standardization.

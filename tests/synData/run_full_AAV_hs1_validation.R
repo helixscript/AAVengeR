@@ -3,18 +3,18 @@ library(GenomicRanges)
 library(ggplot2)
 
 comms <- list(
-            #  './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed1_0error  --mode AAV --nSites 1000 --seed 1  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
-            #  './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed2_0error  --mode AAV --nSites 1000 --seed 2  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
-            #  './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed3_0error  --mode AAV --nSites 1000 --seed 3  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
-            #  './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed4_0error  --mode AAV --nSites 1000 --seed 4  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
-            #  './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed5_0error  --mode AAV --nSites 1000 --seed 5  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
-            #  './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed6_0error  --mode AAV --nSites 1000 --seed 6  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
-            #  './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed7_0error  --mode AAV --nSites 1000 --seed 7  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
-            #  './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed8_0error  --mode AAV --nSites 1000 --seed 8  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
-            #  './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed9_0error  --mode AAV --nSites 1000 --seed 9  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
-            #  './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed10_0error --mode AAV --nSites 1000 --seed 10 --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
+              './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed1_0error  --mode AAV --nSites 1000 --seed 1  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
+              './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed2_0error  --mode AAV --nSites 1000 --seed 2  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
+              './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed3_0error  --mode AAV --nSites 1000 --seed 3  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
+              './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed4_0error  --mode AAV --nSites 1000 --seed 4  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
+              './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed5_0error  --mode AAV --nSites 1000 --seed 5  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
+              './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed6_0error  --mode AAV --nSites 1000 --seed 6  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
+              './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed7_0error  --mode AAV --nSites 1000 --seed 7  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
+              './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed8_0error  --mode AAV --nSites 1000 --seed 8  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
+              './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed9_0error  --mode AAV --nSites 1000 --seed 9  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
+              './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed10_0error --mode AAV --nSites 1000 --seed 10 --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0 --threads 20',
               
-            #  './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed1_1error  --mode AAV --nSites 1000 --seed 1  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0.01 --threads 20',
+              './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed1_1error  --mode AAV --nSites 1000 --seed 1  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0.01 --threads 20',
               './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed2_1error  --mode AAV --nSites 1000 --seed 2  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0.01 --threads 20',
               './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed3_1error  --mode AAV --nSites 1000 --seed 3  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0.01 --threads 20',
               './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed4_1error  --mode AAV --nSites 1000 --seed 4  --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0.01 --threads 20',
@@ -37,25 +37,6 @@ comms <- list(
               './buildAndTestSynData.py --outputDir /data/AAVengeR/tests/synData/hs1_AAV_1000sites_seed10_3error --mode AAV --nSites 1000 --seed 10 --refGenomePath /data/AAVengeR/data/referenceGenomes/blat/hs1.2bit --refGenomeID hs1 --R1_length 200 --R2_length 300 --percentGenomicError 0.03 --threads 20')
 
 invisible(sapply(comms, function(x){ message(x); system(x) }))
-
-# Rebuild evaluation tables.
-#d <- list.dirs( recursive = TRUE, full.names = TRUE)
-#d <- d[grepl('eval', d)]
-#invisible(lapply(d, function(x){
-#  message(x)
-#  if(file.exists(file.path(x, 'table1.tsv'))) return()
-#  #browser()
-#  outputDir <- x
-#  file.remove(list.files(outputDir, full.names = TRUE))
-#  sites <- sub('eval', 'output/core/sites.rds', outputDir)
-#  multihits <-  sub('eval', 'output/core/multiHitClusters.rds', outputDir)
-#  truth <-  sub('eval', 'truth.tsv', outputDir)
-#  system(paste('Rscript evalSynDataResult.R', '-s', sites, '-m', multihits, '-t', truth, '-o', outputDir, '-w', 5))
-#}))
-
-
-
-
 
 d <- list.dirs(recursive = FALSE)
 d <- d[grepl('hs1', d)]

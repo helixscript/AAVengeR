@@ -226,17 +226,22 @@ worker <- function(x){
   library(ShortRead)
   library(data.table)
   
-  db <- tmpFile()
+  message('starting: ', x$uniqueSample[1])
+  
+  tmpDir <- paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp')
+  
+  dir.create(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir))
   
   file.copy(file.path(opt$softwareDir, 'data', 'vectors', x$vectorFastaFile[1]),  
-            file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(db, '.db.fasta')))
-  system(paste0('makeblastdb -in ',  file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(db, '.db.fasta')),
-                ' -dbtype nucl -out ', file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', db)), ignore.stderr = FALSE)
+            file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir, 'db.fasta'))
+  
+  system(paste0('makeblastdb -in ',  file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir, 'db.fasta'),
+                ' -dbtype nucl -out ', file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir, 'db')), ignore.stderr = FALSE)
   
   o <- rbindlist(lapply(windowsTypes, function(windowType){
-    rbindlist(lapply(rarifactionLevels, function(rarifactionLevel){
-      rbindlist(lapply(windows, function(w){
-        rbindlist(lapply(seeds, function(seed){
+         rbindlist(lapply(rarifactionLevels, function(rarifactionLevel){
+           rbindlist(lapply(windows, function(w){
+             rbindlist(lapply(seeds, function(seed){
           
           # No need to sample additional seeds if rarifactionLevel == 0.    
           if(rarifactionLevel == 0 & which(seeds == seed) > 1) return(tibble())
@@ -261,14 +266,14 @@ worker <- function(x){
           
           if(length(dw) == 0){
             message(x$uniqueSample[1], ' - no reads meet or exceed the window (seed: ', seed, ', rarifactionLevel: ', rarifactionLevel, ', window: ', w)
-            invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+            invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir), pattern = f, full.names = TRUE)))
             return(data.table())
           }
           
           if(rarifactionLevel != 0){
             if(length(dw) <= rarifactionLevel){
               message(x$uniqueSample[1], ' - not enough reads in window (seed: ', seed, ', rarifactionLevel: ', rarifactionLevel, ', window: ', w)
-              invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+              invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir), pattern = f, full.names = TRUE)))
               return(data.table())
             }
             
@@ -284,27 +289,27 @@ worker <- function(x){
           names(d2) <- paste0('expectedSeq', 1:length(d2))
           
           # Write out inward read sequences and expected vector sequences to the same file.
-          writeXStringSet(c(dw, d2), file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.fasta')))
+          writeXStringSet(c(dw, d2), file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir, paste0(f, '.fasta')))
           
           
-          system(paste0("cd-hit-est -i ", file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.fasta')), 
-                        " -o ", file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', f), 
+          system(paste0("cd-hit-est -i ", file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir, paste0(f, '.fasta')), 
+                        " -o ", file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir, f), 
                         " -T 2 ", opt$anchorReadRearrangements_clusterParams), ignore.stdout = TRUE, ignore.stderr = TRUE)
           
-          if(! file.exists(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.clstr')))){
+          if(! file.exists(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir, paste0(f, '.clstr')))){
             message(x$uniqueSample[1], ' - cd-hit-est did not return a result. (seed: ', seed, ', rarifactionLevel: ', rarifactionLevel, ', window: ', w)
-            invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+            invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir), pattern = f, full.names = TRUE)))
             return(data.table())
           }
           
-          if(file.info(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.clstr')))$size == 0){
+          if(file.info(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir, paste0(f, '.clstr')))$size == 0){
             message(x$uniqueSample[1], ' - cd-hit-est returned an empty file. (seed: ', seed, ', rarifactionLevel: ', rarifactionLevel, ', window: ', w)
-            invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+            invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir), pattern = f, full.names = TRUE)))
             return(data.table())
           }
           
           # Parse cluster output.
-          r <- paste0(readLines(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', paste0(f, '.clstr'))), collapse = '')
+          r <- paste0(readLines(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir, paste0(f, '.clstr'))), collapse = '')
           
           # Create a table where each read is a row and has a representative read id (rep)
           # For sequences that match the expected sequence, this will be 'expectedSeq' (one expected seq for each path).
@@ -331,11 +336,11 @@ worker <- function(x){
           
           if(nrow(o) == 0){
             message(x$uniqueSample[1], ' - no reads remain after removing reads with too few reads to support alt structures (seed: ', seed, ', rarifactionLevel: ', rarifactionLevel, ', window: ', w)
-            invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+            invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir), pattern = f, full.names = TRUE)))
             return(data.table())
           }
           
-          invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+          invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir), pattern = f, full.names = TRUE)))
           
           # Remove dummy expected sequence(s).
           o <- o[! grepl('expectedSeq', o$readID),]
@@ -380,14 +385,12 @@ worker <- function(x){
             rtab <- left_join(rtab, select(x, readID, seq), by = c('Var1' = 'readID'))
             rtab$seq <- substr(rtab$seq, 1, w)
             rtab$seqModel <- sapply(rtab$seq, buildSeqModel, 
-                                    db = file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', db),
-                                    id = f,
-                                    tmpDir = file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'))
+                                    db = file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir, 'db'),
+                                    id = paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp'),
+                                    tmpDir = file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir))
             
             write_tsv(rtab, file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'clusterSequences', paste0(x$uniqueSample[1], '_', windowType, '_', rarifactionLevel, '_',  w, '_', seed)))
           }
-          
-          
           
           data.table(sampleReplicate          = x$uniqueSample[1], 
                      sample                   = x$sample[1],
@@ -407,7 +410,7 @@ worker <- function(x){
     }))
   }))
   
-  invisible(file.remove(list.files(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp'), pattern = db, full.names = TRUE)))
+  unlink(file.path(opt$outputDir, opt$anchorReadRearrangements_outputDir, 'tmp', tmpDir), recursive = TRUE)
   o
 }
 
@@ -420,7 +423,7 @@ reads$sample <- sub('~\\d+$', '', reads$uniqueSample)
 if(opt$anchorReadRearrangements_calcReplicateLevelStats){
   updateLog('Calculating rearrangements for sample replicates.')
   updateMasterLog()
-  
+      
   r.replicates <- rbindlist(parLapply(cluster, split(reads, paste(reads$vectorFastaFile, reads$uniqueSample)), worker))
   
   r.replicates$altStructsPerKB <- (r.replicates$altStructs / (r.replicates$window * r.replicates$vectorPaths))*1000

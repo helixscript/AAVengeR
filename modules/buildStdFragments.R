@@ -317,7 +317,6 @@ updateLog(paste0(sprintf("%.2f%%", (n_distinct(frags_uniqPosIDs$readID) / n_dist
 if(nrow(frags_uniqPosIDs) == 0) quitOnErorr('Error - No unique position remain after filtering.')
 
 
-
 # Multihits
 # This block is here because some reads may be returned to frags_uniqPosIDs.
 #-------------------------------------------------------------------------------
@@ -402,6 +401,9 @@ if(length(z) > 0){
         i <- which(x$fragStart == max(x$fragStart))[1]
         x <- x[i,]
       }
+    } else {
+      # Only one frag.
+      x <- x[1,]
     }
     x
   }))
@@ -667,6 +669,16 @@ if(opt$buildStdFragments_evalFragAnchorReadSeqs){
   #  0: do not remove
   #  1: remove
   
+  
+  reportPositionFreqs <- function(x, num = 3){
+    tab <- sort(table(x), decreasing = TRUE)
+    if(length(tab) > num) tab <- tab[1:num]
+    tab <- tab / length(x)
+    tab <- tab * 100
+    v <- sprintf("%.2f%%", tab)
+    paste(names(tab), v, collapse = ', ')
+  }
+  
   frags_uniqPosIDs <- bind_rows(lapply(split(frags_uniqPosIDs, frags_uniqPosIDs$sample), function(s){
     
     updateLog(paste0('Analyzing sample ', s$sample[1], ' for anchor read start sequence clusters.'))
@@ -689,19 +701,24 @@ if(opt$buildStdFragments_evalFragAnchorReadSeqs){
     
     updateLog(paste0(length(clstrs), ' clusters found.'))
     
-    n <- 0
+    n <- 0L
     m <- rbindlist(lapply(clstrs, function(x){
-      e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
+           e <- unlist(stringr::str_extract_all(x, '>[^\\.]+'))
       
-      if(length(e) > 0){
-        n <<- n + 1
-        return(data.table(readID = sub('^>', '', e), fragClusterGroup = n))
-      } else {
-        return(data.table())
-      }
-    }))
+           if(length(e) > 0){
+             n <<- n + 1L
+             return(data.table(readID = sub('^>', '', e), fragClusterGroup = n))
+           } else {
+             return(data.table())
+           }
+         }))
     
+    # Add fragClusterGroup to fragment reads. relationship = "many-to-many"
     s <- left_join(s, m, by = 'readID')
+    
+    # Fail safe since we can not split on NA.
+    if(any(is.na(s$fragClusterGroup))) s[is.na(s$fragClusterGroup),]$fragClusterGroup <- 2147483647L
+    
     s$posid2  <- sub('\\.\\d+$', '', s$posid)
     
     s$remove <- FALSE
@@ -711,7 +728,8 @@ if(opt$buildStdFragments_evalFragAnchorReadSeqs){
       seqs <- o[names(o) %in% x$readID]
       repSeq <- names(sort(table(as.character(seqs)), decreasing = TRUE)[1])
       
-      updateLog(paste0('Analyzing cluster number: ', clusterNum, ', reads in cluster: ', length(seqs), ', test seq consensus: ', repSeq))
+      updateLog(paste0('Analyzing cluster number: ', clusterNum, ', reads in cluster: ', length(seqs), 
+                       ', test seq consensus: ', repSeq, ', top positions: ', reportPositionFreqs(x$posid2)))
       
       clusterNum <<- clusterNum + 1
       
