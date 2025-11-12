@@ -109,7 +109,7 @@ distribute_integer <- function(total, n) {
 allocate_CPUs <- function(totalCPUs, jobReads, minCPUsPerJob = 1, maxCPUsPerJob = totalCPUs, maxReadsPerCPU = 5000, readsDownStep = 1){
   o <- round(jobReads / maxReadsPerCPU)             # Set an initial number of CPUs for each job.
   o <- ifelse(o < minCPUsPerJob, minCPUsPerJob, o)  # Make sure each job has at least the min. number of CPUs.
-  o <- ifelse(o > totalCPUs, totalCPUs, o)          # Make sure no job has more than the total number of available CPUs.
+  o <- ifelse(o > opt$core_CPUs, opt$core_CPUs, o)  # Make sure no job has more than the total number of available CPUs.
   
   o_min <- o
     

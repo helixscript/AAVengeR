@@ -46,7 +46,7 @@ if(any(grepl('\\.', frags$chromosome))){
   o <- strsplit(frags$posid, '[\\+\\-]')
   s <- stringr::str_extract(frags$posid, '[\\+\\-]')
   frags$chromosome <- gsub('\\.', '&', unlist(lapply(o, '[', 1)))
-  frags$posid <- paste0(gsub('\\.', '&', unlist(lapply(o, '[', 1))), s, unlist(lapply(o, '[', 2)))
+  frags$posid <- paste0(gsub('\\.', '&', unlist(lapply(o, '[', 1))), s, unlist(lapply(o, '[', 2))) # apply sfn() here?
 }
 
 
@@ -114,10 +114,10 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
             processed_fragments <<- bind_rows(processed_fragments, frags[i,])
           
             i <- which(frags$fragID %in% c(f1$fragID, f2$fragID) & frags$strand == '+')
-            frags[i,]$posid <<- unlist(lapply(strsplit(frags[i,]$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2]) + opt$buildSites_integraseCorrectionDist, '.', x[3])))
+            frags[i,]$posid <<- unlist(lapply(strsplit(frags[i,]$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', sfn(as.integer(x[2]) + opt$buildSites_integraseCorrectionDist), '.', x[3])))
           
             i <- which(frags$fragID %in% c(f1$fragID, f2$fragID) & frags$strand == '-')
-            frags[i,]$posid <<- unlist(lapply(strsplit(frags[i,]$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '-', as.integer(x[2]) - opt$buildSites_integraseCorrectionDist, '.', x[3])))
+            frags[i,]$posid <<- unlist(lapply(strsplit(frags[i,]$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '-', sfn(as.integer(x[2]) - opt$buildSites_integraseCorrectionDist), '.', x[3])))
           
             i <- which(frags$fragID %in% c(f1$fragID, f2$fragID))
             frags[i,]$repLeaderSeq <<- paste0(names(sort(table(f1$repLeaderSeq), decreasing = TRUE))[1], '/', names(sort(table(f2$repLeaderSeq), decreasing = TRUE))[1])
@@ -149,10 +149,10 @@ if('IN_u3' %in% frags$flags | 'IN_u5' %in% frags$flags){
       
       # Shift positions to reflect duplication caused by integrase.
       b1 <- subset(b, strand == '+')
-      if(nrow(b1) > 0) b1$posid <- unlist(lapply(strsplit(b1$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', as.integer(x[2]) + opt$buildSites_integraseCorrectionDist, '.', x[3])))
+      if(nrow(b1) > 0) b1$posid <- unlist(lapply(strsplit(b1$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '+', sfn(as.integer(x[2]) + opt$buildSites_integraseCorrectionDist), '.', x[3])))
 
       b2 <- subset(b, strand == '-')
-      if(nrow(b2) > 0) b2$posid <- unlist(lapply(strsplit(b2$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '-', as.integer(x[2]) - opt$buildSites_integraseCorrectionDist, '.', x[3])))
+      if(nrow(b2) > 0) b2$posid <- unlist(lapply(strsplit(b2$posid, '[\\+\\-\\.]', perl = TRUE), function(x) paste0(x[1], '-', sfn(as.integer(x[2]) - opt$buildSites_integraseCorrectionDist), '.', x[3])))
 
       b <- bind_rows(b1, b2)
 
@@ -264,7 +264,7 @@ sites <- bind_rows(lapply(split(frags, frags$g), function(x){
                                          sum(r[, grepl('sonicLengths', names(r))], na.rm = TRUE),
                                          n_distinct(x$fragWidths)),
                    reads = sum(x$reads),
-                   repLeaderSeq = repLeaderSeq, # subset(leaderSeqReps, trial == x$trial[1] & subject == x$subject[1] & sample == x$sample[1] & posid == x$posid[1])$repLeaderSeq,
+                   repLeaderSeq = repLeaderSeq,
                    repLeaderSeqClusters = clusterConsensusSeqs(x),
                    nRepsObs = sum(! is.na(unlist(r[, which(grepl('reads', names(r)))]))),
                    anchorReadConsensus = consensusAnchorSeq(x),

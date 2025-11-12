@@ -103,13 +103,53 @@ humanGeneFilter <- function(d){
 }
 
 createRefSeqObjects <- function(file, label, humanGeneFilter = FALSE){
+  library(tidyverse)
   d <- read.table(file, sep = '\t', header = FALSE, quote = '')
   
-  if(length(d) == 15) d <- tibble::add_column(d, bin = NA, .before = 'V1')
+  # Expected
+  # 'bin',  'name',      'chrom',   'strand',  'txStart',      'txEnd',         'cdsStart',     'cdsEnd',   'exonCount',   'exonStarts',                                                                                                                                                    'exonEnds',                                                                                                           'score',   'name2',    'cdsStartStat', 'cdsEndStat',       'exonFrames'
+  # 1145    NM_000477.7     chr4      +         73404286        73421482        73404327        73420298        15           73404286,73405115,73406628,73408593,73409354,73410311,73411995,73413419,73415034,73416255,73417530,73418087,73419506,73420253,73421091,    73404406,73405173,73406761,73408805,73409487,73410409,73412125,73413634,73415167,73416353,73417669,73418311,73419639,73420321,73421482,      0         ALB            cmpl           cmpl          0,1,2,0,2,0,2,0,2,0,2,0,2,0,-1,
+
+  if(any(d$V6 == '+') & any(d$V6 == '-')){
+    # BED 12+ format.
+    # Convert to expect format above.
+    names(d) <- c("chrom","txStart","txEnd","name","score","strand",
+                  "cdsStart","cdsEnd","itemRgb","exonCount","blockSizes","blockStarts",
+                  "name2","cdsStartStat","cdsEndStat","exonFrames","V17","transcript_id","gene_name","V20")
+    
+    d <- d %>%
+      mutate(
+        across(c(txStart, txEnd, cdsStart, cdsEnd, exonCount), as.integer),
+        blockSizes  = str_remove(blockSizes,  ",+$"),     # drop trailing comma
+        blockStarts = str_remove(blockStarts, ",+$"),
+        bs = str_split(blockSizes,  ","),
+        bt = str_split(blockStarts, ",")
+      ) %>%
+      pmap_dfr(function(chrom, txStart, txEnd, name, score, strand,
+                        cdsStart, cdsEnd, itemRgb, exonCount, blockSizes, blockStarts,
+                        name2, cdsStartStat, cdsEndStat, exonFrames, ...){
+        bs <- as.integer(unlist(strsplit(blockSizes,  ",")))
+        bt <- as.integer(unlist(strsplit(blockStarts, ",")))
+        n  <- min(exonCount, length(bs), length(bt))
+        exStarts <- paste(txStart + bt[seq_len(n)], collapse = ",")
+        exEnds   <- paste(txStart + bt[seq_len(n)] + bs[seq_len(n)], collapse = ",")
+        tibble(
+          bin = 0L, name, chrom, strand,
+          txStart, txEnd, cdsStart, cdsEnd,
+          exonCount,
+          exonStarts = paste0(exStarts, ","),
+          exonEnds   = paste0(exEnds,   ","),
+          score, name2, cdsStartStat, cdsEndStat, exonFrames
+        )
+      })
+    
+  } else {
+    if(length(d) == 15) d <- tibble::add_column(d, bin = NA, .before = 'V1')
   
-  names(d) <- c('bin', 'name', 'chrom', 'strand', 'txStart', 'txEnd', 'cdsStart',
-                'cdsEnd', 'exonCount', 'exonStarts', 'exonEnds', 'score', 'name2',
-                'cdsStartStat', 'cdsEndStat', 'exonFrames')
+    names(d) <- c('bin', 'name', 'chrom', 'strand', 'txStart', 'txEnd', 'cdsStart',
+                  'cdsEnd', 'exonCount', 'exonStarts', 'exonEnds', 'score', 'name2',
+                  'cdsStartStat', 'cdsEndStat', 'exonFrames')
+  }
   
   if(humanGeneFilter) d <- humanGeneFilter(d)
   
@@ -117,18 +157,23 @@ createRefSeqObjects <- function(file, label, humanGeneFilter = FALSE){
                                 end.field = 'txEnd', strand.field = 'strand',
                                 keep.extra.columns = TRUE)
   
-  d$exonStarts2 <- strsplit(d$exonStarts, ',')
-  d$exonEnds2 <- strsplit(d$exonEnds, ',')
-  
-  e <- group_by(d, 1:nrow(d)) %>%
-    unnest(cols = c(exonStarts2, exonEnds2)) %>%
-    mutate(name = paste('exon', 1:n()),
-           exonStarts = as.integer(exonStarts2),
-           exonEnds = as.integer(exonEnds2)) %>%
+  d$exonStarts <- sub(',\\s*$', '', d$exonStarts)
+  d$exonEnds <- sub(',\\s*$', '', d$exonEnds)
+
+  e <- d %>%
+    mutate(row_id = row_number()) %>%     
+    group_by(row_id) %>%
+    tidyr::separate_rows(exonStarts, exonEnds, sep = ",") %>%
+    mutate(name       = paste("exon", row_number()),
+           exonStarts = as.integer(exonStarts),
+           exonEnds   = as.integer(exonEnds)) %>%
     ungroup() %>%
-    makeGRangesFromDataFrame(seqnames.field = 'chrom', start.field = 'exonStarts2',
-                             end.field = 'exonEnds2', strand.field = 'strand',
+    select(-row_id) %>%
+    makeGRangesFromDataFrame(seqnames.field = 'chrom', start.field = 'exonStarts',
+                             end.field = 'exonEnds', strand.field = 'strand',
                              keep.extra.columns = TRUE)
+  
+  
   
   saveRDS(g, file = file.path(opts$outputDir, 'genomeAnnotations', paste0(label, '.TUs.rds')))
   saveRDS(e, file = file.path(opts$outputDir, 'genomeAnnotations', paste0(label, '.exons.rds')))

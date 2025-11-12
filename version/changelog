@@ -254,3 +254,5 @@ Added memory monitoring to master log file.
 Fixed an issue with anchorReadRearrangements where it would sometimes write over its own tmp files.
 Patched main.R in by adding --dna flag to nhmmer so that it would not panic when it could not determine alphabet type.
 Patched fuzzy fragment corretion in buildStdFragments when different reads build the same fragment associated with the same site after standardization.
+3.2.2
+Patched an issue where scientific notation could be pasted into position ids.

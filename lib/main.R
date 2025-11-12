@@ -1,3 +1,9 @@
+
+sfn <- function(x){
+  if(is.character(x)) x <- as.numeric(x)
+  format(x, scientific = FALSE, trim = FALSE)
+}
+
 updateLog <- function(msg, logFile = NULL){
   if(is.null(logFile)) logFile <- opt$defaultLogFile
   msg <- paste0(base::format(Sys.time(), "%m.%d.%Y %l:%M%P"), "\t", msg)
