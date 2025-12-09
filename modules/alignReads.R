@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+options(scipen = 999, useFancyQuotes = FALSE, stringsAsFactors = FALSE)
 
 # AAVengeR/alignReads.R
 # John K. Everett, Ph.D.
@@ -8,8 +9,6 @@
 # found in the configuration file.
 
 for (p in c('lubridate', 'dplyr', 'parallel', 'data.table', 'Biostrings', 'RMariaDB')) suppressPackageStartupMessages(library(p, character.only = TRUE))
-
-options(stringsAsFactors = FALSE)
 
 # Read in the configuration file and perform basic sanity checks.
 args <- commandArgs(trailingOnly=TRUE)

@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+options(scipen = 999, useFancyQuotes = FALSE)
 
 # AAVengeR/predictPCRartifacts.R
 # John K. Everett, Ph.D.

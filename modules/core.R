@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+options(scipen = 999, useFancyQuotes = FALSE)
 
 # AAVengeR/core.R
 # John K. Everett, Ph.D.
@@ -108,8 +109,8 @@ distribute_integer <- function(total, n) {
 
 allocate_CPUs <- function(totalCPUs, jobReads, minCPUsPerJob = 1, maxCPUsPerJob = totalCPUs, maxReadsPerCPU = 5000, readsDownStep = 1){
   o <- round(jobReads / maxReadsPerCPU)             # Set an initial number of CPUs for each job.
-  o <- ifelse(o < minCPUsPerJob, minCPUsPerJob, o)  # Make sure each job has at least the min. number of CPUs.
   o <- ifelse(o > opt$core_CPUs, opt$core_CPUs, o)  # Make sure no job has more than the total number of available CPUs.
+  o <- ifelse(o < minCPUsPerJob, minCPUsPerJob, o)  # Make sure each job has at least the min. number of CPUs.
   
   o_min <- o
     
@@ -158,7 +159,7 @@ jobStatus <- function(searchPattern = 'sites.done', outputFileName = 'jobTable.t
   o <- jobTable[jobTable$done == FALSE & jobTable$active == FALSE,]
    
   if(nrow(o) > 0 & free_CPUs > 0){
-    o$CPUs <- allocate_CPUs(free_CPUs, o$reads, maxReadsPerCPU = opt$core_readsPerCPU)
+    o$CPUs <- allocate_CPUs(free_CPUs, o$reads, maxReadsPerCPU = opt$core_readsPerCPU, minCPUsPerJob = opt$core_minCPUsPerJob, readsDownStep = opt$core_readsDownSte)
     jobTable[match(o$id, jobTable$id),]$CPUs <<- o$CPUs
    }
   
@@ -185,7 +186,7 @@ jobTable <- data.frame(table(reads$uniqueSample)) %>%
             dplyr::rename(reads = Freq)
 
 # Assign a job an initial number of cores based on the number of its reads.
-jobTable$CPUs         <- allocate_CPUs(opt$core_CPUs, jobTable$reads, maxReadsPerCPU = opt$core_readsPerCPU)
+jobTable$CPUs         <- allocate_CPUs(opt$core_CPUs, jobTable$reads, maxReadsPerCPU = opt$core_readsPerCPU, minCPUsPerJob = opt$core_minCPUsPerJob, readsDownStep = opt$core_readsDownStep)
 jobTable$active       <- FALSE
 jobTable$startTime    <- NA
 jobTable$endTime      <- NA
@@ -213,8 +214,9 @@ while(! all(jobTable$done == TRUE)){
   
   # If no jobs can be started now, search for completed jobs then loop.
   if(nrow(tab) == 0){
-    Sys.sleep(60)
+    Sys.sleep(5)
     jobStatus(searchPattern = 'fragments.done', outputFileName = 'replicateJobTable')
+    Sys.sleep(5)
     next
   }
   
@@ -309,7 +311,7 @@ jobTable <- group_by(distinct(frags), id) %>%
   ungroup() %>% 
   arrange(desc(reads))
 
-jobTable$CPUs         <- allocate_CPUs(opt$core_CPUs, jobTable$reads, maxReadsPerCPU = opt$core_readsPerCPU)
+jobTable$CPUs         <- allocate_CPUs(opt$core_CPUs, jobTable$reads, maxReadsPerCPU = opt$core_readsPerCPU, minCPUsPerJob = opt$core_minCPUsPerJob, readsDownStep = opt$core_readsDownSte)
 jobTable$active       <- FALSE
 jobTable$startTime    <- NA
 jobTable$endTime      <- NA
@@ -339,8 +341,9 @@ while(! all(jobTable$done == TRUE)){
   
   # If no job can be started, look for completed jobs the loop again.
   if(nrow(tab) == 0){
-    Sys.sleep(60)
+    Sys.sleep(5)
     jobStatus(searchPattern = 'sites.done', outputFileName = 'subjectJobTable')
+    Sys.sleep(5)
     next
   }
   

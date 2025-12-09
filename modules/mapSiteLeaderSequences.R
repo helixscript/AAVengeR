@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+options(scipen = 999, useFancyQuotes = FALSE)
 
 # AAVengeR/filterVectorAgainstSeqs.R
 # John K. Everett, Ph.D.

@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+options(scipen = 999, useFancyQuotes = FALSE)
 
 # AAVengeR/barcodeAssocLinkers.R
 # John K. Everett, Ph.D.
@@ -12,7 +13,7 @@ for (p in c('dplyr', 'ShortRead')) suppressPackageStartupMessages(library(p, cha
 # Read in the configuration file and perform basic sanity checks.
 args <- commandArgs(trailingOnly=TRUE)
 if(length(args) == 0) stop('Expected at least one command line argument')
-source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib', 'main.R')))
+source(file.path(yaml::read_yaml(args[1])$softwareDir, 'lib', 'main.R'))
 opt <- startModule(args)
 
 if(! dir.exists(file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir))) dir.create(file.path(opt$outputDir, opt$barcodeAssocLinkers_outputDir), showWarnings = FALSE)

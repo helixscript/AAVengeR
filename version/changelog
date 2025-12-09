@@ -256,3 +256,7 @@ Patched main.R in by adding --dna flag to nhmmer so that it would not panic when
 Patched fuzzy fragment corretion in buildStdFragments when different reads build the same fragment associated with the same site after standardization.
 3.2.2
 Patched an issue where scientific notation could be pasted into position ids.
+3.2.3
+Patched an issue with the formatiing of position ids introducted in 3.2.2.
+Further tuned default queue parameters in core module.
+Topped each module with "options(scipen = 999, useFancyQuotes = FALSE)"

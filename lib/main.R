@@ -1,9 +1,27 @@
 
-sfn <- function(x){
-  if(is.character(x)) x <- as.numeric(x)
-  format(x, scientific = FALSE, trim = FALSE)
+# Create a 30 character alpha numeric string for naming tmp files.
+tmpFile <- function(){ paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') }
+
+
+# Pretty print a number with commas.
+ppNum <- function(n) format(n, big.mark = ",", scientific = FALSE, trim = TRUE)
+
+
+# Create the output directory defined in the configuration file.
+createOuputDir <- function(){
+  if(! dir.exists(opt$outputDir)){
+    dir.create(file.path(opt$outputDir), showWarnings = FALSE)
+    
+    if(! dir.exists(opt$outputDir)){
+      message('Error: Can not create the output directory.')
+      closeAllConnections()
+      quit(save = "no", status = 0, runLast = FALSE)
+    }
+  }
 }
 
+
+# Update a log file (module default if not specified) with a timestamp and message.
 updateLog <- function(msg, logFile = NULL){
   if(is.null(logFile)) logFile <- opt$defaultLogFile
   msg <- paste0(base::format(Sys.time(), "%m.%d.%Y %l:%M%P"), "\t", msg)
@@ -11,6 +29,197 @@ updateLog <- function(msg, logFile = NULL){
 }
 
 
+# Last Path Element -- return the last element of a file path delimited by slashes.
+lpe <- function(x){
+  o <- unlist(strsplit(x, '/'))
+  o[length(o)]
+}
+
+
+# Convert a ShortRead object to a BioString DNA object and
+# removing trailing lane information from reads ids.
+shortRead2DNAstringSet <- function(x){
+  r <- x@sread
+  names(r) <- sub('\\s+.+$', '', as.character(x@id))
+  r
+}
+
+
+# Helper function to wait for a file to appear on the file system.
+waitForFile <- function(f, seconds = 1){
+  repeat
+  {
+    Sys.sleep(seconds)
+    if(file.exists(f)) break
+  }
+  return(TRUE)
+}
+
+
+# Function that accepts two or more DNAstringSet objects, and returns subsets that share common reads IDs.
+syncReads <- function(...){
+  arguments <- list(...)
+  n <- Reduce(base::intersect, lapply(arguments, names))
+  lapply(arguments, function(x) x[match(n, names(x))])
+}
+
+
+# Blat a series of sequences passed in as a data frame against a reference.
+blat <- function(y, ref, dir){
+  f <- file.path(dir, tmpFile())
+  write(paste0('>', y$id, '\n', y$seq), f)
+  
+  occFlag <- ''
+  if(opt$alignReads_blatUseOocFile){
+    occFlag <- paste0(' -ooc=', file.path(opt$outputDir, opt$alignReads_outputDir, paste0(opt$alignReads_genomeAlignment_blatTileSize, '.ooc'))) 
+  }
+  
+  system(paste0('blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
+                ' -tileSize=', opt$alignReads_genomeAlignment_blatTileSize, 
+                ' -stepSize=', opt$alignReads_genomeAlignment_blatStepSize, 
+                ' -repMatch=', opt$alignReads_genomeAlignment_blatRepMatch, 
+                ' -out=psl -t=dna -q=dna -minScore=0 -minIdentity=0 -noHead -noTrimA',
+                occFlag, ifelse(opt$alignReads_blat_fastMap, ' -fastMap', '')), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  
+  write('done', paste0(f, '.done'))
+}
+
+
+# Parse a PSL created by blat and return a data frame of results.
+parseBLAToutput <- function(f){
+  if(! file.exists(f) | file.info(f)$size == 0) return(tibble::tibble())
+  b <- readr::read_delim(f, delim = '\t', col_names = FALSE, col_types = 'iiiiiiiicciiiciiiiccc')
+  
+  x <- read.table(textConnection(system(paste(file.path(opt$softwareDir, 'bin', 'pslScore.pl') ,  f), intern = TRUE)), sep = '\t')
+  names(x) <- c('tName', 'tStart', 'tEnd', 'hit', 'pslScore', 'percentIdentity')
+  
+  names(b) <- c('matches', 'misMatches', 'repMatches', 'nCount', 'qNumInsert', 'qBaseInsert', 'tNumInsert', 'tBaseInsert', 'strand',
+                'qName', 'qSize', 'qStart', 'qEnd', 'tName', 'tSize', 'tStart', 'tEnd', 'blockCount', 'blockSizes', 'qStarts', 'tStarts')
+  
+  b$queryPercentID <- x$percentIdentity
+  b$pslScore <- x$pslScore
+  b$tStart <- x$tStart
+  b$tEnd <- x$tEnd - 1 # Correct for zero-based half open coordinate system.
+  
+  dplyr::select(b, qName, matches, strand, qSize, qStart, qEnd, tName, tNumInsert, qNumInsert, tBaseInsert, qBaseInsert, tStart, tEnd, queryPercentID, pslScore)
+}
+
+
+blastReads <- function(reads, wordSize = 5, evalue = 100, tmpDirPath = NA, dbPath = NA){
+  suppressPackageStartupMessages(library(Biostrings))
+  suppressPackageStartupMessages(library(dplyr))
+  
+  f <- tmpFile()
+  writeXStringSet(reads,  file.path(tmpDirPath, paste0(f, '.fasta')))
+  
+  comm <- paste0('blastn -dust no -soft_masking false -word_size ', wordSize, ' -evalue ', evalue,' -outfmt 6 -query ',
+                 file.path(tmpDirPath, paste0(f, '.fasta')), ' -db ',
+                 dbPath, ' -num_threads 1 -out ', file.path(tmpDirPath, paste0(f, '.blast')))
+  
+  system(comm, ignore.stdout = TRUE, ignore.stderr = TRUE)
+  
+  waitForFile(file.path(tmpDirPath, paste0(f, '.blast')))
+  
+  if(file.info(file.path(tmpDirPath, paste0(f, '.blast')))$size > 0){
+    b <- read.table(file.path(tmpDirPath, paste0(f, '.blast')), sep = '\t', header = FALSE)
+    names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
+    
+    o <- reads[names(reads) %in% b$qname]
+    d <- tibble(qname = names(o), qlen = width(o))
+    b <- left_join(b, d, by = 'qname')
+    return(b)
+  } else {
+    return(tibble())
+  }
+}
+
+
+reconstructDBtable <- function(o, tmpDirPath){
+  r <- tibble()
+  
+  if(nrow(o) > 0){
+    r <- bind_rows(lapply(split(o, 1:nrow(o)), function(y){
+      f <- tmpFile()
+      writeBin(unserialize(y$data[[1]]), file.path(tmpDirPath, paste0(f, '.xz')))
+      system(paste0('unxz ', file.path(tmpDirPath, paste0(f, '.xz'))))
+      d <- readr::read_tsv(file.path(tmpDirPath, f), show_col_types = FALSE)
+      invisible(file.remove(file.path(tmpDirPath, f)))
+      d
+    }))
+  }
+  
+  r
+}
+
+
+pullDBsubjectFrags <- function(dbConn, trial, subject, tmpDirPath){
+  o <- dbGetQuery(dbConn, paste0("select * from fragments where trial = '", trial, "' and subject = '", subject, "'"))
+  reconstructDBtable(o, tmpDirPath)
+}
+
+
+pullDBsubjectSites <- function(dbConn, trial, subject, tmpDirPath){
+  o <- dbGetQuery(dbConn, paste0("select * from sites where trial = '", trial, "' and subject = '", subject, "'"))
+  reconstructDBtable(o, tmpDirPath)
+}
+
+
+createDBconnection <- function(){
+  suppressPackageStartupMessages(library(RMariaDB))
+  
+  tryCatch({
+    dbConnect(RMariaDB::MariaDB(), group = opt$database_configGroup, default.file = opt$database_configFile)
+  },
+  error=function(cond) {
+    quitOnErorr('Error - could not connect to the database.')
+  })
+}
+
+
+uploadSitesToDB <- function(sites){
+  suppressPackageStartupMessages(library(RMariaDB))
+  
+  updateLog('Writing sites to the database.')
+  
+  if(! dir.exists(file.path(opt$outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, 'tmp'), showWarnings = FALSE)
+  
+  conn <- createDBconnection()
+  
+  invisible(lapply(split(sites, paste(sites$trial, sites$subject, sites$sample, sites$refGenome)), function(x){
+    updateLog(paste0('Uploading sites for: ', sites$trial[1], '/', sites$subject[1], '/', sites$sample[1], '/',sites$refGenome[1]))
+    
+    dbExecute(conn, paste0("delete from sites where trial='", x$trial[1], "' and subject='", x$subject[1],
+                           "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
+    
+    f <- tmpFile()
+    readr::write_tsv(x, file.path(opt$outputDir, 'tmp', f))
+    system(paste0('xz --best ', file.path(opt$outputDir, 'tmp', f)))
+    
+    fp <- file.path(opt$outputDir, 'tmp', paste0(f, '.xz'))
+    
+    updateLog(paste0('Reading tar ball as a byte stream (', file.size(fp), ' bytes).'))
+    
+    tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
+    
+    invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
+    
+    updateLog('Pushing byte object to database.')
+    
+    r <- dbExecute(conn,
+                   "insert into sites values (?, ?, ?, ?, ?)",
+                   params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], list(serialize(tab, NULL))))
+    if(r == 0){
+      quitOnErorr(paset0('Error -- could not upload site data for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
+    } else {
+      updateLog(paste0('Uploaded sites data for ',  x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
+    }
+  }))
+  
+  dbDisconnect(conn)
+}
+
+
+# Helper function that removes quoted white space within files that can break YAML parser.
 remove_whitespace_in_quotes <- function(file_path) {
   # Read all lines
   lines <- readLines(file_path)
@@ -33,7 +242,7 @@ remove_whitespace_in_quotes <- function(file_path) {
 }
 
 
-
+# Helper function that writes a data frame as tsv and adds provided comments to the top of the file.
 write_tsv_with_comments <- function(x, file,
                                     comments = character(),
                                     row.names = FALSE,
@@ -56,7 +265,8 @@ write_tsv_with_comments <- function(x, file,
 }
 
 
-
+# Function that scans for available module log files, organizes them, 
+# and writes them out to the master log file at the top of the output directory.
 updateMasterLog <- function(){
   lockFile <- file.path(opt$orgOutputDir, 'log.lock')
   
@@ -200,6 +410,7 @@ updateMasterLog <- function(){
 }
 
 
+# Helper function called by updateMasterLog() and creates banner text for log files.
 logBanner <- function(text, width = NULL, corner = "#", horiz = "#", vert = "#") {
   if (is.null(width)) width <- nchar(text) + 10
   if (nchar(text) > (width - 2))  stop("Text is too long to fit in the specified width.")
@@ -215,6 +426,7 @@ logBanner <- function(text, width = NULL, corner = "#", horiz = "#", vert = "#")
 }
 
 
+# Function that takes a data frame with label and value columns and creates a horizontal ascii bar chart.
 asciiPercentBarChart <- function(df, max_width = 50, label_width = 5, bar_char = "#") {
   if (! all(c("label", "value") %in% names(df))) stop("Data frame must have columns named 'label' and 'value'.")
   
@@ -231,6 +443,8 @@ asciiPercentBarChart <- function(df, max_width = 50, label_width = 5, bar_char =
 }
 
 
+# Function used to read in the configuration file and inject parameters provided in module lists.
+# The function also provides option sanity checks via optionsSanityCheck().
 startModule <- function(args){
   set.seed(1)
   configFile <- args[1]
@@ -258,6 +472,7 @@ startModule <- function(args){
 }
 
 
+# Function that looks for conflicts within the configuration file and sets mode specific paramater values.
 optionsSanityCheck <- function(opt){
   userRequired <- c('mode', 'softwareDir', 'outputDir', 'database_configFile', 'database_configGroup',
                     'demultiplex_anchorReadsFile', 'demultiplex_adriftReadsFile', 
@@ -341,22 +556,9 @@ optionsSanityCheck <- function(opt){
 }
 
 
-ppNum <- function(n) format(n, big.mark = ",", scientific = FALSE, trim = TRUE)
-
-
-createOuputDir <- function(){
-  if(! dir.exists(opt$outputDir)){
-    dir.create(file.path(opt$outputDir), showWarnings = FALSE)
-    
-    if(! dir.exists(opt$outputDir)){
-      message('Error: Can not create the output directory.')
-      closeAllConnections()
-      quit(save = "no", status = 0, runLast = FALSE)
-    }
-  }
-}
-
-
+# Function that checks to see if a sample replicate in the current run is already 
+# stored in the database (if databasing selected) and stops the processing run if
+# one is found.
 previousSampleDatabaseCheck <- function(samples){
   if(tolower(opt$database_configGroup) != 'none'){
       conn <- createDBconnection()
@@ -385,36 +587,14 @@ previousSampleDatabaseCheck <- function(samples){
 }
 
 
-runSam2Psl <- function(samFile, outputFile, cl){
-   o <- data.table(line = readLines(samFile))
-   o$n <- ntile(1:nrow(o), CPUs)
-   o <- split(o, o$n)
-   gc()
-
-   sam2psl <- function(x){
-     system(paste0(file.path(opt$softwareDir, 'bin', 'sam2psl.py'), ' -i ',  x, ' -o ', paste0(x, '.out')))
-     invisible(file.remove(x))
-     x <- readLines(paste0(x, '.out'))
-     invisible(file.remove(paste0(x, '.out')))
-     x
-   }
-
-   f <- lapply(o, function(x){
-     tmpFile <- paste0('sam2psl.', paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''))
-     write(x$line, file.path(opt$outputDir, tmpFile))
-     file.path(opt$outputDir, tmpFile)
-   })
-
-   write(unlist(parLapply(cl, f, sam2psl)), outputFile)
-}
-
-
+# Call free from the system to determine what percentage of the systems memory is being used.
 percentSysMemUsed <- function(){
   m <- as.integer(unlist(strsplit(system('free', intern = TRUE)[2], '\\s+'))[2:3])
   (m[2] / m[1]) * 100
 }
 
 
+# Helper function for waitForMemory() that will stop the pipeline if more than maxMem system memory is in use.
 lowMemoryException <- function(stepDesc = 'none', maxMem = 98){
   if(percentSysMemUsed() > maxMem){
     msg <- paste0('Error - the system has exceeded ', maxMem, '% memory usage -- stopping all processes. Step desc: ', stepDesc)
@@ -426,6 +606,7 @@ lowMemoryException <- function(stepDesc = 'none', maxMem = 98){
 }
 
 
+# This function creates an infinite loop which is not broken until minMem memory is available.
 waitForMemory <- function(stepDesc = 'none', minMem = 80, maxWaitSecs = 1200, sleepSecs = 10){
   gc()
   t = 0
@@ -456,17 +637,7 @@ waitForMemory <- function(stepDesc = 'none', minMem = 80, maxWaitSecs = 1200, sl
 }
 
 
-
-tmpFile <- function(){ paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') }
-
-# AAVengeR is provided with default configuration files for different types of analyses
-# where all the expected options are provided. Removing options from the configuration file
-# may break the software in some instances. Some modules, such as the core module, injects 
-# non-public options and this function ensures that they are always set even when not needed
-# so modules will not throw errors. 
-
-
-# Helper function that creates the expected done files expected by the core module when modules fail.
+# Helper functions that creates the expected done files expected by the core module when modules fail.
 # The core module would become stuck in a perpetual loop if the done files did not appear after a failure.
 
 core_createFauxFragDoneFiles <- function(){
@@ -483,10 +654,9 @@ core_createFauxSiteDoneFiles <- function(){
 }
 
 
-# Check the system path for the presence of required system level software.
-
+# Function that checks the system path for the presence of required system level software.
 checkSoftware <- function(){
-  s <- c('blat', 'cutadapt', 'hmmbuild', 'hmmsearch', 'blastn', 'makeblastdb', 'cd-hit-est', 'pear')
+  s <- c('blat', 'cutadapt', 'hmmbuild', 'nhmmer', 'blastn', 'makeblastdb', 'cd-hit-est', 'pear')
   
   o <- bind_rows(lapply(s, function(x){
          r <- tryCatch({
@@ -515,6 +685,8 @@ checkSoftware <- function(){
 }
 
 
+# Function that accepts a DNAstringSet object, writes FASTA out to disk, runs cd-hit-est,
+# and returns clusters as a large vector characters.
 CD_HIT_clusters <- function(x, dir, params){
   f <- tmpFile()
 
@@ -536,33 +708,7 @@ CD_HIT_clusters <- function(x, dir, params){
 }
 
 
-# Last Path Element -- return the last element of a file path delimited by slashes.
-lpe <- function(x){
-  o <- unlist(strsplit(x, '/'))
-  o[length(o)]
-}
-
-
-# Convert a ShortRead object to a BioString DNA object and
-# removing trailing lane information from reads ids.
-shortRead2DNAstringSet <- function(x){
-  r <- x@sread
-  names(r) <- sub('\\s+.+$', '', as.character(x@id))
-  r
-}
-
-
-# Helper function to wait for a file to appear on the file system.
-waitForFile <- function(f, seconds = 1){
-  repeat
-  {
-    Sys.sleep(seconds)
-    if(file.exists(f)) break
-  }
-  return(TRUE)
-}
-
-
+# Worker function of the demultiplex module.
 demultiplex <- function(x){
   suppressPackageStartupMessages(library(dplyr))
   suppressPackageStartupMessages(library(ShortRead))
@@ -629,7 +775,6 @@ demultiplex <- function(x){
     index1Reads <- reads[[1]];  anchorReads  <- reads[[2]]; adriftReads  <- reads[[3]]
   }
   
-  
   # Loop through samples in sample data file to demultiplex and apply read specific filters.
   invisible(lapply(1:nrow(samples), function(r){
     r <- samples[r,]
@@ -679,26 +824,7 @@ demultiplex <- function(x){
 }
 
 
-blat <- function(y, ref, dir){
-  f <- file.path(dir, tmpFile())
-  write(paste0('>', y$id, '\n', y$seq), f)
-  
-  occFlag <- ''
-  if(opt$alignReads_blatUseOocFile){
-    occFlag <- paste0(' -ooc=', file.path(opt$outputDir, opt$alignReads_outputDir, paste0(opt$alignReads_genomeAlignment_blatTileSize, '.ooc'))) 
-  }
-  
-  system(paste0('blat ', ref, ' ', f, ' ', paste0(f, '.psl'), 
-                ' -tileSize=', opt$alignReads_genomeAlignment_blatTileSize, 
-                ' -stepSize=', opt$alignReads_genomeAlignment_blatStepSize, 
-                ' -repMatch=', opt$alignReads_genomeAlignment_blatRepMatch, 
-                ' -out=psl -t=dna -q=dna -minScore=0 -minIdentity=0 -noHead -noTrimA',
-                occFlag, ifelse(opt$alignReads_blat_fastMap, ' -fastMap', '')), ignore.stdout = TRUE, ignore.stderr = TRUE)
-  
-  write('done', paste0(f, '.done'))
-}
-
-
+# Worker function for the prepReads module that aligns the ends of reads against vector sequences.
 alignReadEndsToVector <- function(y){
   suppressPackageStartupMessages(library(Biostrings))
   suppressPackageStartupMessages(library(data.table))
@@ -727,109 +853,7 @@ alignReadEndsToVector <- function(y){
 }
 
 
-reconstructSampleEnvironment <- function(dbConn, trial, subject, sample, replicate, refGenome, outputDir){
-  o <- dbGetQuery(dbConn, paste0("select * from samples where trial = '", trial, "' and subject = '", subject, 
-                                 "' and sample = '", sample, "' and replicate = '", replicate, "'"))
-  if(nrow(o) == 1){
-    writeBin(unserialize(o$environment[[1]]), file.path(outputDir, 'environment.tar.xz'))
-  } else {
-    message('Error - ', nrow(o), ' rows of data were returned when retrieving data for reconstructSampleEnvironment().')
-  }
-}
-
-
-reconstructDBtable <- function(o, tmpDirPath){
-  r <- tibble()
-  
-  if(nrow(o) > 0){
-    r <- bind_rows(lapply(split(o, 1:nrow(o)), function(y){
-           f <- tmpFile()
-           writeBin(unserialize(y$data[[1]]), file.path(tmpDirPath, paste0(f, '.xz')))
-           system(paste0('unxz ', file.path(tmpDirPath, paste0(f, '.xz'))))
-           d <- readr::read_tsv(file.path(tmpDirPath, f), show_col_types = FALSE)
-           invisible(file.remove(file.path(tmpDirPath, f)))
-           d
-         }))
-  }
-  
-  r
-}
-
-
-pullDBsubjectFrags <- function(dbConn, trial, subject, tmpDirPath){
-  o <- dbGetQuery(dbConn, paste0("select * from fragments where trial = '", trial, "' and subject = '", subject, "'"))
-  reconstructDBtable(o, tmpDirPath)
-}
-
-
-pullDBsubjectSites <- function(dbConn, trial, subject, tmpDirPath){
-  o <- dbGetQuery(dbConn, paste0("select * from sites where trial = '", trial, "' and subject = '", subject, "'"))
-  reconstructDBtable(o, tmpDirPath)
-}
-
-
-syncReads <- function(...){
-  arguments <- list(...)
-  n <- Reduce(base::intersect, lapply(arguments, names))
-  lapply(arguments, function(x) x[match(n, names(x))])
-}
-
-
-createDBconnection <- function(){
-  suppressPackageStartupMessages(library(RMariaDB))
-  
-  tryCatch({
-    dbConnect(RMariaDB::MariaDB(), group = opt$database_configGroup, default.file = opt$database_configFile)
-  },
-  error=function(cond) {
-    quitOnErorr('Error - could not connect to the database.')
-  })
-}
-
-
-uploadSitesToDB <- function(sites){
-  suppressPackageStartupMessages(library(RMariaDB))
-  
-  updateLog('Writing sites to the database.')
-
-  if(! dir.exists(file.path(opt$outputDir, 'tmp'))) dir.create(file.path(opt$outputDir, 'tmp'), showWarnings = FALSE)
-  
-  conn <- createDBconnection()
-  
-  invisible(lapply(split(sites, paste(sites$trial, sites$subject, sites$sample, sites$refGenome)), function(x){
-    updateLog(paste0('Uploading sites for: ', sites$trial[1], '/', sites$subject[1], '/', sites$sample[1], '/',sites$refGenome[1]))
-    
-    dbExecute(conn, paste0("delete from sites where trial='", x$trial[1], "' and subject='", x$subject[1],
-                           "' and sample='", x$sample[1], "' and refGenome='", x$refGenome[1], "'"))
-    
-    f <- tmpFile()
-    readr::write_tsv(x, file.path(opt$outputDir, 'tmp', f))
-    system(paste0('xz --best ', file.path(opt$outputDir, 'tmp', f)))
-    
-    fp <- file.path(opt$outputDir, 'tmp', paste0(f, '.xz'))
-    
-    updateLog(paste0('Reading tar ball as a byte stream (', file.size(fp), ' bytes).'))
-    
-    tab <- readBin(fp, "raw", n = as.integer(file.info(fp)["size"])+100)
-    
-    invisible(file.remove(list.files(file.path(opt$outputDir, 'tmp'), pattern = f, full.names = TRUE)))
-    
-    updateLog('Pushing byte object to database.')
-    
-    r <- dbExecute(conn,
-                   "insert into sites values (?, ?, ?, ?, ?)",
-                   params = list(x$trial[1], x$subject[1], x$sample[1], x$refGenome[1], list(serialize(tab, NULL))))
-    if(r == 0){
-      quitOnErorr(paset0('Error -- could not upload site data for ', x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
-    } else {
-      updateLog(paste0('Uploaded sites data for ',  x$trial[1], '~', x$subject[1], '~', x$sample[1], ' to the database.'))
-    }
-  }))
-  
-  dbDisconnect(conn)
-}
-
-
+# Function that reads in user provided sample data files and performs a series of sanity checks.
 loadSamples <- function(){
   
   samples <- readr::read_tsv(opt$demultiplex_sampleDataFile, show_col_types = FALSE, comment = "#")
@@ -968,39 +992,7 @@ loadSamples <- function(){
 }
 
 
-golayCorrection <- function(x, tmpDirPath = NA){
-  suppressPackageStartupMessages(library(ShortRead))
-  suppressPackageStartupMessages(library(dplyr))
-  
-  f <- file.path(tmpDirPath, paste0(paste0(stringi::stri_rand_strings(30, 1, '[A-Za-z0-9]'), collapse = ''), '.tmp') )
-  writeFasta(x, file = f)
-  
-  system(paste('python2', file.path(opt$softwareDir, 'bin', 'golayCorrection', 'processGolay.py'), f))
-  invisible(file.remove(f))
-  
-  corrected <- readFasta(paste0(f, '.corrected'))
-  invisible(file.remove(paste0(f, '.corrected')))
-  
-  a <- left_join(tibble(id = names(x), seq = as.character(x)),
-                 tibble(id = as.character(corrected@id), seq2 = as.character(sread(corrected))), by = 'id')
-  a <- rowwise(a) %>% mutate(editDist = as.integer(adist(seq, seq2))) %>% ungroup()
-  
-  i <- which(a$editDist <= 2)
-  a[i,]$seq <- a[i,]$seq2
-  
-  if(! all(names(x) == a$id)){
-    updateLog('Error - There was an ordering error during the Golay correction step.')
-    updateMasterLog()
-    closeAllConnections()
-    quit(save = "no", status = 0, runLast = FALSE) 
-  }
-  
-  r <- DNAStringSet(a$seq)
-  names(r) <- a$id
-  r
-}
-
-
+# Helper function for blast2rearangements() that accepts a blastn output and builds simple rearrangement models.
 buildRearrangementModel <- function(b, seqsMinAlignmentLength){
   r <- vector()
   counter <- 0
@@ -1024,6 +1016,36 @@ buildRearrangementModel <- function(b, seqsMinAlignmentLength){
 }
 
 
+# Rearrangement model worker called by prepReads module for AAV work.
+blast2rearangements_worker <-  function(b){
+  library(IRanges)
+  library(dplyr)
+  library(data.table)
+  
+  data.table::rbindlist(lapply(split(b, b$qname), function(b2){
+    
+    # Alignment to the negative strand will result in the subject end to come before the start.
+    # Switch it back so that they are sequential.
+    b2 <- arrange(b2, qstart, evalue)
+    b2$sstart2 <- ifelse(b2$sstart > b2$send, b2$send, b2$sstart)
+    b2$send2   <- ifelse(b2$sstart > b2$send, b2$sstart, b2$send)
+    
+    
+    ir <- IRanges(start = b2$qstart, end = b2$qend)
+    if(length(ir) == 0) return(data.table())
+    
+    r <- IRanges::reduce(ir, min.gapwidth = opt$prepReads_mapLeaderSeqsMaxGapBetweenAlignments)
+    r <- r[start(r) <= opt$prepReads_buildReadMaps_minMapStartPostion]
+    if(length(r) == 0) return(data.table())
+    
+    o <- data.table(qname = b2$qname[1], end = IRanges::end(r), width = width(r))
+    o <- o[o$width == max(o$width),]
+    o[1,]
+  }))
+}
+
+
+# Function that assembles local blast alignments into rearrangement models. 
 blast2rearangements <- function(b, maxMissingTailNTs, minLocalAlignmentLength){
   suppressPackageStartupMessages(library(dplyr))
   suppressPackageStartupMessages(library(IRanges))
@@ -1065,6 +1087,7 @@ blast2rearangements <- function(b, maxMissingTailNTs, minLocalAlignmentLength){
 }
 
 
+# Function to apply user defined HMMs to read sequences. Returns a data frame of read ids and HMM recognized sequences.
 captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
   outputFile <- file.path(tmpDirPath, tmpFile())
   
@@ -1087,7 +1110,6 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
   endPos <- ifelse(width(reads) > opt$prepReads_HMMsearchReadEndPos, opt$prepReads_HMMsearchReadEndPos, width(reads))
   writeXStringSet(subseq(reads, opt$prepReads_HMMsearchReadStartPos, endPos), outputFile)
   
-  ### comm <- paste0('nhmmer --max -T 0 --incT 0 --tblout ', outputFile, '.tbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
   comm <- paste0('nhmmer --dna --F1 1 --F2 1 --F3 1 -T -5 --incT -5 --nobias --popen 0.15 --pextend 0.05 --tblout ', outputFile, '.tbl ', hmm, ' ', outputFile, ' > ', outputFile, '.hmmsearch')
   system(comm)
   
@@ -1171,36 +1193,8 @@ captureHMMleaderSeq <- function(reads, hmm, tmpDirPath = NA){
 }
 
 
-blastReads <- function(reads, wordSize = 5, evalue = 100, tmpDirPath = NA, dbPath = NA){
-  suppressPackageStartupMessages(library(Biostrings))
-  suppressPackageStartupMessages(library(dplyr))
-  
-  f <- tmpFile()
-  writeXStringSet(reads,  file.path(tmpDirPath, paste0(f, '.fasta')))
-  
-  comm <- paste0('blastn -dust no -soft_masking false -word_size ', wordSize, ' -evalue ', evalue,' -outfmt 6 -query ',
-                 file.path(tmpDirPath, paste0(f, '.fasta')), ' -db ',
-                 dbPath, ' -num_threads 1 -out ', file.path(tmpDirPath, paste0(f, '.blast')))
-  
-  system(comm, ignore.stdout = TRUE, ignore.stderr = TRUE)
-  
-  waitForFile(file.path(tmpDirPath, paste0(f, '.blast')))
-  
-  if(file.info(file.path(tmpDirPath, paste0(f, '.blast')))$size > 0){
-    b <- read.table(file.path(tmpDirPath, paste0(f, '.blast')), sep = '\t', header = FALSE)
-    names(b) <- c('qname', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore')
-    
-    o <- reads[names(reads) %in% b$qname]
-    d <- tibble(qname = names(o), qlen = width(o))
-    b <- left_join(b, d, by = 'qname')
-    return(b)
-  } else {
-    return(tibble())
-  }
-}
-
-
-
+# Function that accepts a list of position ids and returns nearest genes and 
+# exon annotations based on subject GRanges.  
 nearestGene <- function(posids, genes, exons, CPUs = 20){
   suppressPackageStartupMessages(library(dplyr))
   suppressPackageStartupMessages(library(parallel))
@@ -1292,54 +1286,8 @@ nearestGene <- function(posids, genes, exons, CPUs = 20){
 }
 
 
-parseBLAToutput <- function(f){
-  if(! file.exists(f) | file.info(f)$size == 0) return(tibble::tibble())
-  b <- readr::read_delim(f, delim = '\t', col_names = FALSE, col_types = 'iiiiiiiicciiiciiiiccc')
-  
-  x <- read.table(textConnection(system(paste(file.path(opt$softwareDir, 'bin', 'pslScore.pl') ,  f), intern = TRUE)), sep = '\t')
-  names(x) <- c('tName', 'tStart', 'tEnd', 'hit', 'pslScore', 'percentIdentity')
-  
-  names(b) <- c('matches', 'misMatches', 'repMatches', 'nCount', 'qNumInsert', 'qBaseInsert', 'tNumInsert', 'tBaseInsert', 'strand',
-                'qName', 'qSize', 'qStart', 'qEnd', 'tName', 'tSize', 'tStart', 'tEnd', 'blockCount', 'blockSizes', 'qStarts', 'tStarts')
-  
-  b$queryPercentID <- x$percentIdentity
-  b$pslScore <- x$pslScore
-  b$tStart <- x$tStart
-  b$tEnd <- x$tEnd - 1 # Correct for zero-based half open coordinate system.
-  
-  dplyr::select(b, qName, matches, strand, qSize, qStart, qEnd, tName, tNumInsert, qNumInsert, tBaseInsert, qBaseInsert, tStart, tEnd, queryPercentID, pslScore)
-}
-
-
-blast2rearangements_worker <-  function(b){
-  library(IRanges)
-  library(dplyr)
-  library(data.table)
-  
-  data.table::rbindlist(lapply(split(b, b$qname), function(b2){
-    
-    # Alignment to the negative strand will result in the subject end to come before the start.
-    # Switch it back so that they are sequential.
-    b2 <- arrange(b2, qstart, evalue)
-    b2$sstart2 <- ifelse(b2$sstart > b2$send, b2$send, b2$sstart)
-    b2$send2   <- ifelse(b2$sstart > b2$send, b2$sstart, b2$send)
-    
-    
-    ir <- IRanges(start = b2$qstart, end = b2$qend)
-    if(length(ir) == 0) return(data.table())
-    
-    r <- IRanges::reduce(ir, min.gapwidth = opt$prepReads_mapLeaderSeqsMaxGapBetweenAlignments)
-    r <- r[start(r) <= opt$prepReads_buildReadMaps_minMapStartPostion]
-    if(length(r) == 0) return(data.table())
-    
-    o <- data.table(qname = b2$qname[1], end = IRanges::end(r), width = width(r))
-    o <- o[o$width == max(o$width),]
-    o[1,]
-  }))
-}
-
-
-
+# Helper function for the buildSites module that create selects representative 
+# leader sequences from collections of fragments.
 buildRepLeaderSeqTable <- function(xx, collapseReplicates = FALSE){
   xx$posid2 <- sub('\\.\\d+$', '', xx$posid)
   
@@ -1420,8 +1368,6 @@ buildRepLeaderSeqTable <- function(xx, collapseReplicates = FALSE){
   as_tibble(leaderSeqReps)
 }
 
-
-
 ensureDataTypes <- function(opt){
   
  opt$core_CPUs <- as.integer(opt$core_CPUs)
@@ -1467,7 +1413,7 @@ ensureDataTypes <- function(opt){
  opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned <- as.integer(opt$alignReads_genomeAlignment_anchorReadEnd_maxUnaligned)
  opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned <- as.integer(opt$alignReads_genomeAlignment_adriftReadEnd_maxUnaligned)
  
- opt$buildFragments_CPUs <- as.integer(opt$buildFragments_CPUs)
+ opt$buildFragments_CPUs              <- as.integer(opt$buildFragments_CPUs)
  opt$buildFragments_idGroup_size      <- as.integer(opt$buildFragments_idGroup_size)
  opt$buildFragments_maxReadAlignments <- as.integer(opt$buildFragments_maxReadAlignments)
  opt$buildFragments_minFragLength     <- as.integer(opt$buildFragments_minFragLength)

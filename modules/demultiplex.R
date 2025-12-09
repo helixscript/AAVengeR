@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+options(scipen = 999, useFancyQuotes = FALSE)
 
 # John K. Everett, PhD
 # AAVengeR/demultipex.R

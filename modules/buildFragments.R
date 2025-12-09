@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+options(scipen = 999, useFancyQuotes = FALSE)
 
 # AAVengeR/buildFragments.R
 # John K. Everett, Ph.D.
@@ -51,7 +52,7 @@ anchorReadAlignments$refGenome <- sapply(anchorReadAlignments$refGenome, lpe)
 anchorReadAlignments$vectorFastaFile <- sapply(anchorReadAlignments$vectorFastaFile, lpe)
 
 # Create posid column.
-anchorReadAlignments$posid <- paste0(anchorReadAlignments$tName, anchorReadAlignments$strand, ifelse(anchorReadAlignments$strand == '+', sfn(anchorReadAlignments$tStart), sfn(anchorReadAlignments$tEnd)))
+anchorReadAlignments$posid <- paste0(anchorReadAlignments$tName, anchorReadAlignments$strand, ifelse(anchorReadAlignments$strand == '+', anchorReadAlignments$tStart, anchorReadAlignments$tEnd))
 
 anchorReadAlignments$sample <- sub('~\\d+$', '', anchorReadAlignments$uniqueSample)
 adriftReadAlignments$sample <- sub('~\\d+$', '', adriftReadAlignments$uniqueSample)

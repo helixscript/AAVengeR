@@ -353,15 +353,15 @@ siteGroups = numpy.array_split(sites, sampleGroups.ngroups)
 z = 0
 truths = []
 
-# Create a dictionary of fragment ids to replicate numbrtd (1 - 4). 
-# (!) Only goes out to frag100 - need to limit user frag requests. 
+# Create a dictionary of fragment ids to replicate numbrtd (1 - 4).
+# (!) Only goes out to frag100 - need to limit user frag requests.
 fragToRep = dict(zip(['frag' + str(n) for n in list(range(1,101))], list(range(1, 5))*20))
 
 print("Building I1 reads and writing all reads to output.")
 for (key, group) in sampleGroups:
     # Create list of replicate bar codes associated with this sample.
     barCodes = list(group['index1Seq'])
-    
+
     # Loop through sites in c
     for x in siteGroups[z]:
 
@@ -374,7 +374,7 @@ for (key, group) in sampleGroups:
       truths.append({'trial': key[0], 'subject': key[1], 'sample': key[2], 'posid': x.readIDs[i].split('_')[0], 
                     'nReads': args.nFrags * args.nReadsPerFrag, 'nFrags': args.nFrags, 'nUMIs': args.nFrags, 
                     'leaderSeq': x.remnant})
-      
+
       for i in range(len(x.readIDs)):
         # Replace NNN in linker with fragment UMIs, build R1 FASTQ, write.
         x.R1[i] = x.R1[i].replace('NNNNNNNNNNNN', x.UMIs[i])
@@ -386,7 +386,7 @@ for (key, group) in sampleGroups:
 
         # Build and write R2.
         o = ['@' + x.readIDs[i], x.R2[i], '+', ''.join('?'*len(x.R2[i]))]
-        
+
         with open(os.path.join(args.outputDir, 'R2.fastq'), 'a') as f:
          for line in o:
            f.write("%s\n" % line)
@@ -399,15 +399,15 @@ for (key, group) in sampleGroups:
         with open(os.path.join(args.outputDir, 'I1.fastq'), 'a') as f:
          for line in o:
            f.write("%s\n" % line)
-    z += 1     
+    z += 1
 
 print("Writing tabular outputs.")
 # Write out sample table.
-sampleData.to_csv(os.path.join(args.outputDir, 'sampleData.tsv'), sep='\t', index=False) 
+sampleData.to_csv(os.path.join(args.outputDir, 'sampleData.tsv'), sep='\t', index=False)
 
 # Write out truth table.
 t = pandas.DataFrame.from_records([truth for truth in truths])
-t.to_csv(os.path.join(args.outputDir, 'truth.tsv'), sep='\t', index=False) 
+t.to_csv(os.path.join(args.outputDir, 'truth.tsv'), sep='\t', index=False)
 
 # Compress fastq files.
 os.system('gzip ' + args.outputDir + '/*.fastq')
@@ -419,9 +419,11 @@ with open(config_path, "r", encoding="utf-8") as f:
     configData = yaml.safe_load(f)
 
 configData['mode'] = args.mode
+configData['core_minCPUsPerJob'] = 1
 configData['outputDir'] =  os.path.join(args.outputDir, 'output')
 configData['softwareDir'] = args.softwareDir
 configData['core_CPUs'] = args.threads
+configData['core_keepIntermediateFiles'] = True
 configData['database_samplesConfigGroup'] = 'none'
 configData['demultiplex_anchorReadsFile'] = os.path.join(args.outputDir, 'R2.fastq.gz')
 configData['demultiplex_adriftReadsFile'] = os.path.join(args.outputDir, 'R1.fastq.gz')

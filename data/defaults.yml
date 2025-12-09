@@ -18,6 +18,8 @@ core_keepIntermediateFiles: FALSE
 core_applyCoreCPUsToAllModules: TRUE
 core_skipDemultiplexing: FALSE
 core_skipReplicateLevelJobs: FALSE
+core_minCPUsPerJob: 1
+core_readsDownStep: 1
 
 databaseConfigFile: /home/ubuntu/.my.cnf
 databaseConfigGroup: none

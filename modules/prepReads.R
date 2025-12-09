@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+options(scipen = 999, useFancyQuotes = FALSE, stringsAsFactors = FALSE)
 
 # John K. Everett, PhD
 # AAVengeR/prepReads.R
@@ -8,8 +9,6 @@
 # the vector and selecting anchor reads with the expected leader sequences. 
 
 for (p in c('ShortRead', 'dplyr','parallel', 'lubridate','Biostrings', 'data.table', 'dtplyr', 'RMariaDB')) suppressPackageStartupMessages(library(p, character.only = TRUE))
-
-options(stringsAsFactors = FALSE)
 
 # Read in the configuration file and perform basic sanity checks.
 set.seed(1)

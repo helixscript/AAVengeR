@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+options(scipen = 999, useFancyQuotes = FALSE)
 
 # AAVengeR/buildStdFragments.R
 # John K. Everett, Ph.D.
@@ -64,7 +65,7 @@ frags <- data.table(tidyr::separate(frags, uniqueSample, c('trial', 'subject', '
          dplyr::select(-refGenome, -vectorFastaFile, -flags))
 
 frags$trialSubject <- paste0(frags$trial, '~', frags$subject)
-frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', sfn(frags$fragStart), sfn(frags$fragEnd)))
+frags$posid <- paste0(frags$chromosome, frags$strand, ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd))
 
 
 
@@ -195,7 +196,7 @@ if(opt$buildStdFragments_standardizeIntegrationPositions){
 
   # Update position and fragment ids.
   frags$posid <- paste0(frags$chromosome, frags$strand, 
-                        ifelse(frags$strand == '+', sfn(frags$fragStart), sfn(frags$fragEnd)),
+                        ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd),
                         '.', frags$leaderSeqGroupNum)
 
   frags <- tidyr::unite(frags, fragID, trial, subject, sample, replicate, 
@@ -285,7 +286,7 @@ if(opt$buildStdFragments_standardizeBreakPositions){
 
   # Update position and fragment ids.
   frags$posid <- paste0(frags$chromosome, frags$strand, 
-                        ifelse(frags$strand == '+', sfn(frags$fragStart), sfn(frags$fragEnd)),
+                        ifelse(frags$strand == '+', frags$fragStart, frags$fragEnd),
                         '.', frags$leaderSeqGroupNum)
 
   frags <- tidyr::unite(frags, fragID, trial, subject, sample, replicate, 
